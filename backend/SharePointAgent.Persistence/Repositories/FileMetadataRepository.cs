@@ -44,6 +44,11 @@ public sealed class FileMetadataRepository(IDbContextFactory<SharePointIndexDbCo
         row.IndexFingerprint = Truncate(record.IndexFingerprint, 200)!;
         row.ChunkCount = record.ChunkCount;
         row.EmbeddingTokenCount = record.EmbeddingTokenCount;
+        row.SensitivityLabelId = record.Sensitivity?.LabelId;
+        row.SensitivityLabelName = Truncate(record.Sensitivity?.LabelName, 255);
+        row.IsLabeled = record.Sensitivity?.IsLabeled;
+        row.IsEncrypted = record.Sensitivity?.IsEncrypted;
+        row.SensitivityCheckedAtUtc = record.Sensitivity?.CheckedAtUtc;
         row.ScanId = record.ScanId;
         row.IndexedAtUtc = record.IndexedAtUtc;
 
@@ -93,7 +98,13 @@ public sealed class FileMetadataRepository(IDbContextFactory<SharePointIndexDbCo
         row.ChunkCount,
         row.ScanId,
         row.IndexedAtUtc,
-        row.EmbeddingTokenCount);
+        row.EmbeddingTokenCount,
+        ToSensitivity(row));
+
+    internal static FileSensitivity? ToSensitivity(IndexedFileEntity row) =>
+        row.SensitivityCheckedAtUtc is { } checkedAt && row.IsLabeled is { } labeled && row.IsEncrypted is { } encrypted
+            ? new FileSensitivity(row.SensitivityLabelId, row.SensitivityLabelName, labeled, encrypted, checkedAt)
+            : null;
 
     private static string? Truncate(string? value, int length) =>
         value is not null && value.Length > length ? value[..length] : value;

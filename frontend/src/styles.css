@@ -728,6 +728,25 @@ button.ghost:hover:not(:disabled) {
 
 /* ---------- badges & messages ---------- */
 
+.sensitivity-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+.sensitivity-badge > svg { flex-shrink: 0; }
+.sensitivity-badge > span { overflow-wrap: anywhere; }
+.file-name + .sensitivity-badge { margin-top: 5px; }
+
 .badge {
   display: inline-flex;
   align-items: center;

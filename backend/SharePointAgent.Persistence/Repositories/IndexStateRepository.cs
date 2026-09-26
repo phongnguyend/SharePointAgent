@@ -162,7 +162,8 @@ public sealed class IndexStateRepository(IDbContextFactory<SharePointIndexDbCont
         row.ChunkCount,
         row.ScanId,
         row.IndexedAtUtc,
-        row.EmbeddingTokenCount);
+        row.EmbeddingTokenCount,
+        FileMetadataRepository.ToSensitivity(row));
 
     private static string? NullIfBlank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 

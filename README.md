@@ -193,6 +193,8 @@ OfficeCli__Command
 
 Microsoft Graph authentication uses the SharePoint `TenantId`, `ClientId`, and `ClientSecret` settings. Store `ClientSecret` in user secrets, environment variables, or a secret store rather than committing a real value to `appsettings.json`. The Entra application needs Microsoft Graph application permissions for the target SharePoint site or drive, with admin consent.
 
+For live sensitivity label names in the UI, add **API permissions → Add a permission → Microsoft Graph → Application permissions → SensitivityLabels.Read.All** to the same client application and select **Grant admin consent**. This permission reads the tenant label catalog; it does not authorize document decryption. See the [Microsoft Graph sensitivity label permissions](https://learn.microsoft.com/en-us/graph/api/tenantdatasecurityandgovernance-list-sensitivitylabels?view=graph-rest-1.0).
+
 To process documents encrypted by sensitivity labels, configure the same client application with Azure Rights Management permission as well:
 
 1. In **Microsoft Entra ID → App registrations**, open the application matching `SharePoint:ClientId`.
@@ -203,6 +205,7 @@ To process documents encrypted by sensitivity labels, configure the same client 
 
 | API | Permission | Type | Scope | Admin consent |
 | --- | --- | --- | --- | --- |
+| Microsoft Graph | `SensitivityLabels.Read.All` | Application | Read the tenant sensitivity label catalog for live UI display names | Required |
 | Azure Rights Management Service | `Content.SuperUser` | Application | Read all protected content for this tenant | Required |
 
 `Content.SuperUser` grants tenant-wide access to protected content, beyond the application's Graph site permissions. Grant it only to an application approved for that scope. It enables the current app-only decryption flow for indexing/reindexing, View Markdown, and agent downloads; Graph permissions alone do not authorize decryption. Documents without encryption do not require this additional permission. See the [Microsoft MIP permission reference](https://learn.microsoft.com/en-us/information-protection/develop/concept-api-permissions).
@@ -325,14 +328,25 @@ The worker also records what it last indexed for every file, and uses that recor
 | `ChunkCount` | `INT` | Number of search documents the file was indexed as |
 | `ScanId` | `UNIQUEIDENTIFIER` | Reconciliation round that last saw the file |
 | `IndexedAtUtc` | `DATETIMEOFFSET(7)` | When the file was last indexed |
+| `SensitivityLabelId` / `SensitivityLabelName` | `NVARCHAR(36)` / `NVARCHAR(255)` | Active label ID and name when available |
+| `IsLabeled` / `IsEncrypted` | Nullable `BIT` | Label and encryption status of the original SharePoint file, before local decryption |
+| `SensitivityCheckedAtUtc` | Nullable `DATETIMEOFFSET(7)` | When the source file's sensitivity was inspected |
+
+Indexing and reindexing capture sensitivity through the shared readable-download path and save it after the search index write succeeds. The **Indexed files** UI shows the label beneath each filename; selecting the row shows its label ID, source encryption status, and inspection time. Existing rows show **Not checked** until reindexed or encountered by a delta/full scan. **Unlabeled** means the inspection found no label; unavailable label details are shown separately.
+
+The protection-only MIP engine captures the file's label ID and any embedded name at indexing time. The UI resolves IDs against the live tenant catalog through `GET /api/sensitivity-labels`, which calls [Microsoft Graph's sensitivityLabels endpoint](https://learn.microsoft.com/en-us/graph/api/tenantdatasecurityandgovernance-list-sensitivitylabels?view=graph-rest-1.0). Each page open, Refresh, or successful reindex fetches the catalog again without a server-side name cache. Parent and child display names are combined, such as **Confidential · All Employees**. Renaming a label does not require reindexing; changing a file's assigned label still requires indexing/delta processing.
+
+In the client application registration, add **Microsoft Graph → Application permissions → SensitivityLabels.Read.All**, then **Grant admin consent** for the tenant. This authorizes reading the tenant label catalog; `Content.SuperUser` authorizes decryption separately. No manual name mapping is used. If catalog access fails, the UI shows an actionable error and **Labeled**, with the original ID retained in row details, rather than displaying an unverified or stale stored name.
+
+The `AddFileSensitivity` migration adds nullable columns without changing existing records. Restart the API and worker to apply it when `SqlServer:AutoMigrate` is enabled; otherwise deploy the migration before running the updated applications.
 
 For each file the delta feed returns, the worker compares the item against its record and takes the cheapest sufficient action:
 
 | Situation | Action |
 | --- | --- |
-| No record, or `IndexFingerprint` differs from the current settings | Download, extract, chunk, embed, replace |
-| `CTag` differs (content changed) | Download, extract, chunk, embed, replace |
-| Content unchanged, but name, path, URL, MIME type, size, modification time, `ETag`, or permissions differ | Merge the changed metadata onto the existing `ChunkCount` chunks; no download, extraction, or embedding |
+| No record, no sensitivity snapshot, or `IndexFingerprint` differs from the current settings | Download, inspect sensitivity/decrypt, extract, chunk, embed, replace |
+| `CTag` or `ETag` differs | Download, inspect sensitivity/decrypt, extract, chunk, embed, replace; ETag changes may include label-only changes |
+| Both tags unchanged, but name, path, URL, MIME type, size, modification time, or permissions differ | Merge the changed metadata onto the existing `ChunkCount` chunks; retain the sensitivity snapshot |
 | Everything matches | Nothing but the round stamp; logged as skipped |
 
 Only permissions are read from Graph to make that decision, because a sharing change alters neither tag on the item. Every other comparison uses the delta response the worker already has.

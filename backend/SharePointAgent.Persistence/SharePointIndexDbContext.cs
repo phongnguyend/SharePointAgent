@@ -80,6 +80,9 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
             // A base64 SHA-256 digest: always 44 ASCII characters, so CHAR(44) rather than NCHAR(44).
             entity.Property(x => x.PermissionsHash).HasMaxLength(44).IsFixedLength().IsUnicode(false).IsRequired();
             entity.Property(x => x.IndexFingerprint).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.SensitivityLabelId).HasMaxLength(36);
+            entity.Property(x => x.SensitivityLabelName).HasMaxLength(255);
+            entity.Property(x => x.SensitivityCheckedAtUtc).HasPrecision(7);
             entity.Property(x => x.LastModifiedUtc).HasPrecision(7);
             entity.Property(x => x.IndexedAtUtc).HasPrecision(7);
 

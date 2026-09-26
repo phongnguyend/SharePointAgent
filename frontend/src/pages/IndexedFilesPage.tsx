@@ -10,9 +10,11 @@ import {
   RefreshCw,
   RotateCw,
   SearchX,
+  Shield,
+  ShieldCheck,
   X,
 } from 'lucide-react'
-import { downloadIndexedFile, getIndexedFileMarkdown, listIndexedFiles, reindexIndexedFile } from '../api/client'
+import { downloadIndexedFile, getIndexedFileMarkdown, getSensitivityLabels, listIndexedFiles, reindexIndexedFile } from '../api/client'
 import { FileTypeIcon } from '../components/FileTypeIcon'
 import { OfficePreview } from '../components/OfficePreview'
 import { MarkdownPreview } from '../components/MarkdownPreview'
@@ -61,6 +63,8 @@ export default function IndexedFilesPage() {
 
   const debouncedSearch = useDebounced(search)
   const debouncedDriveId = useDebounced(driveId)
+  const labels = useAsync(getSensitivityLabels, [])
+  const labelNames = labels.error ? null : labels.data
 
   const page = useAsync(
     (signal) =>
@@ -99,6 +103,7 @@ export default function IndexedFilesPage() {
       )
       setNotice(`${updated.name} was reindexed.`)
       page.reload()
+      labels.reload()
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -119,7 +124,7 @@ export default function IndexedFilesPage() {
             for each file, and the tags the next delta pass compares against.
           </p>
         </div>
-        <button onClick={page.reload}>
+        <button onClick={() => { page.reload(); labels.reload() }}>
           <RefreshCw size={14} />
           Refresh
         </button>
@@ -164,6 +169,7 @@ export default function IndexedFilesPage() {
       <LoadingBar active={page.loading || reindexingKey !== null} />
 
       {page.error ? <ErrorBanner message={page.error} onRetry={page.reload} /> : null}
+      {labels.error ? <ErrorBanner message={labels.error} onRetry={labels.reload} /> : null}
       {actionError ? <ErrorBanner message={actionError} /> : null}
       {notice ? <div className="banner success" role="status"><CircleCheck size={17} color="var(--good)" />{notice}</div> : null}
 
@@ -233,6 +239,7 @@ export default function IndexedFilesPage() {
                                 {file.name}
                               </span>
                             </span>
+                            <SensitivityBadge file={file} labelNames={labelNames} />
                           </td>
                           <td>
                             <span className="truncate" title={file.parentPath ?? undefined}>
@@ -295,7 +302,7 @@ export default function IndexedFilesPage() {
           )}
         </div>
 
-        {selected ? <FileDetail file={selected} onClose={() => setSelected(null)} onPreview={() => setPreview(selected)} /> : null}
+        {selected ? <FileDetail file={selected} labelNames={labelNames} onClose={() => setSelected(null)} onPreview={() => setPreview(selected)} /> : null}
       </div>
       {preview ? (
         <OfficePreview
@@ -319,7 +326,7 @@ export default function IndexedFilesPage() {
   )
 }
 
-function FileDetail({ file, onClose, onPreview }: { file: IndexedFileRow; onClose: () => void; onPreview: () => void }) {
+function FileDetail({ file, labelNames, onClose, onPreview }: { file: IndexedFileRow; labelNames: Record<string, string> | null; onClose: () => void; onPreview: () => void }) {
   return (
     <div className="card">
       <div className="card-head">
@@ -372,6 +379,15 @@ function FileDetail({ file, onClose, onPreview }: { file: IndexedFileRow; onClos
           <dt>Content type</dt>
           <dd title={file.mimeType ?? undefined}>{mimeTypeLabel(file.mimeType)}</dd>
 
+          <dt>Sensitivity</dt>
+          <dd><SensitivityBadge file={file} labelNames={labelNames} /></dd>
+
+          <dt>Source encryption</dt>
+          <dd>{file.sensitivity ? (file.sensitivity.isEncrypted ? 'Encrypted' : 'Not encrypted') : 'Not checked'}</dd>
+
+          <dt>Sensitivity checked</dt>
+          <dd>{formatDateTime(file.sensitivity?.checkedAtUtc ?? null)}</dd>
+
           <dt>Extension</dt>
           <dd className="mono">{fileExtension(file.name) ?? '—'}</dd>
 
@@ -398,6 +414,7 @@ function FileDetail({ file, onClose, onPreview }: { file: IndexedFileRow; onClos
         {/* The identifiers are 36-70 characters of unbroken text — too long for the value column of a
             two-column grid in a panel this narrow, so each gets the panel's whole width. */}
         <div className="detail-blocks">
+          <DetailBlock label="Sensitivity label ID" value={file.sensitivity?.labelId ?? null} copyable />
           <DetailBlock
             label="ETag"
             hint="Changes when either the content or the metadata changes"
@@ -429,6 +446,25 @@ function FileDetail({ file, onClose, onPreview }: { file: IndexedFileRow; onClos
         </div>
       </div>
     </div>
+  )
+}
+
+function sensitivityLabel(file: IndexedFileRow, labelNames: Record<string, string> | null): string {
+  const sensitivity = file.sensitivity
+  if (!sensitivity) return 'Not checked'
+  return (sensitivity.labelId && labelNames?.[sensitivity.labelId.toLowerCase()]) || (sensitivity.isLabeled ? 'Labeled' : 'Unlabeled')
+}
+
+function SensitivityBadge({ file, labelNames }: { file: IndexedFileRow; labelNames: Record<string, string> | null }) {
+  const label = sensitivityLabel(file, labelNames)
+  const encrypted = file.sensitivity?.isEncrypted
+  const Icon = encrypted ? ShieldCheck : Shield
+  const description = `${label}${encrypted ? ' · Encrypted' : ''}`
+  return (
+    <span className="sensitivity-badge" title={description} aria-label={`Sensitivity: ${description}`}>
+      <Icon size={13} aria-hidden="true" />
+      <span>{label}</span>
+    </span>
   )
 }
 

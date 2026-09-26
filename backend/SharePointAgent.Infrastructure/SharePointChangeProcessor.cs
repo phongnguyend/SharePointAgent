@@ -278,19 +278,19 @@ public sealed class SharePointChangeProcessor(
             return false;
         }
 
-        await metadata.SaveAsync(Track(driveId, scanId, item, permissionsHash, tracked.ChunkCount, tracked.EmbeddingTokenCount), cancellationToken);
+        await metadata.SaveAsync(Track(driveId, scanId, item, permissionsHash, tracked.ChunkCount, tracked.EmbeddingTokenCount, tracked.Sensitivity), cancellationToken);
         logger.LogInformation("Updated the metadata and permissions of {FileName} ({ItemId}) across {ChunkCount} chunks; its content was unchanged, so it was not extracted or embedded again.", item.Name, item.Id, tracked.ChunkCount);
         return true;
     }
 
     private async Task ReindexFileAsync(string driveId, Guid scanId, DriveItemChange item, CancellationToken cancellationToken)
     {
-        var contentTask = sharePointClient.DownloadReadableContentAsync(item.Id, item.Name, _processor.MaxFileBytes, cancellationToken);
+        var contentTask = sharePointClient.DownloadReadableFileAsync(item.Id, item.Name, _processor.MaxFileBytes, cancellationToken);
         var permissionsTask = sharePointClient.GetPermissionsAsync(item.Id, cancellationToken);
         await Task.WhenAll(contentTask, permissionsTask);
         logger.LogInformation("Starting extraction: TraceId={TraceId}, ItemId={ItemId}, FileName={FileName}, Bytes={Bytes}.",
-            System.Diagnostics.Activity.Current?.TraceId.ToString(), item.Id, item.Name, contentTask.Result.Length);
-        var text = await extractor.ExtractAsync(item, contentTask.Result, cancellationToken);
+            System.Diagnostics.Activity.Current?.TraceId.ToString(), item.Id, item.Name, contentTask.Result.Content.Length);
+        var text = await extractor.ExtractAsync(item, contentTask.Result.Content, cancellationToken);
         if (string.IsNullOrWhiteSpace(text))
         {
             text = $"File name: {item.Name}\nContent type: {item.MimeType}\nPath: {item.ParentPath}";
@@ -330,7 +330,7 @@ public sealed class SharePointChangeProcessor(
         await search.ReplaceItemAsync(driveId, item.Id, chunks, cancellationToken);
 
         // Tracked only after the index write succeeds, so a failed pass reindexes the file on its retry.
-        await metadata.SaveAsync(Track(driveId, scanId, item, HashPermissions(permissionsTask.Result), chunks.Count, embeddingTokenCount), cancellationToken);
+        await metadata.SaveAsync(Track(driveId, scanId, item, HashPermissions(permissionsTask.Result), chunks.Count, embeddingTokenCount, contentTask.Result.Sensitivity), cancellationToken);
         logger.LogInformation("Indexed {FileName} ({ItemId}) as {ChunkCount} chunks using {EmbeddingTokenCount} embedding tokens.", item.Name, item.Id, chunks.Count, embeddingTokenCount);
     }
 
@@ -340,7 +340,7 @@ public sealed class SharePointChangeProcessor(
         await metadata.DeleteAsync(driveId, itemId, cancellationToken);
     }
 
-    private FileIndexRecord Track(string driveId, Guid scanId, DriveItemChange item, string permissionsHash, int chunkCount, long? embeddingTokenCount) => new(
+    private FileIndexRecord Track(string driveId, Guid scanId, DriveItemChange item, string permissionsHash, int chunkCount, long? embeddingTokenCount, FileSensitivity? sensitivity) => new(
         driveId,
         item.Id,
         item.Name,
@@ -356,16 +356,18 @@ public sealed class SharePointChangeProcessor(
         chunkCount,
         scanId,
         DateTimeOffset.UtcNow,
-        embeddingTokenCount);
+        embeddingTokenCount,
+        sensitivity);
 
     /// <summary>
-    /// True when the indexed chunks were built from the content the drive item holds now, by the pipeline
-    /// that is configured now. The cTag covers the content alone; when Graph omits it, the eTag stands in
-    /// and also rules out a metadata change.
+    /// Reuse requires a sensitivity snapshot and matching ETag as well as content/settings.
+    /// A metadata-only label update may leave CTag unchanged and must be inspected again.
     /// </summary>
     private bool HasSameContent(FileIndexRecord? tracked, DriveItemChange item)
     {
         if (tracked is null
+            || tracked.Sensitivity is null
+            || !string.Equals(tracked.ETag, item.ETag, StringComparison.Ordinal)
             || tracked.ChunkCount <= 0
             || !string.Equals(tracked.IndexFingerprint, _indexFingerprint, StringComparison.Ordinal))
         {

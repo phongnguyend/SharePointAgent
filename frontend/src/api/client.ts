@@ -24,6 +24,10 @@ import type {
 /** Empty by default, so requests go to the dev server's /api proxy on this same origin. */
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 
+export function getSensitivityLabels(signal?: AbortSignal): Promise<Record<string, string>> {
+  return request<Record<string, string>>('/api/sensitivity-labels', { signal })
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,

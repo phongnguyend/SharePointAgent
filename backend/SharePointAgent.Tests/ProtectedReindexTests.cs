@@ -46,6 +46,7 @@ public sealed class ProtectedReindexTests
                 if (outcome == "denied") throw new ProtectedDocumentAccessDeniedException();
                 await File.WriteAllTextAsync(temporaryPath, "decrypted");
                 if (outcome == "canceled") cancellation.Cancel();
+                return new FileSensitivity("2096f6a2-d2f7-48be-b329-b73aaa526e5d", "Confidential", true, true, DateTimeOffset.UtcNow);
             });
         extractor.ExtractAsync(Arg.Any<DriveItemChange>(), Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
             .Returns(call =>
@@ -71,7 +72,8 @@ public sealed class ProtectedReindexTests
             Assert.Null(error);
             await search.Received(1).ReplaceItemAsync("drive", "item",
                 Arg.Is<IReadOnlyList<SearchChunkDocument>>(chunks => chunks.Count == 1 && chunks[0].Content == "index this text"), Arg.Any<CancellationToken>());
-            await metadata.Received(1).SaveAsync(Arg.Any<FileIndexRecord>(), Arg.Any<CancellationToken>());
+            await metadata.Received(1).SaveAsync(Arg.Is<FileIndexRecord>(record => record.Sensitivity != null
+                && record.Sensitivity.LabelName == "Confidential" && record.Sensitivity.IsEncrypted), Arg.Any<CancellationToken>());
         }
         else
         {

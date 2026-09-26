@@ -12,7 +12,7 @@ namespace SharePointAgent.Infrastructure;
 
 public interface IProtectedFileService
 {
-    Task EnsureReadableAsync(string path, string fileName, int maxBytes, CancellationToken cancellationToken);
+    Task<FileSensitivity> EnsureReadableAsync(string path, string fileName, int maxBytes, CancellationToken cancellationToken);
 }
 
 /// <summary>Checks downloaded files with MIP and decrypts an authorized local copy, retaining the original.</summary>
@@ -24,7 +24,7 @@ public sealed class ProtectedFileService(IOptions<SharePointOptions> options, IL
     private IFileProfile? _profile;
     private IFileEngine? _engine;
 
-    public async Task EnsureReadableAsync(string path, string fileName, int maxBytes, CancellationToken cancellationToken)
+    public async Task<FileSensitivity> EnsureReadableAsync(string path, string fileName, int maxBytes, CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken);
         try
@@ -38,11 +38,12 @@ public sealed class ProtectedFileService(IOptions<SharePointOptions> options, IL
             var status = FileHandler.GetFileStatus(input, fileName, _context);
             logger?.LogInformation("Protection inspection: TraceId={TraceId}, FileName={FileName}, Bytes={Bytes}, Protected={Protected}, Labeled={Labeled}.",
                 System.Diagnostics.Activity.Current?.TraceId.ToString(), fileName, input.Length, status.IsProtected(), status.IsLabeled());
-            if (!status.IsProtected())
+            var sensitivity = new FileSensitivity(null, null, status.IsLabeled(), status.IsProtected(), DateTimeOffset.UtcNow);
+            if (!status.IsProtected() && !status.IsLabeled())
             {
                 if (hasOriginal)
                     throw new InvalidDataException("The retained protected original is invalid. Refresh the document.");
-                return;
+                return sensitivity;
             }
 
             input.Position = 0;
@@ -50,6 +51,13 @@ public sealed class ProtectedFileService(IOptions<SharePointOptions> options, IL
             cancellationToken.ThrowIfCancellationRequested();
             using var handler = await engine.CreateFileHandlerAsync(input, fileName, false);
             cancellationToken.ThrowIfCancellationRequested();
+            // Read raw label metadata; Label requires a policy engine and additional permissions.
+            sensitivity = ReadSensitivity(handler, sensitivity);
+            if (!status.IsProtected())
+            {
+                if (hasOriginal) throw new InvalidDataException("The retained protected original is invalid. Refresh the document.");
+                return sensitivity;
+            }
             if (handler.Protection is not { } protection || !protection.AccessCheck("EXTRACT"))
                 throw new ProtectedDocumentAccessDeniedException();
 
@@ -59,7 +67,7 @@ public sealed class ProtectedFileService(IOptions<SharePointOptions> options, IL
                 using var cached = System.IO.File.OpenRead(path);
                 // Retry any empty cache copy left by an earlier failed stream copy.
                 if (cached.Length > 0 && !FileHandler.GetFileStatus(cached, fileName, _context).IsProtected())
-                    return;
+                    return sensitivity;
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -95,6 +103,7 @@ public sealed class ProtectedFileService(IOptions<SharePointOptions> options, IL
             {
                 if (System.IO.File.Exists(staging)) System.IO.File.Delete(staging);
             }
+            return sensitivity;
         }
         catch (NoPermissionsException ex)
         {
@@ -106,6 +115,20 @@ public sealed class ProtectedFileService(IOptions<SharePointOptions> options, IL
             throw new InvalidOperationException("Microsoft Information Protection native libraries could not be loaded. Install the MIP runtime for this host before downloading protected documents.", ex);
         }
         finally { _gate.Release(); }
+    }
+
+    private FileSensitivity ReadSensitivity(IFileHandler handler, FileSensitivity sensitivity)
+    {
+        try
+        {
+            // Version 1 exposes normalized MSIP_Label properties, including modern Office LabelInfo.
+            return SensitivityMetadata.Read(handler.GetProperties(1), options.Value.TenantId, sensitivity);
+        }
+        catch (NotSupportedException ex)
+        {
+            logger?.LogWarning(ex, "Label metadata is unavailable for this file; retaining its label/protection status.");
+            return sensitivity;
+        }
     }
 
     private void EnsureContext()

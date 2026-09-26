@@ -348,6 +348,7 @@ public static class DependencyInjection
     private static void AddGraphClient(IServiceCollection services)
     {
         services.TryAddSingleton<IProtectedFileService, ProtectedFileService>();
+        services.TryAddSingleton<SensitivityLabelCatalog>();
         services.AddSingleton(sp =>
         {
             var options = sp.GetRequiredService<IOptions<SharePointOptions>>().Value;

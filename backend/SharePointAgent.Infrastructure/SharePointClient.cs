@@ -205,13 +205,16 @@ public sealed class SharePointClient(
     /// protected original are removed on success, failure, or cancellation. Both sizes are bounded.
     /// </summary>
     public async Task<byte[]> DownloadReadableContentAsync(string itemId, string fileName, int maxBytes, CancellationToken cancellationToken)
+        => (await DownloadReadableFileAsync(itemId, fileName, maxBytes, cancellationToken)).Content;
+
+    public async Task<ReadableFileContent> DownloadReadableFileAsync(string itemId, string fileName, int maxBytes, CancellationToken cancellationToken)
     {
         var directory = Directory.CreateTempSubdirectory("SharePointAgent-readable-");
         try
         {
             var path = Path.Combine(directory.FullName, "content");
-            await DownloadReadableToFileAsync(itemId, fileName, path, maxBytes, cancellationToken);
-            return await File.ReadAllBytesAsync(path, cancellationToken);
+            var sensitivity = await DownloadReadableFileToPathAsync(itemId, fileName, path, maxBytes, cancellationToken);
+            return new ReadableFileContent(await File.ReadAllBytesAsync(path, cancellationToken), sensitivity);
         }
         finally
         {
@@ -225,15 +228,21 @@ public sealed class SharePointClient(
     /// </summary>
     public async Task<long> DownloadReadableToFileAsync(string itemId, string fileName, string destinationPath, int maxBytes, CancellationToken cancellationToken)
     {
+        await DownloadReadableFileToPathAsync(itemId, fileName, destinationPath, maxBytes, cancellationToken);
+        return new FileInfo(destinationPath).Length;
+    }
+
+    private async Task<FileSensitivity> DownloadReadableFileToPathAsync(string itemId, string fileName, string destinationPath, int maxBytes, CancellationToken cancellationToken)
+    {
         var original = destinationPath + ProtectedFileService.ProtectedOriginalSuffix;
         if (File.Exists(destinationPath) || File.Exists(original))
             throw new IOException("Readable downloads require a new staging path.");
         try
         {
             await DownloadOriginalToFileAsync(itemId, destinationPath, maxBytes, cancellationToken);
-            await protectedFiles.EnsureReadableAsync(destinationPath, fileName, maxBytes, cancellationToken);
+            var sensitivity = await protectedFiles.EnsureReadableAsync(destinationPath, fileName, maxBytes, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            return new FileInfo(destinationPath).Length;
+            return sensitivity;
         }
         catch
         {

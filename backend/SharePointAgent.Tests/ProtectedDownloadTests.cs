@@ -6,6 +6,7 @@ using Microsoft.Graph.Models;
 using NSubstitute;
 using SharePointAgent.Application;
 using SharePointAgent.Infrastructure;
+using SharePointAgent.Domain;
 using Xunit;
 
 namespace SharePointAgent.Tests;
@@ -31,7 +32,7 @@ public sealed class ProtectedDownloadTests : IDisposable
         var path = CreateCachedFile();
         var service = Substitute.For<IProtectedFileService>();
         service.EnsureReadableAsync(path, "document.docx", Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(call => File.WriteAllTextAsync(path, "readable"));
+            .Returns(async call => { await File.WriteAllTextAsync(path, "readable"); return new FileSensitivity(null, null, false, false, DateTimeOffset.UtcNow); });
         using var cache = CreateCache(service);
 
         var result = await cache.DownloadAsync("item", "document.docx", default);
@@ -48,7 +49,7 @@ public sealed class ProtectedDownloadTests : IDisposable
         CreateCachedFile();
         var service = Substitute.For<IProtectedFileService>();
         service.EnsureReadableAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromException(new UnauthorizedAccessException("EXTRACT denied")));
+            .Returns(Task.FromException<FileSensitivity>(new UnauthorizedAccessException("EXTRACT denied")));
         using var cache = CreateCache(service);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => cache.DownloadAsync("item", "document.docx", default));
@@ -77,6 +78,7 @@ public sealed class ProtectedDownloadTests : IDisposable
                 var path = call.ArgAt<string>(0);
                 File.Copy(path, path + ProtectedFileService.ProtectedOriginalSuffix);
                 await File.WriteAllTextAsync(path, "readable");
+                return new FileSensitivity(null, null, true, true, DateTimeOffset.UtcNow);
             });
         using var memory = new MemoryCache(new MemoryCacheOptions());
         using var http = new HttpClient(new DownloadHandler());
@@ -100,7 +102,7 @@ public sealed class ProtectedDownloadTests : IDisposable
         File.WriteAllText(path + ProtectedFileService.ProtectedOriginalSuffix, "previous protection");
         var service = Substitute.For<IProtectedFileService>();
         service.EnsureReadableAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromException(new UnauthorizedAccessException("EXTRACT denied")));
+            .Returns(Task.FromException<FileSensitivity>(new UnauthorizedAccessException("EXTRACT denied")));
         using var memory = new MemoryCache(new MemoryCacheOptions());
         using var http = new HttpClient(new DownloadHandler());
         using var graph = new GraphServiceClient(http);

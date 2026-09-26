@@ -59,6 +59,11 @@ public sealed class IndexedFileEntity
     public string? CTag { get; set; }
     public string PermissionsHash { get; set; } = "";
     public string IndexFingerprint { get; set; } = "";
+    public string? SensitivityLabelId { get; set; }
+    public string? SensitivityLabelName { get; set; }
+    public bool? IsLabeled { get; set; }
+    public bool? IsEncrypted { get; set; }
+    public DateTimeOffset? SensitivityCheckedAtUtc { get; set; }
     public int ChunkCount { get; set; }
     public long? EmbeddingTokenCount { get; set; }
     public Guid ScanId { get; set; }

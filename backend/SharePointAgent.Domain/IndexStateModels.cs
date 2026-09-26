@@ -24,7 +24,8 @@ public sealed record IndexedFileRow(
     int ChunkCount,
     Guid ScanId,
     DateTimeOffset IndexedAtUtc,
-    long? EmbeddingTokenCount);
+    long? EmbeddingTokenCount,
+    FileSensitivity? Sensitivity = null);
 
 /// <summary>A row of the delta-checkpoint table, including the timestamp the worker last wrote it.</summary>
 public sealed record DeltaStateRow(

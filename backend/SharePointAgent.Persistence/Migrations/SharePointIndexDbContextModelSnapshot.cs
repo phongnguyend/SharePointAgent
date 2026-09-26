@@ -289,6 +289,11 @@ namespace SharePointAgent.Persistence.Migrations
 
             modelBuilder.Entity("SharePointAgent.Persistence.IndexedFileEntity", b =>
                 {
+                    b.Property<string>("SensitivityLabelId").HasMaxLength(36).HasColumnType("nvarchar(36)");
+                    b.Property<string>("SensitivityLabelName").HasMaxLength(255).HasColumnType("nvarchar(255)");
+                    b.Property<bool?>("IsLabeled").HasColumnType("bit");
+                    b.Property<bool?>("IsEncrypted").HasColumnType("bit");
+                    b.Property<DateTimeOffset?>("SensitivityCheckedAtUtc").HasPrecision(7).HasColumnType("datetimeoffset(7)");
                     b.Property<string>("DriveId")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");

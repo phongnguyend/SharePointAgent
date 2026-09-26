@@ -94,6 +94,22 @@ app.MapPost("/api/search/hybrid", (
 
 // Operator views and checkpoint actions over the worker's SQL Server state. Like the search
 // endpoints, these are unauthenticated and unfiltered, so protect the API before exposing it.
+app.MapGet("/api/sensitivity-labels", async (SensitivityLabelCatalog catalog, HttpContext context, CancellationToken cancellationToken) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    try
+    {
+        return Results.Ok(await catalog.ReadAsync(cancellationToken));
+    }
+    catch (Microsoft.Kiota.Abstractions.ApiException ex)
+    {
+        return Results.Json(new { error = ex.ResponseStatusCode is 401 or 403
+            ? "Cannot read sensitivity label names. Grant the client application Microsoft Graph SensitivityLabels.Read.All application permission with admin consent."
+            : "Microsoft Graph could not return the sensitivity label catalog. Retry to refresh label names." },
+            statusCode: StatusCodes.Status502BadGateway);
+    }
+});
+
 app.MapGet("/api/state/summary", (
     IIndexStateRepository reader,
     CancellationToken cancellationToken) => reader.GetSummaryAsync(cancellationToken));

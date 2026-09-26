@@ -15,7 +15,16 @@ export interface PagedResult<T> {
 }
 
 /** A row of the `SharePointIndexedFiles` table. */
+export interface FileSensitivity {
+  labelId: string | null
+  labelName: string | null
+  isLabeled: boolean
+  isEncrypted: boolean
+  checkedAtUtc: string
+}
+
 export interface IndexedFileRow {
+  sensitivity: FileSensitivity | null
   driveId: string
   itemId: string
   name: string
