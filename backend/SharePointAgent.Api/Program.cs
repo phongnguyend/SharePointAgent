@@ -236,8 +236,13 @@ app.MapGet("/api/state/indexed-files/{driveId}/{itemId}/content", async (
             return Results.NotFound(new { error = "File is outside the configured SharePoint library." });
         }
 
-        var bytes = await sharePointClient.DownloadOriginalContentAsync(itemId, downloadOptions.Value.MaxFileBytes, cancellationToken);
+        var bytes = await sharePointClient.DownloadReadableContentAsync(itemId, file.Name, downloadOptions.Value.MaxFileBytes, cancellationToken);
         return Results.File(bytes, contentType);
+    }
+    catch (ProtectedDocumentAccessDeniedException ex)
+    {
+        return Results.Json(new { error = ex.Message, code = "protected_document_access_denied" },
+            statusCode: StatusCodes.Status403Forbidden);
     }
     catch (FileTooLargeException ex)
     {
