@@ -555,6 +555,19 @@ The tool only accepts a `fileId` that one of the same turn's searches returned, 
 
 ## Front end
 
+### Continuous integration
+
+GitHub Actions runs these workflows on pushes and pull requests affecting their respective directories. Both can also be started manually from the **Actions** tab and require no Azure credentials:
+
+| Workflow | Checks | Artifacts |
+| --- | --- | --- |
+| [backend-ci.yml](.github/workflows/backend-ci.yml) | Restore and Release-build the .NET 10 solution, then run backend tests on Ubuntu 24.04 with MIP native dependencies | TRX test results |
+| [frontend-ci.yml](.github/workflows/frontend-ci.yml) | Install locked dependencies with Node.js 22 and `npm ci`, then type-check and build with Vite | Production `dist` files |
+
+Artifacts are retained for 14 days. These workflows validate builds only; they do not deploy the application.
+
+### Running locally
+
 `frontend/` is a React and Vite app over these endpoints: the two state tables, and the three retrieval strategies run one at a time or all three side by side. See [frontend/README.md](frontend/README.md).
 
 ```bash

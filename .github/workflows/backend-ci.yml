@@ -1,0 +1,63 @@
+name: Backend CI
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'backend/**'
+      - 'global.json'
+      - 'NuGet.Config'
+      - 'nuget.config'
+      - 'Directory.*.props'
+      - 'Directory.*.targets'
+      - '.github/workflows/backend-ci.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'global.json'
+      - 'NuGet.Config'
+      - 'nuget.config'
+      - 'Directory.*.props'
+      - 'Directory.*.targets'
+      - '.github/workflows/backend-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Install MIP native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgsf-1-114 libgmime-3.0-0t64 libcurl4t64 libssl3t64 libsecret-1-0
+      - name: Restore
+        run: dotnet restore backend/SharePointAgent.slnx
+      - name: Build
+        run: dotnet build backend/SharePointAgent.slnx --configuration Release --no-restore
+      - name: Test
+        run: dotnet test backend/SharePointAgent.Tests/SharePointAgent.Tests.csproj --configuration Release --no-build --no-restore --logger "trx;LogFileName=backend-tests.trx" --results-directory TestResults
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: TestResults/*.trx
+          if-no-files-found: ignore
+          retention-days: 14
