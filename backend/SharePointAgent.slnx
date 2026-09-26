@@ -1,0 +1,16 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="SharePointAgent.Api/SharePointAgent.Api.csproj" />
+  <Project Path="SharePointAgent.AgentHost/SharePointAgent.AgentHost.csproj" />
+  <Project Path="SharePointAgent.Application/SharePointAgent.Application.csproj" />
+  <Project Path="SharePointAgent.AspireAppHost/SharePointAgent.AspireAppHost.csproj" />
+  <Project Path="SharePointAgent.Background/SharePointAgent.Background.csproj" />
+  <Project Path="SharePointAgent.Domain/SharePointAgent.Domain.csproj" />
+  <Project Path="SharePointAgent.Infrastructure/SharePointAgent.Infrastructure.csproj" />
+  <Project Path="SharePointAgent.Persistence/SharePointAgent.Persistence.csproj" />
+  <Project Path="SharePointAgent.Tests/SharePointAgent.Tests.csproj" />
+</Solution>
