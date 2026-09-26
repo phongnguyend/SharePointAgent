@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Microsoft.Graph;
 using SharePointAgent.Persistence;
@@ -346,6 +347,7 @@ public static class DependencyInjection
 
     private static void AddGraphClient(IServiceCollection services)
     {
+        services.TryAddSingleton<IProtectedFileService, ProtectedFileService>();
         services.AddSingleton(sp =>
         {
             var options = sp.GetRequiredService<IOptions<SharePointOptions>>().Value;

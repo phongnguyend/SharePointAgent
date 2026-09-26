@@ -193,6 +193,20 @@ OfficeCli__Command
 
 Microsoft Graph authentication uses the SharePoint `TenantId`, `ClientId`, and `ClientSecret` settings. Store `ClientSecret` in user secrets, environment variables, or a secret store rather than committing a real value to `appsettings.json`. The Entra application needs Microsoft Graph application permissions for the target SharePoint site or drive, with admin consent.
 
+To process documents encrypted by sensitivity labels, configure the same client application with Azure Rights Management permission as well:
+
+1. In **Microsoft Entra ID → App registrations**, open the application matching `SharePoint:ClientId`.
+2. Select **API permissions → Add a permission → APIs my organization uses → Azure Rights Management Service**.
+3. Choose **Application permissions → Content.SuperUser**, then **Add permissions**.
+4. Have a tenant administrator select **Grant admin consent** for the tenant protecting the documents.
+5. Restart the API, background worker, and agent host to refresh their credentials before retrying.
+
+| API | Permission | Type | Scope | Admin consent |
+| --- | --- | --- | --- | --- |
+| Azure Rights Management Service | `Content.SuperUser` | Application | Read all protected content for this tenant | Required |
+
+`Content.SuperUser` grants tenant-wide access to protected content, beyond the application's Graph site permissions. Grant it only to an application approved for that scope. It enables the current app-only decryption flow for indexing/reindexing, View Markdown, and agent downloads; Graph permissions alone do not authorize decryption. Documents without encryption do not require this additional permission. See the [Microsoft MIP permission reference](https://learn.microsoft.com/en-us/information-protection/develop/concept-api-permissions).
+
 `AzureOpenAI:Endpoint` takes the resource endpoint with no API path, such as `https://<resource>.openai.azure.com` or `https://<resource>.services.ai.azure.com`. The SDK appends `/openai/deployments/<deployment>/embeddings` itself, so the OpenAI-compatible base URL that the Foundry portal also offers — the same host with `/openai/v1` appended — would be doubled into a path that returns 404 on every embedding request. Startup validation rejects an endpoint that carries a path rather than letting it fail per request.
 
 Each Azure service has its own `UsedManagedIdentity` setting. Set it to `true` to use the host's system-assigned managed identity. Set it to `false` to use `ConnectionString` for Service Bus, or `ApiKey` for Azure AI Search, Azure OpenAI, and Document Intelligence. SQL Server is the exception: it has no such flag, because the choice belongs in `SqlServer:ConnectionString` itself. Store connection strings and keys in user secrets, environment variables, or a secret store rather than in `appsettings.json`.
@@ -472,7 +486,13 @@ The first question replaces the placeholder title, so conversations name themsel
 
 The instructions call for `download_file` when the user asks for a local copy of a document, and also when they ask to edit, change, or update one — a local copy is where editing starts, so the agent fetches the file and reports where it went. Neither download nor refresh writes anything back; [`upload_file`](#uploading-a-file-back) is the only tool that does.
 
-`download_file` takes the `fileId` of a search result — the drive item ID, which `search_documents` returns alongside each excerpt — streams the file out of Microsoft Graph into `Downloads:Directory/<item id>/<file name>` — never through a byte array, so file size costs disk rather than memory — and returns that path to the model. **A file already on disk is not downloaded again**: the tool returns the existing path with `alreadyOnDisk` set, so repeated requests for the same document cost nothing.
+`download_file` takes the `fileId` of a search result — the drive item ID, which `search_documents` returns alongside each excerpt — streams the file out of Microsoft Graph into `Downloads:Directory/<item id>/<file name>`, checks its protection, and returns a readable local path. **A file already on disk is not downloaded again**; protected cached copies are still checked for extraction rights before their path is returned, and local edits are preserved.
+
+Microsoft Information Protection (MIP) inspects the file contents, so a sensitivity label without encryption leaves the file unchanged. For an encrypted file, the tool authenticates with the existing `SharePoint:TenantId`, `ClientId`, and `ClientSecret` and requires `EXTRACT` rights before decrypting. It retains the encrypted original beside the local copy with a `.mip-protected` suffix. Both the downloaded and decrypted sizes are limited by `Downloads:MaxFileBytes`. A failed conversion to plaintext does not publish a partial download or replace a previous cached copy.
+
+The app registration also needs Azure Rights Management authorization; Graph file permissions alone do not grant decryption rights. This implementation uses the application's identity, not the conversation user's identity. App-only access to tenant-protected content can require the administrator-approved `Content.SuperUser` application permission, which grants broad access; user-delegated decryption is not implemented. See Microsoft's [MIP permission reference](https://learn.microsoft.com/en-us/information-protection/develop/concept-api-permissions). No tenant permissions or document labels are changed by this application.
+
+Windows uses the MIP native libraries supplied by NuGet and requires the matching Visual C++ runtime. Linux builds use the Ubuntu 24.04 MIP package; the API, background worker, and agent-host containers install its native dependencies. See [MIP platform setup](https://learn.microsoft.com/en-us/information-protection/develop/setup-configure-mip). This check applies to the agent's `download_file` and `refresh_file` tools and the shared indexing pipeline, including manual reindexing and delta synchronization. Indexing downloads the current SharePoint version into an isolated temporary folder, decrypts before extraction, and deletes temporary plaintext and protected originals on success or failure. `Processor:MaxFileBytes` limits both downloaded and decrypted content. View Markdown for indexed SharePoint files also decrypts in a temporary folder before conversion, using `Downloads:MaxFileBytes`, and cleans up on success or failure. Original Office previews and chat attachment conversion still use their existing download paths.
 
 `refresh_file` is the same download without that check: it always fetches, and replaces whatever is at the path. The cache is keyed by item ID and notices neither a new version in SharePoint nor an edit made locally, so this is how either is resolved — take the library's current version, at the cost of local changes that were not uploaded. The instructions have the agent say what would be lost and ask first when it is the one that made those changes. The new copy is streamed to a staging name and moved into place, so the copy being replaced survives a download that fails halfway.
 
@@ -482,6 +502,8 @@ The instructions call for `download_file` when the user asks for a local copy of
 | `Downloads:MaxFileBytes` | 20971520 | Largest file `download_file` and `refresh_file` will fetch, and the largest `upload_file` will send back. A larger file is refused, and the model reports that instead of a path |
 
 ### Uploading a file back
+
+`upload_file` refuses a local copy with a retained `.mip-protected` original: uploading plaintext would remove the original document's protection. Protection-preserving upload is not implemented; use a protection-aware Office application to save edits to these documents.
 
 `upload_file` is `download_file` reversed: it takes the same `fileId`, and sends whatever is on disk at that moment back over the document in SharePoint. Microsoft Graph takes it in one request up to 4 MB and through an upload session in slices above that, so a large file is streamed rather than held in memory, and `Downloads:MaxFileBytes` caps it either way. **SharePoint keeps the previous file as a version rather than losing it**, so an unwanted upload is recoverable from the document's version history. The local copy is left in place, which means a later `download_file` for that item still reuses it — the cache does not notice new versions, including the one just uploaded, so `refresh_file` is what takes the file back off the server.
 

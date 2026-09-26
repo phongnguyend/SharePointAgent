@@ -15,7 +15,8 @@ namespace SharePointAgent.Infrastructure;
 public sealed class SharePointClient(
     GraphServiceClient graph,
     IMemoryCache memoryCache,
-    IOptions<SharePointOptions> options)
+    IOptions<SharePointOptions> options,
+    IProtectedFileService protectedFiles)
 {
     /// <summary>Largest file Microsoft Graph accepts in a single content request.</summary>
     private const int SimpleUploadLimitBytes = 4 * 1024 * 1024;
@@ -199,7 +200,51 @@ public sealed class SharePointClient(
         item.Deleted is not null,
         item.ParentReference?.Path);
 
-    public async Task<byte[]> DownloadContentAsync(string itemId, int maxBytes, CancellationToken cancellationToken)
+    /// <summary>
+    /// Downloads the current version and decrypts it when authorized. Temporary plaintext and the
+    /// protected original are removed on success, failure, or cancellation. Both sizes are bounded.
+    /// </summary>
+    public async Task<byte[]> DownloadReadableContentAsync(string itemId, string fileName, int maxBytes, CancellationToken cancellationToken)
+    {
+        var directory = Directory.CreateTempSubdirectory("SharePointAgent-readable-");
+        try
+        {
+            var path = Path.Combine(directory.FullName, "content");
+            await DownloadReadableToFileAsync(itemId, fileName, path, maxBytes, cancellationToken);
+            return await File.ReadAllBytesAsync(path, cancellationToken);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Downloads readable content to a new caller-owned staging path. The caller owns successful
+    /// output and its optional .mip-protected sidecar; failed downloads leave neither behind.
+    /// </summary>
+    public async Task<long> DownloadReadableToFileAsync(string itemId, string fileName, string destinationPath, int maxBytes, CancellationToken cancellationToken)
+    {
+        var original = destinationPath + ProtectedFileService.ProtectedOriginalSuffix;
+        if (File.Exists(destinationPath) || File.Exists(original))
+            throw new IOException("Readable downloads require a new staging path.");
+        try
+        {
+            await DownloadOriginalToFileAsync(itemId, destinationPath, maxBytes, cancellationToken);
+            await protectedFiles.EnsureReadableAsync(destinationPath, fileName, maxBytes, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            return new FileInfo(destinationPath).Length;
+        }
+        catch
+        {
+            TryDeleteFile(destinationPath);
+            TryDeleteFile(original);
+            throw;
+        }
+    }
+
+    /// <summary>Downloads the original bytes, preserving any protection applied in SharePoint.</summary>
+    public async Task<byte[]> DownloadOriginalContentAsync(string itemId, int maxBytes, CancellationToken cancellationToken)
     {
         try
         {
@@ -230,11 +275,11 @@ public sealed class SharePointClient(
     /// <summary>
     /// Streams an item's content straight to <paramref name="destinationPath"/> and returns how many bytes
     /// were written, so a file that is only wanted on disk never has to be held in memory the way
-    /// <see cref="DownloadContentAsync"/> holds it. The caller owns the path and its directory; an existing
+    /// <see cref="DownloadOriginalContentAsync"/> holds it. The caller owns the path and its directory; an existing
     /// file there is overwritten, and a download that fails, exceeds <paramref name="maxBytes"/>, or is
     /// cancelled deletes what it had written rather than leaving a partial file behind.
     /// </summary>
-    public async Task<long> DownloadToFileAsync(string itemId, string destinationPath, int maxBytes, CancellationToken cancellationToken)
+    private async Task<long> DownloadOriginalToFileAsync(string itemId, string destinationPath, int maxBytes, CancellationToken cancellationToken)
     {
         try
         {

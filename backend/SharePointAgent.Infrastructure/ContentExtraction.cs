@@ -149,7 +149,8 @@ public sealed class DocumentIntelligenceClient(
 /// </summary>
 public sealed class MarkItDownClient(
     HttpClient httpClient,
-    IOptions<MarkItDownOptions> options)
+    IOptions<MarkItDownOptions> options,
+    ILogger<MarkItDownClient>? logger = null)
 {
     private static readonly TimeSpan HealthTimeout = TimeSpan.FromSeconds(10);
 
@@ -164,6 +165,12 @@ public sealed class MarkItDownClient(
     /// </summary>
     public async Task<string> ConvertAsync(string fileName, byte[] content, string? mimeType, CancellationToken cancellationToken)
     {
+        var traceId = System.Diagnostics.Activity.Current?.TraceId.ToString();
+        var container = content.AsSpan().StartsWith(new byte[] { 0x50, 0x4b, 0x03, 0x04 }) ? "ZIP"
+            : content.AsSpan().StartsWith(new byte[] { 0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1 }) ? "OLE"
+            : content.Length == 0 ? "empty" : "other";
+        logger?.LogInformation("MarkItDown conversion: TraceId={TraceId}, FileName={FileName}, Bytes={Bytes}, Container={Container}, MimeType={MimeType}.",
+            traceId, fileName, content.Length, container, mimeType);
         using var form = new MultipartFormDataContent();
         using var fileContent = new ByteArrayContent(content);
         fileContent.Headers.ContentType = MediaTypeHeaderValue.TryParse(mimeType, out var parsed)
@@ -173,7 +180,14 @@ public sealed class MarkItDownClient(
         form.Add(new StringContent(fileName), "name");
 
         using var response = await httpClient.PostAsync(BuildUrl(_options.ConvertPath), form, cancellationToken);
-        await EnsureSuccessAsync(response, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var detail = await response.Content.ReadAsStringAsync(cancellationToken);
+            logger?.LogWarning("MarkItDown conversion failed: TraceId={TraceId}, FileName={FileName}, StatusCode={StatusCode}.",
+                traceId, fileName, (int)response.StatusCode);
+            throw new MarkItDownConversionException($"MarkItDown returned {(int)response.StatusCode}: {detail}", response.StatusCode);
+        }
+        logger?.LogInformation("MarkItDown conversion succeeded: TraceId={TraceId}, FileName={FileName}.", traceId, fileName);
         return await response.Content.ReadAsStringAsync(cancellationToken);
     }
 
@@ -202,3 +216,6 @@ public sealed class MarkItDownClient(
         throw new HttpRequestException($"MarkItDown returned {(int)response.StatusCode}: {await response.Content.ReadAsStringAsync(cancellationToken)}", null, response.StatusCode);
     }
 }
+
+public sealed class MarkItDownConversionException(string message, System.Net.HttpStatusCode statusCode)
+    : HttpRequestException(message, null, statusCode);

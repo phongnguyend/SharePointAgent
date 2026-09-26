@@ -285,9 +285,11 @@ public sealed class SharePointChangeProcessor(
 
     private async Task ReindexFileAsync(string driveId, Guid scanId, DriveItemChange item, CancellationToken cancellationToken)
     {
-        var contentTask = sharePointClient.DownloadContentAsync(item.Id, _processor.MaxFileBytes, cancellationToken);
+        var contentTask = sharePointClient.DownloadReadableContentAsync(item.Id, item.Name, _processor.MaxFileBytes, cancellationToken);
         var permissionsTask = sharePointClient.GetPermissionsAsync(item.Id, cancellationToken);
         await Task.WhenAll(contentTask, permissionsTask);
+        logger.LogInformation("Starting extraction: TraceId={TraceId}, ItemId={ItemId}, FileName={FileName}, Bytes={Bytes}.",
+            System.Diagnostics.Activity.Current?.TraceId.ToString(), item.Id, item.Name, contentTask.Result.Length);
         var text = await extractor.ExtractAsync(item, contentTask.Result, cancellationToken);
         if (string.IsNullOrWhiteSpace(text))
         {

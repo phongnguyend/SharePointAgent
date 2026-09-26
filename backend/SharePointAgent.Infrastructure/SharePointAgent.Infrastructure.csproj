@@ -24,6 +24,8 @@
     <PackageReference Include="Azure.Storage.Blobs" Version="12.27.0" />
     <PackageReference Include="Microsoft.Agents.AI.OpenAI" Version="1.20.0" />
     <PackageReference Include="Microsoft.Graph" Version="6.5.0" />
+    <PackageReference Include="Microsoft.InformationProtection.File" Version="1.18.75" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
+    <PackageReference Include="Microsoft.InformationProtection.File.Ubuntu2404" Version="1.18.75" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <PackageReference Include="ModelContextProtocol.Core" Version="2.2.0" />
   </ItemGroup>
 

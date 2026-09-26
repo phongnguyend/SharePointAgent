@@ -136,14 +136,32 @@ app.MapPost("/api/state/indexed-files/{driveId}/{itemId}/reindex", async (
     string driveId,
     string itemId,
     ISharePointChangeProcessor processor,
+    HttpContext httpContext,
+    ILoggerFactory loggerFactory,
     CancellationToken cancellationToken) =>
 {
+    var traceId = System.Diagnostics.Activity.Current?.TraceId.ToString() ?? httpContext.TraceIdentifier;
+    var logger = loggerFactory.CreateLogger("IndexedFileReindex");
+    httpContext.Response.Headers["X-Trace-Id"] = traceId;
+    logger.LogInformation("UI reindex requested: TraceId={TraceId}, DriveId={DriveId}, ItemId={ItemId}.", traceId, driveId, itemId);
     try
     {
         var file = await processor.ReindexAsync(driveId, itemId, cancellationToken);
+        logger.LogInformation("UI reindex finished: TraceId={TraceId}, Found={Found}.", traceId, file is not null);
         return file is null
             ? Results.NotFound(new { error = "Indexed file not found in the configured SharePoint library." })
             : Results.Ok(file);
+    }
+    catch (MarkItDownConversionException ex)
+    {
+        logger.LogWarning("UI reindex failed during MarkItDown conversion: TraceId={TraceId}, StatusCode={StatusCode}.", traceId, ex.StatusCode);
+        return Results.Json(new { error = $"{ex.Message} (Trace ID: {traceId})", code = "markitdown_conversion_failed", traceId },
+            statusCode: StatusCodes.Status502BadGateway);
+    }
+    catch (ProtectedDocumentAccessDeniedException ex)
+    {
+        return Results.Json(new { error = ex.Message, code = "protected_document_access_denied" },
+            statusCode: StatusCodes.Status403Forbidden);
     }
     catch (FileNoLongerIndexableException ex)
     {
@@ -202,7 +220,7 @@ app.MapGet("/api/state/indexed-files/{driveId}/{itemId}/content", async (
             return Results.NotFound(new { error = "File is outside the configured SharePoint library." });
         }
 
-        var bytes = await sharePointClient.DownloadContentAsync(itemId, downloadOptions.Value.MaxFileBytes, cancellationToken);
+        var bytes = await sharePointClient.DownloadOriginalContentAsync(itemId, downloadOptions.Value.MaxFileBytes, cancellationToken);
         return Results.File(bytes, contentType);
     }
     catch (FileTooLargeException ex)
@@ -244,9 +262,14 @@ app.MapGet("/api/state/indexed-files/{driveId}/{itemId}/markdown", async (
             return Results.NotFound(new { error = "File is outside the configured SharePoint library." });
         }
 
-        var bytes = await sharePointClient.DownloadContentAsync(itemId, downloadOptions.Value.MaxFileBytes, cancellationToken);
+        var bytes = await sharePointClient.DownloadReadableContentAsync(itemId, file.Name, downloadOptions.Value.MaxFileBytes, cancellationToken);
         var markdown = await markItDown.ConvertAsync(file.Name, bytes, file.MimeType, cancellationToken);
         return Results.Ok(new { markdown });
+    }
+    catch (ProtectedDocumentAccessDeniedException ex)
+    {
+        return Results.Json(new { error = ex.Message, code = "protected_document_access_denied" },
+            statusCode: StatusCodes.Status403Forbidden);
     }
     catch (FileTooLargeException ex)
     {

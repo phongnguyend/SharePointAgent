@@ -18,9 +18,11 @@ namespace SharePointAgent.Infrastructure;
 /// </summary>
 public sealed class SharePointFileCache(
     SharePointClient sharePointClient,
+    IProtectedFileService protectedFiles,
     IOptions<DownloadOptions> options,
-    ILogger<SharePointFileCache> logger)
+    ILogger<SharePointFileCache> logger) : IDisposable
 {
+    private readonly SemaphoreSlim _gate = new(1, 1);
     private static readonly SearchValues<char> InvalidNameChars = SearchValues.Create(Path.GetInvalidFileNameChars());
 
     private readonly DownloadOptions _options = options.Value;
@@ -39,6 +41,13 @@ public sealed class SharePointFileCache(
     /// </summary>
     public async Task<DownloadedFile> DownloadAsync(string itemId, string fileName, CancellationToken cancellationToken)
     {
+        await _gate.WaitAsync(cancellationToken);
+        try { return await DownloadCoreAsync(itemId, fileName, cancellationToken); }
+        finally { _gate.Release(); }
+    }
+
+    private async Task<DownloadedFile> DownloadCoreAsync(string itemId, string fileName, CancellationToken cancellationToken)
+    {
         if (string.IsNullOrWhiteSpace(itemId))
         {
             throw new ArgumentException("A drive item ID is required.", nameof(itemId));
@@ -46,8 +55,9 @@ public sealed class SharePointFileCache(
 
         if (Find(itemId, fileName) is { } existing)
         {
+            await protectedFiles.EnsureReadableAsync(existing.LocalPath, fileName, _options.MaxFileBytes, cancellationToken);
             logger.LogInformation("Reused the local copy of {FileName} at {LocalPath}.", existing.FileName, existing.LocalPath);
-            return existing;
+            return existing with { SizeBytes = new FileInfo(existing.LocalPath).Length };
         }
 
         return await FetchAsync(itemId, fileName, cancellationToken);
@@ -59,6 +69,13 @@ public sealed class SharePointFileCache(
     /// back in line with the library, at the cost of whatever the old copy held.
     /// </summary>
     public async Task<DownloadedFile> RefreshAsync(string itemId, string fileName, CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try { return await RefreshCoreAsync(itemId, fileName, cancellationToken); }
+        finally { _gate.Release(); }
+    }
+
+    private async Task<DownloadedFile> RefreshCoreAsync(string itemId, string fileName, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(itemId))
         {
@@ -93,12 +110,14 @@ public sealed class SharePointFileCache(
         long size;
         try
         {
-            size = await sharePointClient.DownloadToFileAsync(itemId, stagingPath, _options.MaxFileBytes, cancellationToken);
-            File.Move(stagingPath, localPath, overwrite: true);
+            size = await sharePointClient.DownloadReadableToFileAsync(itemId, fileName, stagingPath, _options.MaxFileBytes, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            PublishDownload(stagingPath, localPath);
         }
         catch
         {
             TryDelete(stagingPath);
+            TryDelete(stagingPath + ProtectedFileService.ProtectedOriginalSuffix);
             throw;
         }
 
@@ -119,9 +138,21 @@ public sealed class SharePointFileCache(
     /// <exception cref="FileNotFoundException">The item has not been downloaded, so there is nothing to send.</exception>
     public async Task<UploadedFileVersion> UploadAsync(string itemId, string fileName, CancellationToken cancellationToken)
     {
+        await _gate.WaitAsync(cancellationToken);
+        try { return await UploadCoreAsync(itemId, fileName, cancellationToken); }
+        finally { _gate.Release(); }
+    }
+
+    private async Task<UploadedFileVersion> UploadCoreAsync(string itemId, string fileName, CancellationToken cancellationToken)
+    {
         if (Find(itemId, fileName) is not { } local)
         {
             throw new FileNotFoundException($"'{fileName}' has not been downloaded, so there is no local copy to upload.");
+        }
+
+        if (File.Exists(local.LocalPath + ProtectedFileService.ProtectedOriginalSuffix))
+        {
+            throw new InvalidOperationException("This local copy was decrypted from a protected document. Upload is blocked to preserve the SharePoint document's protection. Save changes through a protection-aware Office application.");
         }
 
         var version = await sharePointClient.UploadFileAsync(itemId, local.LocalPath, _options.MaxFileBytes, cancellationToken);
@@ -162,6 +193,29 @@ public sealed class SharePointFileCache(
 
         return sanitized.Length == 0 ? "file" : sanitized;
     }
+
+    private static void PublishDownload(string stagingPath, string localPath)
+    {
+        var original = localPath + ProtectedFileService.ProtectedOriginalSuffix;
+        var stagedOriginal = stagingPath + ProtectedFileService.ProtectedOriginalSuffix;
+        var backup = original + "." + Guid.NewGuid().ToString("N") + ".backup";
+        var hadOriginal = File.Exists(original);
+        if (hadOriginal) File.Move(original, backup);
+        try
+        {
+            if (File.Exists(stagedOriginal)) File.Move(stagedOriginal, original);
+            File.Move(stagingPath, localPath, overwrite: true);
+        }
+        catch
+        {
+            File.Delete(original);
+            if (hadOriginal) File.Move(backup, original);
+            throw;
+        }
+        TryDelete(backup);
+    }
+
+    public void Dispose() => _gate.Dispose();
 
     private static void TryDelete(string path)
     {
