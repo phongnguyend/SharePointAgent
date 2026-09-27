@@ -48,6 +48,6 @@ public sealed class SensitivityMetadataTests
         using var context = new SharePointIndexDbContext(new DbContextOptionsBuilder<SharePointIndexDbContext>()
             .UseSqlServer("Server=unused;Database=unused;Integrated Security=true").Options);
         Assert.False(context.Database.HasPendingModelChanges());
-        Assert.Contains("20260926120000_AddFileSensitivity", context.Database.GetMigrations());
+        Assert.Single(context.Database.GetMigrations());
     }
 }

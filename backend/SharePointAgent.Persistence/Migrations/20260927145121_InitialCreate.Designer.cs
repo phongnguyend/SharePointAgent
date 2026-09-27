@@ -12,8 +12,8 @@ using SharePointAgent.Persistence;
 namespace SharePointAgent.Persistence.Migrations
 {
     [DbContext(typeof(SharePointIndexDbContext))]
-    [Migration("20260927124738_AddChatEmbeddingTokenCounts")]
-    partial class AddChatEmbeddingTokenCounts
+    [Migration("20260927145121_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -657,11 +657,18 @@ namespace SharePointAgent.Persistence.Migrations
                     b.Property<Guid>("QuestionId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTimeOffset?>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<int>("Day")
                         .HasColumnType("int");
 
                     b.Property<long>("InputTokens")
                         .HasColumnType("bigint");
+
+                    b.Property<string>("ModelId")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<int>("Month")
                         .HasColumnType("int");
@@ -676,6 +683,8 @@ namespace SharePointAgent.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("QuestionId");
+
+                    b.HasIndex("ModelId", "Month");
 
                     b.HasIndex("UserId", "Month");
 

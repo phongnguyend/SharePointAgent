@@ -58,9 +58,9 @@ public sealed class ChatAgentContextTests
         using var db = new SharePointIndexDbContext(new DbContextOptionsBuilder<SharePointIndexDbContext>()
             .UseSqlServer("Server=unused;Database=unused;Integrated Security=true").Options);
         Assert.False(db.Database.HasPendingModelChanges());
-        var script = db.GetService<IMigrator>().GenerateScript("20260916170000_AddWebhookSubscriptionSettings");
-        Assert.Contains("ADD [FoundryEndpoint] nvarchar(2048)", script);
-        Assert.Contains("ADD [FoundrySessionId] nvarchar(200)", script);
+        var script = db.GetService<IMigrator>().GenerateScript();
+        Assert.Contains("[FoundryEndpoint] nvarchar(2048)", script);
+        Assert.Contains("[FoundrySessionId] nvarchar(200)", script);
     }
 
     private static ChatMessageRecord Message(Guid conversationId, string content) =>
