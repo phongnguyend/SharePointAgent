@@ -87,9 +87,9 @@ public sealed class ChatAgentService(
             AIFunctionFactory.Create(turnTools.DownloadAttachmentAsync, new AIFunctionFactoryOptions { Name = "download_attachment" }),
             AIFunctionFactory.Create(turnTools.DownloadAttachmentMarkdownAsync, new AIFunctionFactoryOptions { Name = "download_attachment_markdown" }),
             AIFunctionFactory.Create(turnTools.ReadTextAsync, new AIFunctionFactoryOptions { Name = "read_text" }),
-            AIFunctionFactory.Create(turnTools.DownloadFileAsync, new AIFunctionFactoryOptions { Name = "download_file" }),
-            AIFunctionFactory.Create(turnTools.RefreshFileAsync, new AIFunctionFactoryOptions { Name = "refresh_file" }),
-            AIFunctionFactory.Create(turnTools.UploadFileAsync, new AIFunctionFactoryOptions { Name = "upload_file" }),
+            AIFunctionFactory.Create(turnTools.DownloadSharePointFileAsync, new AIFunctionFactoryOptions { Name = "download_sharepoint_file" }),
+            AIFunctionFactory.Create(turnTools.RefreshSharePointFileAsync, new AIFunctionFactoryOptions { Name = "refresh_sharepoint_file" }),
+            AIFunctionFactory.Create(turnTools.UploadSharePointFileAsync, new AIFunctionFactoryOptions { Name = "upload_sharepoint_file" }),
             .. await officeCli.GetToolsAsync(cancellationToken),
         ];
 
@@ -211,9 +211,9 @@ public sealed class ChatAgentService(
         "download_attachment" => "Downloading the attachment…",
         "download_attachment_markdown" => "Downloading attachment Markdown…",
         "read_text" => "Reading text…",
-        "download_file" => "Downloading the document…",
-        "refresh_file" => "Retrieving the latest document version…",
-        "upload_file" => "Uploading the updated document…",
+        "download_sharepoint_file" => "Downloading the document…",
+        "refresh_sharepoint_file" => "Retrieving the latest document version…",
+        "upload_sharepoint_file" => "Uploading the updated document…",
         "officecli" => "Working with the document…",
         _ => "Running a document tool…",
     };
@@ -388,7 +388,7 @@ public sealed class ChatAgentService(
         }
 
         [Description("Download one of the SharePoint files a previous search returned to the local file system and return its path. A file that has already been downloaded is reused rather than downloaded again. Use this when the user asks for a local copy of a document, or asks to edit, change, or update one — editing starts from a local copy.")]
-        public async Task<DownloadToolResult> DownloadFileAsync(
+        public async Task<DownloadToolResult> DownloadSharePointFileAsync(
             [Description("The fileId of a search result, exactly as search_documents returned it.")]
             string fileId,
             CancellationToken cancellationToken = default)
@@ -422,7 +422,7 @@ public sealed class ChatAgentService(
         }
 
         [Description("Download one of the SharePoint files a previous search returned again, replacing whatever local copy exists with the version SharePoint holds now, and return its path. Use this when the document may have changed in SharePoint since it was downloaded, or when the user asks for the latest version. It discards local changes that were not uploaded.")]
-        public async Task<DownloadToolResult> RefreshFileAsync(
+        public async Task<DownloadToolResult> RefreshSharePointFileAsync(
             [Description("The fileId of a search result, exactly as search_documents returned it.")]
             string fileId,
             CancellationToken cancellationToken = default)
@@ -455,9 +455,9 @@ public sealed class ChatAgentService(
             }
         }
 
-        [Description("Upload the local copy of a file back to SharePoint, replacing the document there with it as a new version. The file must have been downloaded with download_file first; whatever is on disk now is what gets sent. Use this only when the user has explicitly asked for the changes to be saved back to SharePoint — never on your own initiative after an edit.")]
-        public async Task<UploadToolResult> UploadFileAsync(
-            [Description("The fileId of the document to replace, the same one download_file was given.")]
+        [Description("Upload the local copy of a file back to SharePoint, replacing the document there with it as a new version. The file must have been downloaded with download_sharepoint_file first; whatever is on disk now is what gets sent. Use this only when the user has explicitly asked for the changes to be saved back to SharePoint — never on your own initiative after an edit.")]
+        public async Task<UploadToolResult> UploadSharePointFileAsync(
+            [Description("The fileId of the document to replace, the same one download_sharepoint_file was given.")]
             string fileId,
             CancellationToken cancellationToken = default)
         {
@@ -481,7 +481,7 @@ public sealed class ChatAgentService(
             {
                 logger.LogWarning(ex, "Agent could not upload {FileName}; it has not been downloaded.", fileName);
                 return UploadToolResult.Failed(
-                    $"'{fileName}' has no local copy to upload. Download it with download_file, change it, then upload.");
+                    $"'{fileName}' has no local copy to upload. Download it with download_sharepoint_file, change it, then upload.");
             }
             catch (FileTooLargeException ex)
             {
