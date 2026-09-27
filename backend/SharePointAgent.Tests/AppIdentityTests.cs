@@ -43,6 +43,9 @@ public sealed class AppIdentityTests
     [InlineData(AppRoles.User, "PUT", "/api/users/123/storage", false)]
     [InlineData(AppRoles.GlobalReaderAdmin, "PUT", "/api/users/123/storage", false)]
     [InlineData(AppRoles.GlobalAdmin, "PUT", "/api/users/123/storage", true)]
+    [InlineData(AppRoles.User, "PUT", "/api/users/123/tokens", false)]
+    [InlineData(AppRoles.GlobalReaderAdmin, "PUT", "/api/users/123/tokens", false)]
+    [InlineData(AppRoles.GlobalAdmin, "PUT", "/api/users/123/tokens", true)]
     [InlineData(AppRoles.User, "GET", "/api/storage/attachments", false)]
     [InlineData(AppRoles.GlobalReaderAdmin, "GET", "/api/storage/attachments", true)]
     [InlineData(AppRoles.GlobalAdmin, "GET", "/api/storage/attachments", true)]
@@ -291,6 +294,76 @@ public sealed class AppIdentityTests
         fixture.Db.ChatMessageAttachmentFiles.Remove(legacy);
         await fixture.Db.SaveChangesAsync();
         Assert.Equal(new SystemAttachmentStorage(1, 100, 100, 0), await fixture.Service.GetSystemAttachmentStorageAsync(default));
+    }
+
+    [Fact]
+    public async Task MonthlyTokenLimitsAndDailyUsageAreIndependentOfAccountEditsAndMessages()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var user = await fixture.Service.SaveAsync(null, new("tokens@example.com", "Tokens", [AppRoles.User]), default);
+        Assert.Null(user.MonthlyTokenLimit);
+        var now = DateTimeOffset.UtcNow;
+        var first = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero);
+        var question = Guid.NewGuid();
+        var beforeRecording = DateTimeOffset.UtcNow;
+        await MonthlyTokenQuota.RecordUsageAsync(fixture.Db, user.Id, question, first, new(20, 10, 30, 999), "model-a", default);
+        var createdAt = (await fixture.Db.UserTokenUsage.AsNoTracking().SingleAsync(x => x.QuestionId == question)).CreatedAtUtc;
+        Assert.NotNull(createdAt);
+        Assert.InRange(createdAt.Value, beforeRecording, DateTimeOffset.UtcNow);
+        Assert.Equal(TimeSpan.Zero, createdAt.Value.Offset);
+        await MonthlyTokenQuota.RecordUsageAsync(fixture.Db, user.Id, question, first, new(20, 10, 30), "model-b", default);
+        Assert.Equal("model-a", (await fixture.Db.UserTokenUsage.AsNoTracking().SingleAsync(x => x.QuestionId == question)).ModelId);
+        Assert.Equal(createdAt, (await fixture.Db.UserTokenUsage.AsNoTracking().SingleAsync(x => x.QuestionId == question)).CreatedAtUtc);
+        await MonthlyTokenQuota.RecordUsageAsync(fixture.Db, user.Id, Guid.NewGuid(), first.AddHours(1), new(5, 5, 10), "model-b", default);
+        await MonthlyTokenQuota.RecordUsageAsync(fixture.Db, user.Id, Guid.NewGuid(), first.AddDays(1), new(10, 10, 20), "model-a", default);
+        await MonthlyTokenQuota.RecordUsageAsync(fixture.Db, user.Id, Guid.NewGuid(), first.AddMonths(-1), new(900, 100, 1000), null, default);
+        var modelTotals = await fixture.Db.UserTokenUsage.Where(x => x.Month == MonthlyTokenQuota.MonthKey(first))
+            .GroupBy(x => x.ModelId).Select(x => new { Model = x.Key, Tokens = x.Sum(t => t.TotalTokens) }).ToListAsync();
+        Assert.Equal(50, modelTotals.Single(x => x.Model == "model-a").Tokens);
+        Assert.Equal(10, modelTotals.Single(x => x.Model == "model-b").Tokens);
+        var limited = await fixture.Service.SaveTokenLimitAsync(user.Id, new(50, user.ConcurrencyStamp), default);
+        Assert.Equal(60, limited.MonthlyTokensUsed);
+        Assert.Equal(2, limited.DailyTokenUsage!.Count);
+        Assert.Equal(3, limited.DailyModelTokenUsage!.Count);
+        Assert.Equal(50, limited.DailyModelTokenUsage.Where(x => x.ModelId == "model-a").Sum(x => x.TotalTokens));
+        Assert.Equal(10, limited.DailyModelTokenUsage.Where(x => x.ModelId == "model-b").Sum(x => x.TotalTokens));
+        Assert.Equal(limited.MonthlyTokensUsed, limited.DailyModelTokenUsage.Sum(x => x.TotalTokens));
+        Assert.Equal(40, limited.DailyTokenUsage[0].TotalTokens);
+        Assert.Equal(25, limited.DailyTokenUsage[0].InputTokens);
+        Assert.Equal(15, limited.DailyTokenUsage[0].OutputTokens);
+        Assert.Equal(first.AddMonths(1), limited.TokenUsageResetsAtUtc);
+        Assert.Empty(await fixture.Db.ChatMessages.ToListAsync());
+        Assert.Equal(0, await MonthlyTokenQuota.UsedAsync(fixture.Db, user.Id, MonthlyTokenQuota.MonthKey(first.AddMonths(1))));
+        Assert.Equal(429, Assert.Throws<UserManagementException>(() => MonthlyTokenQuota.EnsureAvailable(limited.MonthlyTokenLimit, limited.MonthlyTokensUsed)).Status);
+        Assert.Equal(409, (await Assert.ThrowsAsync<UserManagementException>(() => fixture.Service.SaveTokenLimitAsync(user.Id, new(100, user.ConcurrencyStamp), default))).Status);
+        var edited = await fixture.Service.SaveAsync(user.Id, new(user.Email, "Renamed", [AppRoles.User], true, limited.ConcurrencyStamp), default);
+        Assert.Equal(50, edited.MonthlyTokenLimit);
+        var unlimited = await fixture.Service.SaveTokenLimitAsync(user.Id, new(null, edited.ConcurrencyStamp), default);
+        Assert.Equal(60, unlimited.MonthlyTokensUsed);
+        Assert.Null(unlimited.MonthlyTokenLimit);
+        foreach (var limit in new[] { -1L, long.MaxValue })
+            await Assert.ThrowsAsync<UserManagementException>(() => fixture.Service.SaveTokenLimitAsync(user.Id, new(limit, unlimited.ConcurrencyStamp), default));
+    }
+
+    [Fact]
+    public void TokenPeriodsUseUtcAndRollOverAtYearBoundary()
+    {
+        var local = new DateTimeOffset(2027, 1, 1, 1, 0, 0, TimeSpan.FromHours(7));
+        Assert.Equal(202612, MonthlyTokenQuota.MonthKey(local));
+        Assert.Equal(20261231, MonthlyTokenQuota.DayKey(local));
+        Assert.Equal(new DateTimeOffset(2027, 1, 1, 0, 0, 0, TimeSpan.Zero), MonthlyTokenQuota.NextMonth(local));
+        MonthlyTokenQuota.EnsureAvailable(null, long.MaxValue);
+        MonthlyTokenQuota.EnsureAvailable(100, 99);
+        Assert.Throws<UserManagementException>(() => MonthlyTokenQuota.EnsureAvailable(0, 0));
+        Assert.Throws<UserManagementException>(() => MonthlyTokenQuota.EnsureAvailable(100, 100));
+    }
+
+    [Fact]
+    public void TokenUsageMigrationMatchesTheCurrentModel()
+    {
+        using var db = new SharePointIndexDbContext(new DbContextOptionsBuilder<SharePointIndexDbContext>()
+            .UseSqlServer("Server=localhost;Database=ModelOnly;Integrated Security=true").Options);
+        Assert.False(db.Database.HasPendingModelChanges());
     }
 
     private static ChatMessageAttachmentFileEntity Attachment(Guid creator, long size) => new()

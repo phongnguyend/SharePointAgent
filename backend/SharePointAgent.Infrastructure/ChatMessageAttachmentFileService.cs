@@ -296,7 +296,7 @@ public sealed class ChatMessageAttachmentFileService(
 
         await EnsureInfrastructureAsync(cancellationToken);
         var count = Math.Clamp(top, 1, 10);
-        var vector = await embeddings.GenerateVectorAsync(query, cancellationToken: cancellationToken);
+        var vector = await ChatEmbeddingUsage.GenerateQueryVectorAsync(embeddings, query, cancellationToken);
         var hits = new List<AttachmentSearchHit>();
         foreach (var batch in attachmentIds.Chunk(100))
         {

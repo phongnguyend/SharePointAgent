@@ -54,11 +54,7 @@ export default function DeltaStatePage() {
             <GitBranch size={20} />
             Delta state
           </h1>
-          <p>
-            The <code>SharePointDeltaState</code> table — one checkpoint per drive. The delta link is
-            where the next pass resumes; the scan ID is the reconciliation round it belongs to, and a
-            round is only swept once it has walked the whole drive.
-          </p>
+          <p>Track each drive’s synchronization checkpoint and reconciliation progress.</p>
         </div>
         <button onClick={rows.reload}>
           <RefreshCw size={14} />

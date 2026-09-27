@@ -72,6 +72,7 @@ public sealed class IndexedFileEntity
 
 public sealed class ChatConversationEntity
 {
+    public long EmbeddingTokenCount { get; set; }
     public Guid? CreatedById { get; set; }
     public Guid Id { get; set; }
     public string Title { get; set; } = "";
@@ -91,6 +92,7 @@ public sealed class ChatConversationEntity
 
 public sealed class ChatMessageEntity
 {
+    public long EmbeddingTokenCount { get; set; }
     public Guid Id { get; set; }
     public Guid ConversationId { get; set; }
 

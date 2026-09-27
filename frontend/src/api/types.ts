@@ -18,6 +18,11 @@ export interface AppUser {
   concurrencyStamp: string
   attachmentStorageLimitBytes: number | null
   attachmentStorageUsedBytes: number
+  monthlyTokenLimit: number | null
+  monthlyTokensUsed: number
+  tokenUsageResetsAtUtc: string | null
+  dailyTokenUsage: { day: number; inputTokens: number; outputTokens: number; totalTokens: number }[] | null
+  dailyModelTokenUsage: { day: number; modelId: string | null; inputTokens: number; outputTokens: number; totalTokens: number }[] | null
 }
 export interface AppUserInput {
   email: string
@@ -132,6 +137,7 @@ export interface ChatConversation {
   createdAtUtc: string
   updatedAtUtc: string
   messageCount: number
+  embeddingTokenCount: number
   inputTokenCount: number
   outputTokenCount: number
   totalTokenCount: number
@@ -154,6 +160,7 @@ export interface ChatMessage {
   role: 'User' | 'Assistant'
   content: string
   citations: ChatCitation[]
+  embeddingTokenCount: number
   inputTokenCount: number
   outputTokenCount: number
   totalTokenCount: number

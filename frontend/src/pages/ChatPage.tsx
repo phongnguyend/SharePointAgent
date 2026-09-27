@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Copy,
   Cpu,
+  RefreshCw,
   ExternalLink,
   Eye,
   GitBranch,
@@ -34,12 +35,14 @@ import {
   setMessageFeedback,
   uploadAttachmentFile,
   getAttachmentOptions,
+  getCurrentUser,
   downloadAttachmentFile,
 } from '../api/client'
 import type { ChatConversation, ChatFeedback, ChatMessage, ChatMessageAttachment } from '../api/types'
 import { Empty, ErrorBanner, LoadingBar } from '../components/ui'
 import { FileTypeIcon } from '../components/FileTypeIcon'
 import { AttachmentDownload } from '../components/AttachmentDownload'
+import { MonthlyTokenUsage } from '../components/MonthlyTokenUsage'
 import { OfficePreview } from '../components/OfficePreview'
 import { isPreviewableOfficeFile } from '../lib/officeFiles'
 import {
@@ -58,6 +61,12 @@ export default function ChatPage() {
   const conversations = useAsync((signal) => listConversations(signal), [])
   const agents = useAsync((signal) => listAgents(signal), [])
   const attachmentOptions = useAsync((signal) => getAttachmentOptions(signal), [])
+  const tokenUsage = useAsync(signal => getCurrentUser(signal), [])
+  useEffect(() => {
+    const timer = window.setInterval(tokenUsage.reload, 60_000)
+    window.addEventListener('focus', tokenUsage.reload)
+    return () => { window.clearInterval(timer); window.removeEventListener('focus', tokenUsage.reload) }
+  }, [tokenUsage.reload])
   // The open conversation is in the URL, so a link from elsewhere — the Feedback page — can open the
   // one it is pointing at rather than dropping the reader into whichever is most recent.
   const [params, setParams] = useSearchParams()
@@ -306,6 +315,7 @@ export default function ChatPage() {
       inputTokenCount: 0,
       outputTokenCount: 0,
       totalTokenCount: 0,
+      embeddingTokenCount: 0,
       modelId: null,
       feedback: null,
       attachments,
@@ -349,6 +359,7 @@ export default function ChatPage() {
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setSending(false)
+      tokenUsage.reload()
       setStreamingText('')
       setAgentStatus('Thinking…')
     }
@@ -356,19 +367,22 @@ export default function ChatPage() {
 
   return (
     <div className="stack" style={{ gap: 14 }}>
-      <div className="page-head" style={{ marginBottom: 0 }}>
-        <div>
+      <div className="card card-body chat-token-usage">
+        <div className="chat-header-title">
           <h1>
             <Sparkles size={20} />
             Chat
           </h1>
           <p>
-            Ask about the indexed documents. The assistant searches the index when a question needs it
-            and answers from what it finds, citing the files it used.
+            Ask about your documents, with sources.
           </p>
         </div>
+        <section className="chat-header-usage" aria-label="My chat token usage this month">
+          {tokenUsage.data && <MonthlyTokenUsage user={tokenUsage.data} showDetails />}
+        </section>
+        <button onClick={tokenUsage.reload} disabled={tokenUsage.loading}><RefreshCw size={14} />Refresh</button>
+        {tokenUsage.error && <ErrorBanner message={tokenUsage.error} onRetry={tokenUsage.reload} />}
       </div>
-
       {error ? <ErrorBanner message={error} /> : null}
       {agents.error ? <ErrorBanner message={agents.error} onRetry={agents.reload} /> : null}
 
@@ -584,6 +598,9 @@ function ConversationRow({
           <span className="chat-conversation-token-usage">
             {formatTokenUsage(item.totalTokenCount, item.inputTokenCount, item.outputTokenCount)}
           </span>
+          <span className="chat-conversation-token-usage">
+            {(item.embeddingTokenCount ?? 0).toLocaleString()} embedding tokens
+          </span>
         </span>
       </button>
       {confirming ? (
@@ -667,6 +684,7 @@ function MessageBubble({
               {message.modelId ? ` · ${message.modelId}` : ''}
             </span>
           ) : null}
+          {!isUser && <span className="chat-time">{(message.embeddingTokenCount ?? 0).toLocaleString()} embedding tokens</span>}
           {!isUser ? (
             <MessageActions message={message} onFeedback={onFeedback} onBranch={onBranch} />
           ) : null}

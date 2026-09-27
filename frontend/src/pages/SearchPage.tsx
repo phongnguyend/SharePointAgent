@@ -126,10 +126,7 @@ export default function SearchPage() {
             <SearchIcon size={20} />
             Search
           </h1>
-          <p>
-            The same request body over the three retrieval strategies. Run one, or run all three at
-            once to see where keyword and vector retrieval disagree.
-          </p>
+          <p>Search documents with keyword, vector, or hybrid retrieval.</p>
         </div>
       </div>
 

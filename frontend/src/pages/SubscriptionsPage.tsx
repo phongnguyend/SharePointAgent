@@ -153,11 +153,7 @@ export default function SubscriptionsPage() {
             <Webhook size={20} />
             Webhook subscriptions
           </h1>
-          <p>
-            The Microsoft Graph subscriptions that make the drive notify this deployment when something
-            changes. A notification is only a signal — the worker still reconciles through the delta
-            feed — so removing one leaves the scheduled synchronization as the only trigger.
-          </p>
+          <p>Manage SharePoint change notifications. Scheduled synchronization continues without them.</p>
         </div>
         <div className="row" style={{ gap: 8 }}>
           <button onClick={overview.reload}>

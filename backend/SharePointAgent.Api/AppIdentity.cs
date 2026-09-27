@@ -17,6 +17,8 @@ public static class AppIdentity
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<SharePointIndexDbContext>();
         services.AddScoped<AppUserService>();
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<MonthlyTokenQuota>();
         services.AddHostedService<AppIdentityBootstrap>();
         return services;
     }
@@ -36,6 +38,8 @@ public static class AppIdentity
         app.MapPut("/api/users/{id:guid}", async (Guid id, AppUserInput input, AppUserService users, CancellationToken ct) =>
             Results.Ok(await users.SaveAsync(id, input, ct)));
         app.MapGet("/api/roles", () => Results.Ok(AppRoles.All));
+        app.MapPut("/api/users/{id:guid}/tokens", async (Guid id, AppUserTokenLimitInput input, AppUserService users, CancellationToken ct) =>
+            Results.Ok(await users.SaveTokenLimitAsync(id, input, ct)));
         app.MapPut("/api/users/{id:guid}/storage", async (Guid id, AppUserStorageInput input, AppUserService users, CancellationToken ct) =>
             Results.Ok(await users.SaveStorageAsync(id, input, ct)));
         app.MapGet("/api/storage/attachments", async (AppUserService users, CancellationToken ct) =>

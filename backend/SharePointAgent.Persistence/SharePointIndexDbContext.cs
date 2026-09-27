@@ -18,6 +18,7 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
     private const int IdentifierLength = 200;
 
     public DbSet<AgentDefinitionEntity> AgentDefinitions => Set<AgentDefinitionEntity>();
+    public DbSet<UserTokenUsageEntity> UserTokenUsage => Set<UserTokenUsageEntity>();
     public DbSet<WebhookSubscriptionEntity> WebhookSubscriptions => Set<WebhookSubscriptionEntity>();
     public DbSet<DeltaStateEntity> DeltaState => Set<DeltaStateEntity>();
     public DbSet<IndexedFileEntity> IndexedFiles => Set<IndexedFileEntity>();
@@ -29,6 +30,15 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<UserTokenUsageEntity>(entity =>
+        {
+            entity.HasKey(x => x.QuestionId);
+            entity.Property(x => x.QuestionId).ValueGeneratedNever();
+            entity.Property(x => x.ModelId).HasMaxLength(200);
+            entity.HasIndex(x => new { x.ModelId, x.Month });
+            entity.HasIndex(x => new { x.UserId, x.Month });
+            entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+        });
         modelBuilder.Entity<ApplicationUser>(entity =>
         {
             entity.Property(x => x.DisplayName).HasMaxLength(200);

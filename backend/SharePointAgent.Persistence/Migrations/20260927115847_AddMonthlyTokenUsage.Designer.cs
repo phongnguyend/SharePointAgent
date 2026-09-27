@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SharePointAgent.Persistence;
 
@@ -11,9 +12,11 @@ using SharePointAgent.Persistence;
 namespace SharePointAgent.Persistence.Migrations
 {
     [DbContext(typeof(SharePointIndexDbContext))]
-    partial class SharePointIndexDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260927115847_AddMonthlyTokenUsage")]
+    partial class AddMonthlyTokenUsage
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -327,9 +330,6 @@ namespace SharePointAgent.Persistence.Migrations
                     b.Property<Guid?>("CreatedById")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<long>("EmbeddingTokenCount")
-                        .HasColumnType("bigint");
-
                     b.Property<string>("FoundryEndpoint")
                         .HasMaxLength(2048)
                         .HasColumnType("nvarchar(2048)");
@@ -493,9 +493,6 @@ namespace SharePointAgent.Persistence.Migrations
                         .HasPrecision(7)
                         .HasColumnType("datetimeoffset(7)");
 
-                    b.Property<long>("EmbeddingTokenCount")
-                        .HasColumnType("bigint");
-
                     b.Property<string>("Feedback")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
@@ -651,21 +648,14 @@ namespace SharePointAgent.Persistence.Migrations
 
             modelBuilder.Entity("SharePointAgent.Persistence.UserTokenUsageEntity", b =>
                 {
-                    b.Property<Guid>("QuestionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset?>("CreatedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
                     b.Property<int>("Day")
                         .HasColumnType("int");
 
+                    b.Property<Guid>("QuestionId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<long>("InputTokens")
                         .HasColumnType("bigint");
-
-                    b.Property<string>("ModelId")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
 
                     b.Property<int>("Month")
                         .HasColumnType("int");
@@ -680,8 +670,6 @@ namespace SharePointAgent.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("QuestionId");
-
-                    b.HasIndex("ModelId", "Month");
 
                     b.HasIndex("UserId", "Month");
 

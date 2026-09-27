@@ -25,7 +25,7 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
             .OrderByDescending(c => c.UpdatedAtUtc)
             .Select(c => new ChatConversation(
                 c.Id, c.Title, c.UserId, c.AgentId, c.CreatedAtUtc, c.UpdatedAtUtc, c.Messages.Count,
-                c.InputTokenCount, c.OutputTokenCount, c.TotalTokenCount))
+                c.InputTokenCount, c.OutputTokenCount, c.TotalTokenCount, c.EmbeddingTokenCount))
             .ToListAsync(cancellationToken);
     }
 
@@ -37,7 +37,7 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
             .Where(c => c.Id == id)
             .Select(c => new ChatConversation(
                 c.Id, c.Title, c.UserId, c.AgentId, c.CreatedAtUtc, c.UpdatedAtUtc, c.Messages.Count,
-                c.InputTokenCount, c.OutputTokenCount, c.TotalTokenCount))
+                c.InputTokenCount, c.OutputTokenCount, c.TotalTokenCount, c.EmbeddingTokenCount))
             .FirstOrDefaultAsync(cancellationToken);
     }
 
@@ -103,6 +103,7 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
         var inputTokens = sourceMessages.Sum(m => m.InputTokenCount);
         var outputTokens = sourceMessages.Sum(m => m.OutputTokenCount);
         var totalTokens = sourceMessages.Sum(m => m.TotalTokenCount);
+        var embeddingTokens = sourceMessages.Sum(m => m.EmbeddingTokenCount);
 
         context.ChatConversations.Add(new ChatConversationEntity
         {
@@ -114,6 +115,7 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
             InputTokenCount = inputTokens,
             OutputTokenCount = outputTokens,
             TotalTokenCount = totalTokens,
+            EmbeddingTokenCount = embeddingTokens,
             CreatedAtUtc = now,
             UpdatedAtUtc = now,
         });
@@ -127,6 +129,7 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
             InputTokenCount = message.InputTokenCount,
             OutputTokenCount = message.OutputTokenCount,
             TotalTokenCount = message.TotalTokenCount,
+            EmbeddingTokenCount = message.EmbeddingTokenCount,
             ModelId = message.ModelId,
             Feedback = null,
             CreatedAtUtc = message.CreatedAtUtc,
@@ -148,7 +151,7 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
             sourceMessages.Count,
             inputTokens,
             outputTokens,
-            totalTokens);
+            totalTokens, embeddingTokens);
     }
 
     public async Task RenameConversationAsync(Guid id, string title, CancellationToken cancellationToken)
@@ -195,6 +198,7 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
         var inputTokens = usage?.InputTokens ?? 0;
         var outputTokens = usage?.OutputTokens ?? 0;
         var totalTokens = usage?.TotalTokens ?? 0;
+        var embeddingTokens = usage?.EmbeddingTokens ?? 0;
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         // Reading the last sequence and inserting the next one are two statements, so a transaction keeps
@@ -216,6 +220,7 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
             OutputTokenCount = outputTokens,
             TotalTokenCount = totalTokens,
             ModelId = modelId,
+            EmbeddingTokenCount = embeddingTokens,
             CreatedAtUtc = now
         };
         context.ChatMessages.Add(entity);
@@ -259,7 +264,7 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
         var record = new ChatMessageRecord(
             entity.Id, conversationId, role, content, citations,
             inputTokens, outputTokens, totalTokens, modelId, null,
-            [.. attachedFiles.Select(ToAttachment)], now);
+            [.. attachedFiles.Select(ToAttachment)], now, embeddingTokens);
 
         // The conversation list is ordered by this, so it moves to the top on every turn.
         await context.ChatConversations
@@ -268,7 +273,8 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
                 .SetProperty(p => p.UpdatedAtUtc, now)
                 .SetProperty(p => p.InputTokenCount, p => p.InputTokenCount + inputTokens)
                 .SetProperty(p => p.OutputTokenCount, p => p.OutputTokenCount + outputTokens)
-                .SetProperty(p => p.TotalTokenCount, p => p.TotalTokenCount + totalTokens),
+                .SetProperty(p => p.TotalTokenCount, p => p.TotalTokenCount + totalTokens)
+                .SetProperty(p => p.EmbeddingTokenCount, p => p.EmbeddingTokenCount + embeddingTokens),
                 cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
@@ -370,7 +376,7 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
         row.ModelId,
         row.Feedback,
         [.. row.Attachments.Where(x => x.AttachmentFile is not null).Select(x => ToAttachment(x.AttachmentFile!))],
-        row.CreatedAtUtc);
+        row.CreatedAtUtc, row.EmbeddingTokenCount);
 
     private static ChatMessageAttachment ToAttachment(ChatMessageAttachmentFileEntity row) =>
         new(row.Id, row.FileName, row.ContentType, row.SizeBytes);

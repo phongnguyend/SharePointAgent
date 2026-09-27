@@ -120,10 +120,7 @@ export default function IndexedFilesPage() {
             <FileText size={20} />
             Indexed files
           </h1>
-          <p>
-            The <code>SharePointIndexedFiles</code> table — what was last written to the search index
-            for each file, and the tags the next delta pass compares against.
-          </p>
+          <p>Browse indexed documents, sensitivity labels, and indexing details.</p>
         </div>
         <button onClick={() => { page.reload(); labels.reload() }}>
           <RefreshCw size={14} />

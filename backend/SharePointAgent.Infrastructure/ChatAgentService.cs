@@ -77,6 +77,7 @@ public sealed class ChatAgentService(
         }
 
         var turnTools = new AgentTools(searchStore, attachmentFiles, files, conversationId, userId, logger, ReportStatusAsync);
+        using var embeddingUsage = ChatEmbeddingUsage.Begin();
 
         // Named explicitly so the names the instructions above use are the names the model sees. officecli's
         // tools come from the MCP server itself and keep the names it publishes.
@@ -200,7 +201,7 @@ public sealed class ChatAgentService(
         return new ChatTurn(
             text,
             turnTools.Citations,
-            new ChatTokenUsage(inputTokens, outputTokens, totalTokens),
+            new ChatTokenUsage(inputTokens, outputTokens, totalTokens, embeddingUsage.TotalTokens),
             modelId);
     }
 

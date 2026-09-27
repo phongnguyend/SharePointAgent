@@ -170,10 +170,37 @@ public sealed class AppUserService(SharePointIndexDbContext db, UserManager<Appl
         return await ViewAsync(user);
     }
 
-    private async Task<AppUserView> ViewAsync(ApplicationUser user) => new(user.Id, user.Email!, user.DisplayName,
+    public async Task<AppUserView> SaveTokenLimitAsync(Guid id, AppUserTokenLimitInput input, CancellationToken ct)
+    {
+        if (input.MonthlyTokenLimit is < 0 or > 9_007_199_254_740_991)
+            throw new UserManagementException("Monthly token limit must be a non-negative whole number within the supported range.");
+        await using var transaction = await BeginAsync(ct);
+        var user = await users.FindByIdAsync(id.ToString()) ?? throw new UserManagementException("User not found.", 404);
+        if (string.IsNullOrEmpty(input.ConcurrencyStamp) || input.ConcurrencyStamp != user.ConcurrencyStamp)
+            throw new UserManagementException("This user changed. Refresh the list and try again.", 409);
+        user.MonthlyTokenLimit = input.MonthlyTokenLimit;
+        Check(await users.UpdateAsync(user));
+        await transaction.CommitAsync(ct);
+        return await ViewAsync(user);
+    }
+
+    private async Task<AppUserView> ViewAsync(ApplicationUser user)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var month = MonthlyTokenQuota.MonthKey(now);
+        var dailyModels = await db.UserTokenUsage.Where(x => x.UserId == user.Id && x.Month == month)
+            .GroupBy(x => new { x.Day, x.ModelId }).OrderBy(x => x.Key.Day).ThenBy(x => x.Key.ModelId)
+            .Select(x => new DailyModelTokenUsage(x.Key.Day, x.Key.ModelId, x.Sum(t => t.InputTokens), x.Sum(t => t.OutputTokens), x.Sum(t => t.TotalTokens)))
+            .ToListAsync();
+        var daily = dailyModels.GroupBy(x => x.Day)
+            .Select(x => new DailyTokenUsage(x.Key, x.Sum(t => t.InputTokens), x.Sum(t => t.OutputTokens), x.Sum(t => t.TotalTokens))).ToArray();
+        return new(user.Id, user.Email!, user.DisplayName,
         (await users.GetRolesAsync(user)).OrderBy(role => Array.IndexOf(AppRoles.All, role)).ToArray(), user.IsActive, user.EntraObjectId is not null,
         user.CreatedAtUtc, user.LastLoginAtUtc, user.ConcurrencyStamp!, user.AttachmentStorageLimitBytes,
-        await db.ChatMessageAttachmentFiles.Where(x => x.CreatedById == user.Id).SumAsync(x => (long?)x.SizeBytes) ?? 0);
+        await db.ChatMessageAttachmentFiles.Where(x => x.CreatedById == user.Id).SumAsync(x => (long?)x.SizeBytes) ?? 0,
+        user.MonthlyTokenLimit,
+        daily.Sum(x => x.TotalTokens), MonthlyTokenQuota.NextMonth(now), daily, dailyModels);
+    }
 
     private static ApplicationUser NewUser(string email, string name) => new()
     {

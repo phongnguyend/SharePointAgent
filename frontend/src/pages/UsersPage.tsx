@@ -1,15 +1,17 @@
 import { useState } from 'react'
-import { Users, UserPlus, Pencil, RefreshCw, ShieldCheck, Save, X, LoaderCircle, HardDrive } from 'lucide-react'
-import { listUsers, saveUser, saveUserStorage } from '../api/client'
+import { Users, UserPlus, Pencil, RefreshCw, ShieldCheck, Save, X, LoaderCircle, HardDrive, Cpu } from 'lucide-react'
+import { listUsers, saveUser, saveUserStorage, saveUserTokenLimit } from '../api/client'
 import type { AppRole, AppUser, AppUserInput } from '../api/types'
 import { useAppUser } from '../components/AppUserContext'
 import { Empty, ErrorBanner, Field, LoadingBar, Modal, Pagination } from '../components/ui'
 import { useAsync, useDebounced } from '../lib/useAsync'
 import { formatDateTime } from '../lib/format'
 import { AttachmentStorageUsage } from '../components/AttachmentStorageUsage'
+import { MonthlyTokenUsage } from '../components/MonthlyTokenUsage'
 
 const roles: AppRole[] = ['Global Admin', 'Global Reader Admin', 'User']
 const BYTES_PER_GB = 1024 ** 3
+const TOKENS_PER_MILLION = 1_000_000
 const blank: AppUserInput = { email: '', displayName: '', roles: ['User'], isActive: true }
 
 export default function UsersPage() {
@@ -24,6 +26,8 @@ export default function UsersPage() {
   const [form, setForm] = useState<AppUserInput>(blank)
   const [storageLimitGB, setStorageLimitGB] = useState('')
   const [storageUser, setStorageUser] = useState<AppUser | null>(null)
+  const [tokenUser, setTokenUser] = useState<AppUser | null>(null)
+  const [tokenLimit, setTokenLimit] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -68,9 +72,25 @@ export default function UsersPage() {
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
     finally { setBusy(false) }
   }
+  const saveTokens = async () => {
+    if (!tokenUser) return
+    setBusy(true)
+    setError(null)
+    try {
+      const millions = tokenLimit.trim() === '' ? null : Number(tokenLimit)
+      const limit = millions === null ? null : millions * TOKENS_PER_MILLION
+      if (millions !== null && (!Number.isSafeInteger(millions) || millions < 0 || !Number.isSafeInteger(limit))) throw new Error('Enter a non-negative whole number of millions of tokens.')
+      const saved = await saveUserTokenLimit(tokenUser.id, { monthlyTokenLimit: limit, concurrencyStamp: tokenUser.concurrencyStamp })
+      setTokenUser(null)
+      setNotice(`Monthly token limit updated for ${saved.displayName}.`)
+      page.reload()
+      if (saved.id === me.id) window.dispatchEvent(new Event('app-profile-refresh'))
+    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
+    finally { setBusy(false) }
+  }
   return <div className="stack">
     <div className="page-head">
-      <div><h1><Users size={20} />Users</h1><p>Manage application access. These roles are separate from Microsoft Entra ID roles.</p></div>
+      <div><h1><Users size={20} />Users</h1><p>Manage app access, roles, and usage limits. Roles are separate from Entra ID.</p></div>
       <div className="row"><button onClick={page.reload}><RefreshCw size={14} />Refresh</button>
         {canManage && <button onClick={() => edit(null)}><UserPlus size={14} />Create user</button>}</div>
     </div>
@@ -80,17 +100,19 @@ export default function UsersPage() {
     <LoadingBar active={page.loading} />
     {page.error && <ErrorBanner message={page.error} onRetry={page.reload} />}
     <div className="card">
-      <div className="table-scroll"><table><thead><tr><th>User</th><th>Application roles</th><th>Attachment storage</th><th>Status</th><th>Entra sign-in</th><th>Last sign-in</th>{canManage && <th>Actions</th>}</tr></thead>
+      <div className="table-scroll"><table><thead><tr><th>User</th><th>Application roles</th><th>Attachment storage</th><th>Monthly chat tokens</th><th>Status</th><th>Entra sign-in</th><th>Last sign-in</th>{canManage && <th>Actions</th>}</tr></thead>
         <tbody>{page.data?.items.map(user => <tr key={user.id}>
           <td><strong>{user.displayName}</strong><div>{user.email}</div></td>
           <td><div className="row">{user.roles.map(role => <span key={role} className="badge"><ShieldCheck size={12} />{role}</span>)}</div></td>
           <td><AttachmentStorageUsage used={user.attachmentStorageUsedBytes} limit={user.attachmentStorageLimitBytes} /></td>
+          <td><MonthlyTokenUsage user={user} /></td>
           <td><span className={`badge ${user.isActive ? 'good' : 'warning'}`}>{user.isActive ? 'Active' : 'Disabled'}</span></td>
           <td>{user.hasSignedIn ? 'Linked' : 'Awaiting first sign-in'}</td>
           <td>{formatDateTime(user.lastLoginAtUtc)}</td>
           {canManage && <td><div className="row">
             <button onClick={() => edit(user)} aria-label={`Edit ${user.email}`}><Pencil size={13} />Edit</button>
             <button onClick={() => manageStorage(user)} aria-label={`Manage storage for ${user.email}`}><HardDrive size={13} />Manage storage</button>
+            <button onClick={() => { setTokenUser(user); setTokenLimit(user.monthlyTokenLimit == null ? '' : String(user.monthlyTokenLimit / TOKENS_PER_MILLION)); setError(null) }} aria-label={`Manage tokens for ${user.email}`}><Cpu size={13} />Manage tokens</button>
           </div></td>}
         </tr>)}</tbody></table></div>
       {page.data?.items.length === 0 && <Empty title="No users found" />}
@@ -132,6 +154,20 @@ export default function UsersPage() {
         <Field label="Attachment storage limit (GB)" help="Leave blank for unlimited. Set 0 to block new uploads. Lowering the limit does not delete existing files.">
           <input type="number" min={0} step={1} placeholder="Unlimited" disabled={busy} value={storageLimitGB} onChange={e => setStorageLimitGB(e.target.value)} />
         </Field>
+        {error && <ErrorBanner message={error} />}
+      </form>}
+    </Modal>
+    <Modal open={tokenUser !== null} title="Manage monthly tokens" icon={<Cpu size={18} />} onClose={() => { if (!busy) setTokenUser(null) }} footer={<>
+      <button disabled={busy} onClick={() => setTokenUser(null)}><X size={14} />Cancel</button>
+      <button disabled={busy} type="submit" form="token-editor"><Save size={14} />{busy ? 'Saving…' : 'Save token limit'}</button>
+    </>}>
+      {tokenUser && <form id="token-editor" className="stack" onSubmit={event => { event.preventDefault(); void saveTokens() }}>
+        <div><strong>{tokenUser.displayName}</strong><div>{tokenUser.email}</div></div>
+        <MonthlyTokenUsage user={tokenUser} showDetails />
+        <Field label="Monthly chat token limit (millions)" help="Enter whole millions: 1 = 1,000,000 tokens. Includes input and output tokens across tool-call rounds. Blank means unlimited; 0 blocks new chat turns. Resets on the first day of each month at 00:00 UTC.">
+          <input type="number" min={0} step={1} placeholder="Unlimited" disabled={busy} value={tokenLimit} onChange={e => setTokenLimit(e.target.value)} />
+        </Field>
+        <p className="hint">An in-progress response can exceed the remaining allowance. Changes apply to subsequent turns and do not reset usage.</p>
         {error && <ErrorBanner message={error} />}
       </form>}
     </Modal>

@@ -12,7 +12,8 @@ public sealed record ChatConversation(
     int MessageCount,
     long InputTokenCount,
     long OutputTokenCount,
-    long TotalTokenCount);
+    long TotalTokenCount,
+    long EmbeddingTokenCount = 0);
 
 [JsonConverter(typeof(JsonStringEnumConverter<ChatMessageRole>))]
 public enum ChatMessageRole
@@ -52,7 +53,8 @@ public sealed record ChatMessageRecord(
     string? ModelId,
     ChatFeedback? Feedback,
     IReadOnlyList<ChatMessageAttachment> Attachments,
-    DateTimeOffset CreatedAtUtc);
+    DateTimeOffset CreatedAtUtc,
+    long EmbeddingTokenCount = 0);
 
 public sealed record ChatMessageAttachment(Guid Id, string FileName, string? ContentType, long SizeBytes);
 
@@ -93,4 +95,4 @@ public sealed record ChatTurn(
     string? ModelId);
 
 /// <summary>Tokens consumed across every model request in an agent turn, including tool round trips.</summary>
-public sealed record ChatTokenUsage(long InputTokens, long OutputTokens, long TotalTokens);
+public sealed record ChatTokenUsage(long InputTokens, long OutputTokens, long TotalTokens, long EmbeddingTokens = 0);

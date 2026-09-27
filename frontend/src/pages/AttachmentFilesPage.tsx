@@ -88,15 +88,21 @@ export default function AttachmentFilesPage() {
 
   return (
     <div className="stack">
-      <div className="page-head">
+      <div className="page-head attachment-page-header">
         <div>
           <h1><Paperclip size={20} />Attachment files</h1>
-          <p>Files prepared for chat, their index status, and the conversation each file belongs to.</p>
+          <p>Manage chat attachments, indexing status, and storage usage.</p>
         </div>
+        <section className="attachment-header-storage" aria-label="My attachment storage">
+          <strong>My attachment storage</strong>
+          {storage.data && <AttachmentStorageUsage used={storage.data.attachmentStorageUsedBytes} limit={storage.data.attachmentStorageLimitBytes} />}
+          <LoadingBar active={storage.loading} />
+          {storage.error && <ErrorBanner message={storage.error} onRetry={storage.reload} />}
+        </section>
         <button onClick={() => { page.reload(); storage.reload() }}><RefreshCw size={14} />Refresh</button>
       </div>
 
-      <div className="attachment-tabs" role="tablist" aria-label="Attachment files views" onKeyDown={event => {
+      {canReadSystemStorage && <div className="attachment-tabs" role="tablist" aria-label="Attachment files views" onKeyDown={event => {
         if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
         event.preventDefault()
         const next = event.key === 'Home' ? 'files' : event.key === 'End' ? 'usage' : tab === 'files' ? 'usage' : 'files'
@@ -109,20 +115,14 @@ export default function AttachmentFilesPage() {
         <button role="tab" data-tab="usage" id={`${tabId}-usage-tab`} aria-controls={`${tabId}-usage-panel`} aria-selected={tab === 'usage'} tabIndex={tab === 'usage' ? 0 : -1} onClick={() => setTab('usage')}>
           <HardDrive size={15} aria-hidden="true" />Storage usage
         </button>
-      </div>
+      </div>}
 
-      <div role="tabpanel" id={`${tabId}-usage-panel`} aria-labelledby={`${tabId}-usage-tab`} hidden={tab !== 'usage'} tabIndex={0}>
+      {canReadSystemStorage && <div role="tabpanel" id={`${tabId}-usage-panel`} aria-labelledby={`${tabId}-usage-tab`} hidden={tab !== 'usage'} tabIndex={0}>
       <div className="stack">
       {tab === 'usage' && canReadSystemStorage && <SystemAttachmentStorage refreshKey={page.data} />}
-      <div className="card"><div className="card-body">
-        <h2>My attachment storage</h2>
-        {storage.data && <AttachmentStorageUsage used={storage.data.attachmentStorageUsedBytes} limit={storage.data.attachmentStorageLimitBytes} />}
-        <LoadingBar active={storage.loading} />
-        {storage.error && <ErrorBanner message={storage.error} onRetry={storage.reload} />}
-      </div></div>
       </div>
-      </div>
-      <div role="tabpanel" id={`${tabId}-files-panel`} aria-labelledby={`${tabId}-files-tab`} hidden={tab !== 'files'} tabIndex={0}>
+      </div>}
+      <div role={canReadSystemStorage ? 'tabpanel' : undefined} id={`${tabId}-files-panel`} aria-labelledby={canReadSystemStorage ? `${tabId}-files-tab` : undefined} hidden={canReadSystemStorage && tab !== 'files'} tabIndex={0}>
       <div className="stack">
       <div className="card"><div className="card-body">
         <input

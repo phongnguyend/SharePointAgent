@@ -30,6 +30,10 @@ import type {
 const BASE_URL = API_BASE
 
 export const getCurrentUser = (signal?: AbortSignal) => request<AppUser>('/api/auth/me', { signal })
+export const saveUserTokenLimit = (id: string, input: { monthlyTokenLimit: number | null; concurrencyStamp: string }) =>
+  request<AppUser>(`/api/users/${encodeURIComponent(id)}/tokens`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+  })
 export const saveUserStorage = (id: string, input: AppUserStorageInput) => request<AppUser>(`/api/users/${encodeURIComponent(id)}/storage`, {
   method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
 })

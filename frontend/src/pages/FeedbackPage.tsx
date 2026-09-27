@@ -68,11 +68,7 @@ export default function FeedbackPage() {
             <Scale size={20} />
             Feedback
           </h1>
-          <p>
-            Every answer a reader rated in the chat, newest first — the question that prompted it, what
-            the assistant said, and which documents it used. Useful for spotting the questions the
-            index does not answer well.
-          </p>
+          <p>Review rated answers, their questions, and the sources used.</p>
         </div>
         <button onClick={page.reload}>
           <RefreshCw size={14} />

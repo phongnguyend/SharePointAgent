@@ -36,7 +36,7 @@ public sealed class AzureSearchQueryStore(
 
         if (mode is SearchQueryMode.Vector or SearchQueryMode.Hybrid)
         {
-            var vector = await embeddings.GenerateVectorAsync(request.Query, cancellationToken: cancellationToken);
+            var vector = await ChatEmbeddingUsage.GenerateQueryVectorAsync(embeddings, request.Query, cancellationToken);
             options.VectorSearch = new VectorSearchOptions
             {
                 Queries =

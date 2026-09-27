@@ -21,7 +21,7 @@ namespace SharePointAgent.Tests;
 
 public sealed class ChatAgentStreamingTests
 {
-    private static readonly ChatTurn Turn = new("Answer", [new("File", null, "https://example.com/file", 1, 0.9)], new(10, 5, 15), "model");
+    private static readonly ChatTurn Turn = new("Answer", [new("File", null, "https://example.com/file", 1, 0.9)], new(10, 5, 15, 7), "model");
 
     [Fact]
     public async Task ActualInvocationsHostStreamsStatusBeforeCompletionAndPreservesTurnMetadata()

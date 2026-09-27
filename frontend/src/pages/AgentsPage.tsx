@@ -81,10 +81,7 @@ export default function AgentsPage() {
             <Bot size={20} />
             Agents
           </h1>
-          <p>
-            Create and maintain reusable agent instructions. New agents start with the SharePoint
-            assistant&apos;s built-in instruction template and can then be customized.
-          </p>
+          <p>Create and manage reusable agent instructions and models.</p>
         </div>
         <div className="row" style={{ gap: 8 }}>
           <button onClick={agents.reload}>

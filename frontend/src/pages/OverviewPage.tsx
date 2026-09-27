@@ -51,10 +51,7 @@ export default function OverviewPage() {
             <LayoutDashboard size={20} />
             Overview
           </h1>
-          <p>
-            What the worker has recorded in SQL Server: the files it has indexed and how far its
-            reconciliation has got.
-          </p>
+          <p>Monitor indexed files and synchronization progress.</p>
         </div>
         <button onClick={reloadAll}>
           <RefreshCw size={14} />

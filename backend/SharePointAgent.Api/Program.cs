@@ -723,6 +723,7 @@ app.MapPost("/api/chat/conversations/{id:guid}/messages", async (
     SharePointIndexDbContext db,
     Guid id,
     ChatTurnRequest body,
+    MonthlyTokenQuota tokenQuota,
     IChatRepository store,
     IAgentRepository agentRepository,
     IChatAgentExecutor agent,
@@ -775,6 +776,8 @@ app.MapPost("/api/chat/conversations/{id:guid}/messages", async (
         return Results.BadRequest(new { error = ex.Message });
     }
 
+    await using var tokenLease = await tokenQuota.BeginAsync(context.AppUser().Id, cancellationToken);
+
     // The question is stored before the model runs, so a failed or cancelled turn still leaves the
     // conversation showing what was asked.
     ChatMessageRecord question;
@@ -819,6 +822,10 @@ app.MapPost("/api/chat/conversations/{id:guid}/messages", async (
             cancellationToken);
         return Results.Empty;
     }
+
+    // Persist provider-reported usage even if the caller disconnects before the answer is saved.
+    using (var accountingTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
+        await tokenLease.RecordAsync(question.Id, turn.Usage, turn.ModelId, accountingTimeout.Token);
 
     var answer = await store.AppendMessageAsync(
         id, ChatMessageRole.Assistant, turn.Text, turn.Citations, turn.Usage, turn.ModelId, [], cancellationToken);
