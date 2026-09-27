@@ -42,7 +42,10 @@ public sealed class ProtectedFileService(IOptions<SharePointOptions> options, IL
             if (!status.IsProtected() && !status.IsLabeled())
             {
                 if (hasOriginal)
+                {
                     throw new InvalidDataException("The retained protected original is invalid. Refresh the document.");
+                }
+
                 return sensitivity;
             }
 
@@ -55,11 +58,17 @@ public sealed class ProtectedFileService(IOptions<SharePointOptions> options, IL
             sensitivity = ReadSensitivity(handler, sensitivity);
             if (!status.IsProtected())
             {
-                if (hasOriginal) throw new InvalidDataException("The retained protected original is invalid. Refresh the document.");
+                if (hasOriginal)
+                {
+                    throw new InvalidDataException("The retained protected original is invalid. Refresh the document.");
+                }
+
                 return sensitivity;
             }
             if (handler.Protection is not { } protection || !protection.AccessCheck("EXTRACT"))
+            {
                 throw new ProtectedDocumentAccessDeniedException();
+            }
 
             // Cached copies still require an authorization check, but retain the user's local edits.
             if (hasOriginal)
@@ -67,7 +76,9 @@ public sealed class ProtectedFileService(IOptions<SharePointOptions> options, IL
                 using var cached = System.IO.File.OpenRead(path);
                 // Retry any empty cache copy left by an earlier failed stream copy.
                 if (cached.Length > 0 && !FileHandler.GetFileStatus(cached, fileName, _context).IsProtected())
+                {
                     return sensitivity;
+                }
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -76,7 +87,11 @@ public sealed class ProtectedFileService(IOptions<SharePointOptions> options, IL
                 System.Diagnostics.Activity.Current?.TraceId.ToString(), fileName, plaintext.CanSeek,
                 plaintext.CanSeek ? plaintext.Length : null, plaintext.CanSeek ? plaintext.Position : null);
             // MIP returns the seekable stream positioned at its end; copy the entire document.
-            if (plaintext.CanSeek) plaintext.Position = 0;
+            if (plaintext.CanSeek)
+            {
+                plaintext.Position = 0;
+            }
+
             var staging = path + "." + Guid.NewGuid().ToString("N") + ".decrypting";
             try
             {
@@ -88,12 +103,20 @@ public sealed class ProtectedFileService(IOptions<SharePointOptions> options, IL
                     while ((read = await plaintext.ReadAsync(buffer, cancellationToken)) != 0)
                     {
                         total += read;
-                        if (total > maxBytes) throw new FileTooLargeException(total, maxBytes);
+                        if (total > maxBytes)
+                        {
+                            throw new FileTooLargeException(total, maxBytes);
+                        }
+
                         await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
                     }
                 }
                 cancellationToken.ThrowIfCancellationRequested();
-                if (!hasOriginal) System.IO.File.Copy(path, original, overwrite: false);
+                if (!hasOriginal)
+                {
+                    System.IO.File.Copy(path, original, overwrite: false);
+                }
+
                 input.Dispose();
                 System.IO.File.Move(staging, path, overwrite: true);
                 logger?.LogInformation("Decrypted file ready: TraceId={TraceId}, FileName={FileName}, Bytes={Bytes}.",
@@ -101,7 +124,10 @@ public sealed class ProtectedFileService(IOptions<SharePointOptions> options, IL
             }
             finally
             {
-                if (System.IO.File.Exists(staging)) System.IO.File.Delete(staging);
+                if (System.IO.File.Exists(staging))
+                {
+                    System.IO.File.Delete(staging);
+                }
             }
             return sensitivity;
         }
@@ -133,7 +159,11 @@ public sealed class ProtectedFileService(IOptions<SharePointOptions> options, IL
 
     private void EnsureContext()
     {
-        if (_context is not null) return;
+        if (_context is not null)
+        {
+            return;
+        }
+
         MIP.Initialize(MipComponent.File);
         var app = new ApplicationInfo
         {
@@ -147,7 +177,11 @@ public sealed class ProtectedFileService(IOptions<SharePointOptions> options, IL
 
     private async Task<IFileEngine> GetEngineAsync()
     {
-        if (_engine is not null) return _engine;
+        if (_engine is not null)
+        {
+            return _engine;
+        }
+
         _profile ??= await MIP.LoadFileProfileAsync(new FileProfileSettings(_context!, CacheStorageType.InMemory, new ConsentDelegate())
         {
             CanCacheLicenses = false

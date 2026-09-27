@@ -171,7 +171,11 @@ public sealed class ChatMessageAttachmentFileService(
         CancellationToken cancellationToken)
     {
         var row = await FindConversationAttachmentAsync(conversationId, attachmentId, cancellationToken);
-        if (row is null) return null;
+        if (row is null)
+        {
+            return null;
+        }
+
         var original = await contentCache.DownloadAsync(row, cancellationToken);
         return new DownloadedFile(original.LocalPath, row.FileName, new FileInfo(original.LocalPath).Length, original.CacheHit);
     }
@@ -180,9 +184,16 @@ public sealed class ChatMessageAttachmentFileService(
         CancellationToken cancellationToken)
     {
         var row = await FindConversationAttachmentAsync(conversationId, attachmentId, cancellationToken);
-        if (row is null) return null;
+        if (row is null)
+        {
+            return null;
+        }
+
         if (_uploads.IsTextFile(row.FileName))
+        {
             throw new ArgumentException("This attachment is already text. Use download_attachment, then read_text with its localPath. Do not call download_attachment_markdown for text files.");
+        }
+
         var cached = await contentCache.GetMarkdownAsync(row, cancellationToken);
         return new DownloadedFile(cached.LocalPath, row.FileName + ".md", new FileInfo(cached.LocalPath).Length, cached.MarkdownCacheHit);
     }
@@ -406,11 +417,19 @@ public sealed class ChatMessageAttachmentFileService(
 
     private async Task EnsureInfrastructureAsync(CancellationToken cancellationToken)
     {
-        if (_initialized) return;
+        if (_initialized)
+        {
+            return;
+        }
+
         await _initializationLock.WaitAsync(cancellationToken);
         try
         {
-            if (_initialized) return;
+            if (_initialized)
+            {
+                return;
+            }
+
             await Container.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
             var fields = new List<SearchField>
             {
@@ -465,7 +484,10 @@ public sealed class ChatMessageAttachmentFileService(
                 ids.Add(result.Document.Id);
                 pageCount++;
             }
-            if (pageCount < 1000) break;
+            if (pageCount < 1000)
+            {
+                break;
+            }
         }
         foreach (var batch in ids.Chunk(1000))
         {

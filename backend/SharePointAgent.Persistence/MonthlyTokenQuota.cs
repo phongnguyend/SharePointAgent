@@ -24,7 +24,11 @@ public sealed class MonthlyTokenQuota(IDbContextFactory<SharePointIndexDbContext
             command.CommandText = "DECLARE @r int; EXEC @r = sp_getapplock @Resource=@resource, @LockMode='Exclusive', @LockOwner='Session', @LockTimeout=0; SELECT @r;";
             AddResource(command, resource);
             var result = Convert.ToInt32(await command.ExecuteScalarAsync(ct));
-            if (result < 0) throw new UserManagementException("A chat response is already running for your account. Wait for it to finish before sending another message.", 429);
+            if (result < 0)
+            {
+                throw new UserManagementException("A chat response is already running for your account. Wait for it to finish before sending another message.", 429);
+            }
+
             lease = new TurnLease(db, resource, userId, clock.GetUtcNow());
             var user = await db.Users.AsNoTracking().SingleAsync(x => x.Id == userId, ct);
             var used = await UsedAsync(db, userId, lease.Month, ct);
@@ -33,8 +37,15 @@ public sealed class MonthlyTokenQuota(IDbContextFactory<SharePointIndexDbContext
         }
         catch
         {
-            if (lease is not null) await lease.DisposeAsync();
-            else await db.DisposeAsync();
+            if (lease is not null)
+            {
+                await lease.DisposeAsync();
+            }
+            else
+            {
+                await db.DisposeAsync();
+            }
+
             throw;
         }
     }
@@ -42,7 +53,9 @@ public sealed class MonthlyTokenQuota(IDbContextFactory<SharePointIndexDbContext
     public static void EnsureAvailable(long? limit, long used)
     {
         if (limit.HasValue && used >= limit.Value)
+        {
             throw new UserManagementException("Your monthly token limit has been reached. Contact an administrator or wait until the next month (UTC).", 429);
+        }
     }
 
     public static async Task<long> UsedAsync(SharePointIndexDbContext db, Guid userId, int month, CancellationToken ct = default) =>
@@ -59,7 +72,11 @@ public sealed class MonthlyTokenQuota(IDbContextFactory<SharePointIndexDbContext
     public static async Task RecordUsageAsync(SharePointIndexDbContext db, Guid userId, Guid questionId,
         DateTimeOffset startedAt, ChatTokenUsage usage, string? modelId, CancellationToken ct)
     {
-        if (await db.UserTokenUsage.AnyAsync(x => x.QuestionId == questionId, ct)) return;
+        if (await db.UserTokenUsage.AnyAsync(x => x.QuestionId == questionId, ct))
+        {
+            return;
+        }
+
         db.UserTokenUsage.Add(new UserTokenUsageEntity
         {
             QuestionId = questionId, UserId = userId, Month = MonthKey(startedAt), Day = DayKey(startedAt),

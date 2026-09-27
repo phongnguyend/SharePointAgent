@@ -78,7 +78,9 @@ public sealed class UploadOptions
     {
         var allowed = GetAllowedFileExtensions();
         if (!allowed.Contains(Path.GetExtension(fileName), StringComparer.OrdinalIgnoreCase))
+        {
             throw new ArgumentException($"File type is not allowed. Allowed extensions: {string.Join(", ", allowed)}.", nameof(fileName));
+        }
     }
 
     public const string SectionName = "Uploads";

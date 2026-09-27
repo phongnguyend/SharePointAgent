@@ -30,16 +30,32 @@ public sealed class AttachmentContentCache(BlobServiceClient blobs, MarkItDownCl
 
     private async Task<CachedAttachmentDownload> DownloadCoreAsync(ChatMessageAttachmentFileEntity file, CancellationToken ct)
     {
-        if (file.SizeBytes > settings.MaxFileBytes) throw new UploadTooLargeException(settings.MaxFileBytes);
+        if (file.SizeBytes > settings.MaxFileBytes)
+        {
+            throw new UploadTooLargeException(settings.MaxFileBytes);
+        }
+
         var directory = DirectoryFor(file.Id);
         Directory.CreateDirectory(directory);
         var extension = Path.GetExtension(Path.GetFileName(file.FileName));
-        if (extension.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) extension = ".bin";
+        if (extension.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            extension = ".bin";
+        }
+
         var path = Path.Combine(directory, "original" + (string.IsNullOrEmpty(extension) ? ".bin" : extension));
-        if (File.Exists(path) && new FileInfo(path).Length == file.SizeBytes) return new(path, true);
+        if (File.Exists(path) && new FileInfo(path).Length == file.SizeBytes)
+        {
+            return new(path, true);
+        }
+
         var response = await Container.GetBlobClient(file.BlobName).DownloadContentAsync(ct);
         var bytes = response.Value.Content.ToArray();
-        if (bytes.LongLength > settings.MaxFileBytes) throw new UploadTooLargeException(settings.MaxFileBytes);
+        if (bytes.LongLength > settings.MaxFileBytes)
+        {
+            throw new UploadTooLargeException(settings.MaxFileBytes);
+        }
+
         await WriteAtomicallyAsync(path, bytes, ct);
         return new(path, false);
     }
@@ -65,7 +81,10 @@ public sealed class AttachmentContentCache(BlobServiceClient blobs, MarkItDownCl
     public async Task<CachedAttachmentMarkdown> GetMarkdownAsync(ChatMessageAttachmentFileEntity file, CancellationToken ct)
     {
         if (file.Status != UploadIndexStatus.Indexed)
+        {
             throw new AttachmentMarkdownUnavailableException("Markdown is available after successful indexing. Reindex the attachment or wait for indexing to finish.");
+        }
+
         await gate.WaitAsync(ct);
         try
         {
@@ -78,7 +97,10 @@ public sealed class AttachmentContentCache(BlobServiceClient blobs, MarkItDownCl
                     var properties = await blob.GetPropertiesAsync(cancellationToken: ct);
                     var cachedPath = MarkdownPath(file.Id, properties.Value.ETag);
                     if (File.Exists(cachedPath))
+                    {
                         return new(await File.ReadAllTextAsync(cachedPath, ct), cachedPath, false, true);
+                    }
+
                     var cached = await blob.DownloadContentAsync(ct);
                     cachedPath = MarkdownPath(file.Id, cached.Value.Details.ETag);
                     await WriteAtomicallyAsync(cachedPath, cached.Value.Content.ToArray(), ct);
@@ -100,7 +122,10 @@ public sealed class AttachmentContentCache(BlobServiceClient blobs, MarkItDownCl
         {
             await MarkdownBlob(id).DeleteIfExistsAsync(cancellationToken: ct);
             var directory = DirectoryFor(id);
-            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
         }
         finally { gate.Release(); }
     }
@@ -116,7 +141,11 @@ public sealed class AttachmentContentCache(BlobServiceClient blobs, MarkItDownCl
             await File.WriteAllBytesAsync(temporary, bytes, ct);
             File.Move(temporary, path, overwrite: true);
         }
-        finally { if (File.Exists(temporary)) File.Delete(temporary); }
+        finally { if (File.Exists(temporary))
+            {
+                File.Delete(temporary);
+            }
+        }
     }
 
     public void Dispose() => gate.Dispose();

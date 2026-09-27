@@ -48,7 +48,10 @@ public sealed class ChatAgentRegistrationTests
         services.AddChatServices(configuration);
         await using var provider = services.BuildServiceProvider();
         Assert.IsType(expected, provider.GetRequiredService<IChatAgentExecutor>());
-        if (mode == "Foundry") Assert.Null(provider.GetService<OfficeCliToolProvider>());
+        if (mode == "Foundry")
+        {
+            Assert.Null(provider.GetService<OfficeCliToolProvider>());
+        }
     }
 
     [Theory]

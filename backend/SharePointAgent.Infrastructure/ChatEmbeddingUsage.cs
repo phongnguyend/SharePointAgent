@@ -24,7 +24,11 @@ public sealed class ChatEmbeddingUsage : IDisposable
         var scope = Current.Value;
         var generated = await generator.GenerateAsync([query], cancellationToken: ct);
         var count = generated.Usage?.TotalTokenCount ?? generated.Usage?.InputTokenCount ?? 0;
-        if (scope is not null) Interlocked.Add(ref scope.tokens, Math.Max(0, count));
+        if (scope is not null)
+        {
+            Interlocked.Add(ref scope.tokens, Math.Max(0, count));
+        }
+
         return generated[0].Vector;
     }
 

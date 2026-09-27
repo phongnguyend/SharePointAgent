@@ -278,19 +278,30 @@ public sealed class ChatAgentService(
 
         private async Task<object> DownloadAttachmentCoreAsync(string attachmentId, bool markdown, CancellationToken cancellationToken)
         {
-            if (!Guid.TryParse(attachmentId, out var id)) return new { error = "A valid attachmentId is required." };
+            if (!Guid.TryParse(attachmentId, out var id))
+            {
+                return new { error = "A valid attachmentId is required." };
+            }
+
             await reportStatus(markdown ? "Downloading attachment Markdown…" : "Downloading the attachment…", cancellationToken);
             try
             {
                 var result = markdown
                     ? await attachmentFiles.DownloadConversationAttachmentMarkdownAsync(conversationId, id, cancellationToken)
                     : await attachmentFiles.DownloadConversationAttachmentAsync(conversationId, id, cancellationToken);
-                if (result is null) return new { error = "Attachment is not available in this conversation." };
+                if (result is null)
+                {
+                    return new { error = "Attachment is not available in this conversation." };
+                }
+
                 _textFiles.Register(result.LocalPath);
                 lock (_citationGate)
                 {
                     var url = $"/api/attachment-files/{id:D}/download";
-                    if (!_citations.Any(x => x.WebUrl == url)) _citations.Add(new ChatCitation(result.FileName, "Conversation attachment", url, 0, null));
+                    if (!_citations.Any(x => x.WebUrl == url))
+                    {
+                        _citations.Add(new ChatCitation(result.FileName, "Conversation attachment", url, 0, null));
+                    }
                 }
                 return new DownloadToolResult(true, result.LocalPath, result.FileName, result.SizeBytes, result.AlreadyOnDisk, null);
             }

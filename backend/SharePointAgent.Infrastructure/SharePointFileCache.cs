@@ -200,16 +200,28 @@ public sealed class SharePointFileCache(
         var stagedOriginal = stagingPath + ProtectedFileService.ProtectedOriginalSuffix;
         var backup = original + "." + Guid.NewGuid().ToString("N") + ".backup";
         var hadOriginal = File.Exists(original);
-        if (hadOriginal) File.Move(original, backup);
+        if (hadOriginal)
+        {
+            File.Move(original, backup);
+        }
+
         try
         {
-            if (File.Exists(stagedOriginal)) File.Move(stagedOriginal, original);
+            if (File.Exists(stagedOriginal))
+            {
+                File.Move(stagedOriginal, original);
+            }
+
             File.Move(stagingPath, localPath, overwrite: true);
         }
         catch
         {
             File.Delete(original);
-            if (hadOriginal) File.Move(backup, original);
+            if (hadOriginal)
+            {
+                File.Move(backup, original);
+            }
+
             throw;
         }
         TryDelete(backup);

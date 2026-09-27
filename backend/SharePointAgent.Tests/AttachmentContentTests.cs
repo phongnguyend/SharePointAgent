@@ -47,7 +47,11 @@ public sealed class AttachmentContentTests
             Assert.True((await cache.GetMarkdownAsync(file, default)).MarkdownCacheHit);
             Assert.Equal(originalBytes, await File.ReadAllBytesAsync(original.LocalPath));
         }
-        finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
+        finally { if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
     }
 
     [Theory]

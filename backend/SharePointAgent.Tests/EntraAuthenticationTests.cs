@@ -57,7 +57,11 @@ public sealed class EntraAuthenticationTests
         app.MapGet("/health", () => "healthy").AllowAnonymous();
         await app.StartAsync();
         using var http = app.GetTestClient();
-        if (scenario != "missing") http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(scenario));
+        if (scenario != "missing")
+        {
+            http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(scenario));
+        }
+
         Assert.Equal(expected, (await http.GetAsync("/private")).StatusCode);
         Assert.Equal(expected, (await http.PostAsync("/private", null)).StatusCode);
         http.DefaultRequestHeaders.Authorization = null;
@@ -71,8 +75,16 @@ public sealed class EntraAuthenticationTests
             new("tid", scenario == "wrong tenant" ? Guid.NewGuid().ToString() : Tenant),
             new("azp", scenario == "wrong client" ? Guid.NewGuid().ToString() : Client)
         };
-        if (scenario != "no user") claims.Add(new("oid", Guid.NewGuid().ToString()));
-        if (scenario != "no scope") claims.Add(new("scp", scenario == "similar scope" ? "access_as_user_extra" : "other access_as_user"));
+        if (scenario != "no user")
+        {
+            claims.Add(new("oid", Guid.NewGuid().ToString()));
+        }
+
+        if (scenario != "no scope")
+        {
+            claims.Add(new("scp", scenario == "similar scope" ? "access_as_user_extra" : "other access_as_user"));
+        }
+
         var key = scenario == "wrong signature" ? new SymmetricSecurityKey("another-test-key-at-least-thirty-two-bytes-long"u8.ToArray()) : Key;
         return new JwtSecurityTokenHandler().WriteToken(new JwtSecurityToken(
             issuer: scenario == "wrong issuer" ? "https://untrusted.example" : Issuer,

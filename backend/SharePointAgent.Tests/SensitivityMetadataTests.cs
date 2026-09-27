@@ -18,7 +18,11 @@ public sealed class SensitivityMetadataTests
     public void ReadsOnlyEnabledLabelsAndPreservesSourceEncryption(string enabled, string? name, bool labeled)
     {
         var properties = new Dictionary<string, string> { [$"MSIP_Label_{LabelId}_Enabled"] = enabled };
-        if (name is not null) properties[$"MSIP_Label_{LabelId}_Name"] = name;
+        if (name is not null)
+        {
+            properties[$"MSIP_Label_{LabelId}_Name"] = name;
+        }
+
         var actual = SensitivityMetadata.Read(properties, "tenant", Status);
         Assert.Equal(labeled, actual.IsLabeled);
         Assert.Equal(labeled ? LabelId : null, actual.LabelId);

@@ -46,16 +46,24 @@ public sealed class FoundryChatAgentExecutor(
             using var response = await http.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, token);
             response.EnsureSuccessStatusCode();
             if (response.Content.Headers.ContentType?.MediaType != "application/x-ndjson")
+            {
                 throw new InvalidDataException("The hosted agent did not return the expected NDJSON stream.");
+            }
 
             // The SDK supplies the sandbox ID before the body, so cancellation doesn't lose the binding.
             if (response.Headers.TryGetValues("x-agent-session-id", out var values))
             {
                 var returnedId = values.Single();
                 if (string.IsNullOrWhiteSpace(returnedId))
+                {
                     throw new InvalidDataException("The hosted agent returned an empty session ID.");
+                }
+
                 if (sessionId is not null && sessionId != returnedId)
+                {
                     throw new InvalidDataException("Foundry returned a different sandbox for this conversation.");
+                }
+
                 await sessions.SaveAsync(request.ConversationId, _options.Endpoint, returnedId, token);
             }
             else if (!_options.AllowUnauthenticatedLocalhost && sessionId is null)
@@ -67,7 +75,11 @@ public sealed class FoundryChatAgentExecutor(
             using var reader = new StreamReader(stream);
             while (await reader.ReadLineAsync(token) is { } line)
             {
-                if (string.IsNullOrWhiteSpace(line)) continue;
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
                 var item = JsonSerializer.Deserialize<ChatAgentEvent>(line, ChatStreamWriter<ChatAgentEvent>.Json)
                     ?? throw new InvalidDataException("The hosted agent returned an empty event.");
                 switch (item)

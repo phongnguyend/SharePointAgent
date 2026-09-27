@@ -742,7 +742,10 @@ app.MapPost("/api/chat/conversations/{id:guid}/messages", async (
     {
         var owner = context.AppUser().Id;
         var ownedCount = await db.ChatMessageAttachmentFiles.CountAsync(x => attachmentFileIds.Contains(x.Id) && x.CreatedById == owner, cancellationToken);
-        if (ownedCount != attachmentFileIds.Length) return Results.NotFound(new { error = "Attachment not found." });
+        if (ownedCount != attachmentFileIds.Length)
+        {
+            return Results.NotFound(new { error = "Attachment not found." });
+        }
         // A former admin may own conversations created with another user's search scope.
         await db.ChatConversations.Where(x => x.Id == id && x.CreatedById == owner)
             .ExecuteUpdateAsync(set => set.SetProperty(x => x.UserId, context.EntraObjectId()), cancellationToken);
@@ -825,7 +828,9 @@ app.MapPost("/api/chat/conversations/{id:guid}/messages", async (
 
     // Persist provider-reported usage even if the caller disconnects before the answer is saved.
     using (var accountingTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
+    {
         await tokenLease.RecordAsync(question.Id, turn.Usage, turn.ModelId, accountingTimeout.Token);
+    }
 
     var answer = await store.AppendMessageAsync(
         id, ChatMessageRole.Assistant, turn.Text, turn.Citations, turn.Usage, turn.ModelId, [], cancellationToken);

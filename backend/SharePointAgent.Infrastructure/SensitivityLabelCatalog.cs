@@ -13,8 +13,16 @@ public sealed class SensitivityLabelCatalog(GraphServiceClient graph)
         var page = await request.GetAsync(cancellationToken: cancellationToken);
         while (page is not null)
         {
-            foreach (var label in page.Value ?? []) Add(label, null, names);
-            if (string.IsNullOrEmpty(page.OdataNextLink)) break;
+            foreach (var label in page.Value ?? [])
+            {
+                Add(label, null, names);
+            }
+
+            if (string.IsNullOrEmpty(page.OdataNextLink))
+            {
+                break;
+            }
+
             page = await request.WithUrl(page.OdataNextLink).GetAsync(cancellationToken: cancellationToken);
         }
         return names;
@@ -24,7 +32,14 @@ public sealed class SensitivityLabelCatalog(GraphServiceClient graph)
     {
         var name = string.IsNullOrWhiteSpace(label.DisplayName) ? label.Name : label.DisplayName;
         var fullName = string.IsNullOrWhiteSpace(name) ? parent : parent is null ? name : $"{parent} · {name}";
-        if (!string.IsNullOrEmpty(label.Id) && !string.IsNullOrWhiteSpace(fullName)) names[label.Id.ToLowerInvariant()] = fullName;
-        foreach (var child in label.Sublabels ?? []) Add(child, fullName, names);
+        if (!string.IsNullOrEmpty(label.Id) && !string.IsNullOrWhiteSpace(fullName))
+        {
+            names[label.Id.ToLowerInvariant()] = fullName;
+        }
+
+        foreach (var child in label.Sublabels ?? [])
+        {
+            Add(child, fullName, names);
+        }
     }
 }

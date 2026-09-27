@@ -43,16 +43,28 @@ public sealed class ProtectedReindexTests
                 temporaryPath = call.ArgAt<string>(0);
                 Assert.Equal("encrypted", await File.ReadAllTextAsync(temporaryPath));
                 File.Copy(temporaryPath, temporaryPath + ProtectedFileService.ProtectedOriginalSuffix);
-                if (outcome == "denied") throw new ProtectedDocumentAccessDeniedException();
+                if (outcome == "denied")
+                {
+                    throw new ProtectedDocumentAccessDeniedException();
+                }
+
                 await File.WriteAllTextAsync(temporaryPath, "decrypted");
-                if (outcome == "canceled") cancellation.Cancel();
+                if (outcome == "canceled")
+                {
+                    cancellation.Cancel();
+                }
+
                 return new FileSensitivity("2096f6a2-d2f7-48be-b329-b73aaa526e5d", "Confidential", true, true, DateTimeOffset.UtcNow);
             });
         extractor.ExtractAsync(Arg.Any<DriveItemChange>(), Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
             .Returns(call =>
             {
                 Assert.Equal("decrypted", Encoding.UTF8.GetString(call.ArgAt<byte[]>(1)));
-                if (outcome == "extraction failure") throw new InvalidDataException("conversion failed");
+                if (outcome == "extraction failure")
+                {
+                    throw new InvalidDataException("conversion failed");
+                }
+
                 return Task.FromResult("index this text");
             });
         var embeddings = Substitute.For<IEmbeddingGenerator<string, Embedding<float>>>();
@@ -78,12 +90,22 @@ public sealed class ProtectedReindexTests
         else
         {
             Assert.NotNull(error);
-            if (outcome == "denied") Assert.IsType<ProtectedDocumentAccessDeniedException>(error);
-            if (outcome == "canceled") Assert.IsAssignableFrom<OperationCanceledException>(error);
+            if (outcome == "denied")
+            {
+                Assert.IsType<ProtectedDocumentAccessDeniedException>(error);
+            }
+
+            if (outcome == "canceled")
+            {
+                Assert.IsAssignableFrom<OperationCanceledException>(error);
+            }
+
             await search.DidNotReceive().ReplaceItemAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<SearchChunkDocument>>(), Arg.Any<CancellationToken>());
             await metadata.DidNotReceive().SaveAsync(Arg.Any<FileIndexRecord>(), Arg.Any<CancellationToken>());
             if (outcome is "denied" or "canceled")
+            {
                 await extractor.DidNotReceive().ExtractAsync(Arg.Any<DriveItemChange>(), Arg.Any<byte[]>(), Arg.Any<CancellationToken>());
+            }
         }
     }
 

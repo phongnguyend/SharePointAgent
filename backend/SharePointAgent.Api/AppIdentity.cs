@@ -54,7 +54,9 @@ public sealed class AppIdentityBootstrap(IServiceScopeFactory scopes, IConfigura
         await using var scope = scopes.CreateAsyncScope();
         var users = scope.ServiceProvider.GetRequiredService<AppUserService>();
         foreach (var email in configuration.GetSection("AppIdentity:BootstrapAdminEmails").Get<string[]>() ?? [])
+        {
             await users.SeedAdminAsync(email, ct);
+        }
     }
     public Task StopAsync(CancellationToken ct) => Task.CompletedTask;
 }
@@ -80,24 +82,39 @@ public sealed class AppIdentityMiddleware(RequestDelegate next)
                 // Do not grant preassigned roles based on mutable/unverified token email claims.
                 var directoryUser = await graph.Users[objectId].GetAsync(request => request.QueryParameters.Select = ["id", "mail", "userPrincipalName", "displayName"], ct);
                 if (!string.Equals(directoryUser?.Id, objectId, StringComparison.OrdinalIgnoreCase))
+                {
                     throw new UserManagementException("The Entra account could not be verified.", 403);
+                }
+
                 var email = string.IsNullOrWhiteSpace(directoryUser!.Mail) ? directoryUser.UserPrincipalName : directoryUser.Mail;
                 user = await users.LinkEntraAccountAsync(tenant, objectId, email ?? "", directoryUser.DisplayName ?? "", ct);
             }
             context.Items[typeof(AppUserView)] = user;
             if (!AppAccess.Allows(user.Roles, context.Request.Method, context.Request.Path.Value!))
+            {
                 throw new UserManagementException("Your application role does not allow this action.", 403);
-            if (AppAccess.RequiresOwnership(user.Roles, context.Request.Method)) await CheckOwnershipAsync(context, db, user.Id, ct);
+            }
+
+            if (AppAccess.RequiresOwnership(user.Roles, context.Request.Method))
+            {
+                await CheckOwnershipAsync(context, db, user.Id, ct);
+            }
+
             if (!AppAccess.CanReadAdministration(user.Roles) && context.Request.Path.StartsWithSegments("/api/state/indexed-files"))
             {
                 var driveId = context.Request.RouteValues["driveId"]?.ToString();
                 var itemId = context.Request.RouteValues["itemId"]?.ToString();
                 if (driveId != await sharePoint.GetDriveIdAsync(ct) || string.IsNullOrWhiteSpace(itemId))
+                {
                     throw new UserManagementException("Resource not found.", 404);
+                }
+
                 var permissions = await sharePoint.GetPermissionsAsync(itemId, ct);
                 var principals = await sharePoint.GetUserPrincipalsAsync(objectId, ct);
                 if (!permissions.HasAnonymousAccess && !permissions.AllowedPrincipals.Intersect(principals, StringComparer.OrdinalIgnoreCase).Any())
+                {
                     throw new UserManagementException("Resource not found.", 404);
+                }
             }
             await next(context);
         }
@@ -116,7 +133,11 @@ public sealed class AppIdentityMiddleware(RequestDelegate next)
 
     private static async Task CheckOwnershipAsync(HttpContext context, SharePointIndexDbContext db, Guid owner, CancellationToken ct)
     {
-        if (!Guid.TryParse(context.Request.RouteValues.GetValueOrDefault("id")?.ToString(), out var id)) return;
+        if (!Guid.TryParse(context.Request.RouteValues.GetValueOrDefault("id")?.ToString(), out var id))
+        {
+            return;
+        }
+
         var path = context.Request.Path;
         var owned = path.StartsWithSegments("/api/chat/conversations")
             ? await db.ChatConversations.AnyAsync(x => x.Id == id && x.CreatedById == owner, ct)
@@ -125,7 +146,10 @@ public sealed class AppIdentityMiddleware(RequestDelegate next)
                 : path.StartsWithSegments("/api/attachment-files")
                     ? await db.ChatMessageAttachmentFiles.AnyAsync(x => x.Id == id && x.CreatedById == owner, ct)
                     : false;
-        if (!owned) throw new UserManagementException("Resource not found.", 404);
+        if (!owned)
+        {
+            throw new UserManagementException("Resource not found.", 404);
+        }
     }
 }
 
@@ -145,15 +169,47 @@ public static class AppAccess
     {
         path = path.TrimEnd('/').ToLowerInvariant();
         var read = HttpMethods.IsGet(method) || HttpMethods.IsHead(method);
-        if (role == AppRoles.GlobalAdmin) return true;
-        if (role != AppRoles.GlobalReaderAdmin && role != AppRoles.User) return false;
-        if (path == "/api/auth/me" && read) return true;
+        if (role == AppRoles.GlobalAdmin)
+        {
+            return true;
+        }
+
+        if (role != AppRoles.GlobalReaderAdmin && role != AppRoles.User)
+        {
+            return false;
+        }
+
+        if (path == "/api/auth/me" && read)
+        {
+            return true;
+        }
+
         var search = path is "/api/search/fulltext" or "/api/search/vector" or "/api/search/hybrid";
-        if (search && HttpMethods.IsPost(method)) return true;
-        if (role == AppRoles.GlobalReaderAdmin) return read;
-        if (role != AppRoles.User) return false;
-        if (read && path.StartsWith("/api/state/indexed-files/") && (path.EndsWith("/content") || path.EndsWith("/markdown"))) return true;
-        if (path == "/api/agents" && read) return true; // Available agents for the chat selector.
+        if (search && HttpMethods.IsPost(method))
+        {
+            return true;
+        }
+
+        if (role == AppRoles.GlobalReaderAdmin)
+        {
+            return read;
+        }
+
+        if (role != AppRoles.User)
+        {
+            return false;
+        }
+
+        if (read && path.StartsWith("/api/state/indexed-files/") && (path.EndsWith("/content") || path.EndsWith("/markdown")))
+        {
+            return true;
+        }
+
+        if (path == "/api/agents" && read)
+        {
+            return true; // Available agents for the chat selector.
+        }
+
         return path == "/api/chat/conversations" || path.StartsWith("/api/chat/conversations/")
             || (path.StartsWith("/api/chat/messages/") && path.EndsWith("/feedback") && HttpMethods.IsPost(method))
             || path == "/api/attachment-files" || path.StartsWith("/api/attachment-files/");

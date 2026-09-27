@@ -93,8 +93,11 @@ public sealed class AppIdentityTests
     {
         await using var fixture = await Fixture.CreateAsync();
         foreach (var roles in new IReadOnlyList<string>[] { [], [AppRoles.User, "Unknown"], null! })
+        {
             await Assert.ThrowsAsync<UserManagementException>(() => fixture.Service.SaveAsync(null,
                 new("invalid@example.com", "Invalid", roles), default));
+        }
+
         Assert.Equal(0, await fixture.Db.Users.CountAsync());
     }
 
@@ -226,8 +229,15 @@ public sealed class AppIdentityTests
         var user = await fixture.Service.SaveAsync(null, new("admin@example.com", "Admin", [AppRoles.GlobalAdmin]), default);
         user = await fixture.Service.SaveStorageAsync(user.Id, new(limit, user.ConcurrencyStamp), default);
         var upload = () => AttachmentStorageQuota.StoreAsync(fixture.Db, Attachment(user.Id, 10), _ => Task.CompletedTask, default);
-        if (allowed) await upload();
-        else Assert.Equal(409, (await Assert.ThrowsAsync<UserManagementException>(upload)).Status);
+        if (allowed)
+        {
+            await upload();
+        }
+        else
+        {
+            Assert.Equal(409, (await Assert.ThrowsAsync<UserManagementException>(upload)).Status);
+        }
+
         Assert.Equal(allowed ? 1 : 0, await fixture.Db.ChatMessageAttachmentFiles.CountAsync());
     }
 
@@ -255,8 +265,10 @@ public sealed class AppIdentityTests
         await using var fixture = await Fixture.CreateAsync();
         var user = await fixture.Service.SaveAsync(null, new("quota@example.com", "Quota", [AppRoles.User]), default);
         foreach (var limit in new[] { -1L, long.MaxValue })
+        {
             await Assert.ThrowsAsync<UserManagementException>(() => fixture.Service.SaveStorageAsync(user.Id,
                 new(limit, user.ConcurrencyStamp), default));
+        }
     }
 
     [Fact]
@@ -342,7 +354,9 @@ public sealed class AppIdentityTests
         Assert.Equal(60, unlimited.MonthlyTokensUsed);
         Assert.Null(unlimited.MonthlyTokenLimit);
         foreach (var limit in new[] { -1L, long.MaxValue })
+        {
             await Assert.ThrowsAsync<UserManagementException>(() => fixture.Service.SaveTokenLimitAsync(user.Id, new(limit, unlimited.ConcurrencyStamp), default));
+        }
     }
 
     [Fact]

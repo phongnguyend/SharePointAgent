@@ -236,7 +236,10 @@ public sealed class SharePointClient(
     {
         var original = destinationPath + ProtectedFileService.ProtectedOriginalSuffix;
         if (File.Exists(destinationPath) || File.Exists(original))
+        {
             throw new IOException("Readable downloads require a new staging path.");
+        }
+
         try
         {
             await DownloadOriginalToFileAsync(itemId, destinationPath, maxBytes, cancellationToken);
