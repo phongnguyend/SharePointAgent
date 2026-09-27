@@ -127,6 +127,7 @@ function CheckpointCard({ row, busy, onReset, onDelete }: {
   onDelete: () => void
 }) {
   const [showLink, setShowLink] = useState(false)
+  const readOnly = !canManageAdministration(useAppUser())
   const resetPending = row.deltaLink.length === 0
   const swept = !resetPending && row.sweptScanId === row.scanId
 
@@ -185,10 +186,11 @@ function CheckpointCard({ row, busy, onReset, onDelete }: {
           )}
         </div>
         <div className="row" style={{ justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
-          <button disabled={busy} onClick={onReset}><RotateCcw size={14} />Reset</button>
-          <button className="danger" disabled={busy} onClick={onDelete}><Trash2 size={14} />Delete</button>
+          <button disabled={readOnly || busy} onClick={onReset}><RotateCcw size={14} />Reset</button>
+          <button className="danger" disabled={readOnly || busy} onClick={onDelete}><Trash2 size={14} />Delete</button>
         </div>
       </div>
     </div>
   )
 }
+import { useAppUser, canManageAdministration } from '../components/AppUserContext'

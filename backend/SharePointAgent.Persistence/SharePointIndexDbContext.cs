@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SharePointAgent.Domain;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 
 namespace SharePointAgent.Persistence;
 
@@ -10,7 +12,7 @@ namespace SharePointAgent.Persistence;
 /// configured, and a change to them is a migration.
 /// </summary>
 public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbContext> options)
-    : DbContext(options)
+    : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options)
 {
     /// <summary>Identifier columns that carry a Microsoft Graph drive or item ID.</summary>
     private const int IdentifierLength = 200;
@@ -26,6 +28,27 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<ApplicationUser>(entity =>
+        {
+            entity.Property(x => x.DisplayName).HasMaxLength(200);
+            entity.Property(x => x.EntraTenantId).HasMaxLength(36);
+            entity.Property(x => x.EntraObjectId).HasMaxLength(36);
+            entity.HasIndex(x => x.NormalizedEmail).IsUnique().HasDatabaseName("EmailIndex").HasFilter("[NormalizedEmail] IS NOT NULL");
+            entity.HasIndex(x => new { x.EntraTenantId, x.EntraObjectId }).IsUnique()
+                .HasFilter("[EntraTenantId] IS NOT NULL AND [EntraObjectId] IS NOT NULL");
+        });
+        modelBuilder.Entity<IdentityRole<Guid>>().HasData(AppRoles.All.Select((name, index) => new IdentityRole<Guid>
+        {
+            Id = Guid.Parse($"00000000-0000-0000-0000-{index + 1:000000000000}"),
+            Name = name, NormalizedName = name.ToUpperInvariant(), ConcurrencyStamp = $"app-role-{index + 1}"
+        }));
+        modelBuilder.Entity<ChatConversationEntity>().HasIndex(x => x.CreatedById);
+        modelBuilder.Entity<ChatMessageAttachmentFileEntity>().HasIndex(x => x.CreatedById);
+        modelBuilder.Entity<ChatConversationEntity>().HasOne<ApplicationUser>().WithMany()
+            .HasForeignKey(x => x.CreatedById).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<ChatMessageAttachmentFileEntity>().HasOne<ApplicationUser>().WithMany()
+            .HasForeignKey(x => x.CreatedById).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<AgentDefinitionEntity>(entity =>
         {
             entity.ToTable("AgentDefinitions");

@@ -53,6 +53,7 @@ import { copyText } from '../lib/clipboard'
 import { useAsync } from '../lib/useAsync'
 
 export default function ChatPage() {
+  const readOnly = !canManageOwnContent(useAppUser())
   const conversations = useAsync((signal) => listConversations(signal), [])
   const agents = useAsync((signal) => listAgents(signal), [])
   // The open conversation is in the URL, so a link from elsewhere — the Feedback page — can open the
@@ -173,18 +174,13 @@ export default function ChatPage() {
   useEffect(() => {
     if (!agentMenuOpen) return
     agentMenuRef.current?.querySelector<HTMLButtonElement>('.chat-agent-menu button')?.focus()
-    const closeOnOutsidePress = (event: PointerEvent) => {
-      if (!agentMenuRef.current?.contains(event.target as Node)) setAgentMenuOpen(false)
-    }
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       setAgentMenuOpen(false)
       agentMenuButtonRef.current?.focus()
     }
-    document.addEventListener('pointerdown', closeOnOutsidePress)
     document.addEventListener('keydown', closeOnEscape)
     return () => {
-      document.removeEventListener('pointerdown', closeOnOutsidePress)
       document.removeEventListener('keydown', closeOnEscape)
     }
   }, [agentMenuOpen])
@@ -377,11 +373,8 @@ export default function ChatPage() {
             <div
               className="chat-new-actions"
               ref={agentMenuRef}
-              onBlur={(event) => {
-                if (!event.currentTarget.contains(event.relatedTarget)) setAgentMenuOpen(false)
-              }}
             >
-              <button disabled={creatingConversation} onClick={() => void newChat()}>
+              <button disabled={readOnly || creatingConversation} onClick={() => void newChat()}>
                 <Plus size={14} />
                 New
               </button>
@@ -392,7 +385,7 @@ export default function ChatPage() {
                   aria-label="Choose agent for new conversation"
                   title="Choose agent for new conversation"
                   aria-expanded={agentMenuOpen}
-                  disabled={creatingConversation || agents.loading || !!agents.error}
+                  disabled={readOnly || creatingConversation || agents.loading || !!agents.error}
                   onClick={() => setAgentMenuOpen((open) => !open)}
                 >
                   <ChevronDown size={14} aria-hidden="true" />
@@ -498,7 +491,7 @@ export default function ChatPage() {
             />
             <button
               className="chat-composer-action"
-              disabled={sending || uploading || attachments.length >= 10}
+              disabled={readOnly || sending || uploading || attachments.length >= 10}
               onClick={() => fileInputRef.current?.click()}
               title="Attach files"
             >
@@ -526,7 +519,7 @@ export default function ChatPage() {
                 rows={2}
                 placeholder="Ask about the indexed documents…   (Enter to send, Shift+Enter for a new line)"
                 value={draft}
-                disabled={sending}
+                disabled={readOnly || sending}
                 onChange={(event) => setDraft(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' && !event.shiftKey) {
@@ -538,7 +531,7 @@ export default function ChatPage() {
             </div>
             <button
               className="primary chat-composer-action"
-              disabled={sending || uploading || draft.trim() === ''}
+              disabled={readOnly || sending || uploading || draft.trim() === ''}
               onClick={send}
             >
               <SendHorizontal size={15} />
@@ -568,6 +561,7 @@ function ConversationRow({
   onCancelDelete: () => void
   onDelete: () => void
 }) {
+  const readOnly = !canManageOwnContent(useAppUser())
   return (
     <div className={active ? 'chat-conversation active' : 'chat-conversation'}>
       <button className="chat-conversation-open" onClick={onOpen} title={item.title}>
@@ -592,7 +586,7 @@ function ConversationRow({
           </button>
         </div>
       ) : (
-        <button className="ghost icon-only chat-conversation-delete" onClick={onAskDelete} title="Delete">
+        <button disabled={readOnly} className="ghost icon-only chat-conversation-delete" onClick={onAskDelete} title="Delete">
           <Trash2 size={14} />
         </button>
       )}
@@ -696,6 +690,7 @@ function MessageActions({
   onBranch: (id: string) => Promise<void>
 }) {
   const [copied, setCopied] = useState(false)
+  const readOnly = !canManageOwnContent(useAppUser())
   const [branching, setBranching] = useState(false)
 
   useEffect(() => {
@@ -720,6 +715,7 @@ function MessageActions({
         className={message.feedback === 'Like' ? 'ghost icon-only liked' : 'ghost icon-only'}
         title="Good answer"
         aria-label="Good answer"
+        disabled={readOnly}
         aria-pressed={message.feedback === 'Like'}
         onClick={() => onFeedback(message.id, message.feedback === 'Like' ? null : 'Like')}
       >
@@ -729,6 +725,7 @@ function MessageActions({
         className={message.feedback === 'Dislike' ? 'ghost icon-only disliked' : 'ghost icon-only'}
         title="Bad answer"
         aria-label="Bad answer"
+        disabled={readOnly}
         aria-pressed={message.feedback === 'Dislike'}
         onClick={() => onFeedback(message.id, message.feedback === 'Dislike' ? null : 'Dislike')}
       >
@@ -738,7 +735,7 @@ function MessageActions({
         className="ghost icon-only"
         title="Branch in new chat"
         aria-label="Branch in new chat"
-        disabled={branching}
+        disabled={readOnly || branching}
         onClick={() => {
           setBranching(true)
           void onBranch(message.id).finally(() => setBranching(false))
@@ -804,3 +801,4 @@ function StreamingAnswer({ text, status }: { text: string; status: string }) {
     </div>
   )
 }
+import { useAppUser, canManageOwnContent } from '../components/AppUserContext'

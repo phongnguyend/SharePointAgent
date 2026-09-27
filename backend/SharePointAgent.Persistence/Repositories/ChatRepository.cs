@@ -16,11 +16,12 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
     /// <summary>The character <see cref="ToLikePattern"/> escapes wildcards with.</summary>
     private const string LikeEscape = "\\";
 
-    public async Task<IReadOnlyList<ChatConversation>> ListConversationsAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<ChatConversation>> ListConversationsAsync(CancellationToken cancellationToken, Guid? createdById = null)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         return await context.ChatConversations
             .AsNoTracking()
+            .Where(c => createdById == null || c.CreatedById == createdById)
             .OrderByDescending(c => c.UpdatedAtUtc)
             .Select(c => new ChatConversation(
                 c.Id, c.Title, c.UserId, c.AgentId, c.CreatedAtUtc, c.UpdatedAtUtc, c.Messages.Count,
@@ -44,7 +45,7 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
         string title,
         string? userId,
         Guid agentId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, Guid? createdById = null)
     {
         var now = DateTimeOffset.UtcNow;
         var conversation = new ChatConversation(
@@ -54,6 +55,7 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
         context.ChatConversations.Add(new ChatConversationEntity
         {
             Id = conversation.Id,
+            CreatedById = createdById,
             Title = conversation.Title,
             UserId = userId,
             AgentId = agentId,
@@ -68,7 +70,7 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
     public async Task<ChatConversation?> BranchConversationAsync(
         Guid conversationId,
         Guid throughMessageId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, Guid? createdById = null)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var source = await context.ChatConversations
@@ -105,6 +107,7 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
         context.ChatConversations.Add(new ChatConversationEntity
         {
             Id = branchId,
+            CreatedById = createdById ?? source.CreatedById,
             Title = source.Title,
             UserId = source.UserId,
             AgentId = source.AgentId,
@@ -397,4 +400,3 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
     private static string Truncate(string value, int length) =>
         value.Length > length ? value[..length] : value;
 }
-

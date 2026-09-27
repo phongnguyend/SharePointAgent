@@ -2,24 +2,40 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { initializeAuth, signedInAccount, signIn, signOut } from '../auth'
 import { ArrowRight, FileSearch, Files, LoaderCircle, LogOut, MessageSquareText, ShieldCheck, Sparkles } from 'lucide-react'
 import { Modal } from './ui'
+import { AppUserContext, useAppUser } from './AppUserContext'
+import { getCurrentUser } from '../api/client'
+import type { AppUser } from '../api/types'
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false)
   const [authenticated, setAuthenticated] = useState(false)
+  const [appUser, setAppUser] = useState<AppUser | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   useEffect(() => {
     let active = true
-    const expired = () => { setAuthenticated(false); setError('Please sign in again to continue.') }
+    const expired = () => { setAuthenticated(false); setAppUser(null); setError('Please sign in again to continue.') }
+    const refresh = async () => {
+      if (!signedInAccount()) return
+      try {
+        const user = await getCurrentUser()
+        if (active) { setAppUser(user); setAuthenticated(true); setError(null) }
+      } catch (cause) {
+        if (active) { setAuthenticated(false); setAppUser(null); setError(cause instanceof Error ? cause.message : 'Could not load your application account.') }
+      }
+    }
     window.addEventListener('auth-required', expired)
-    initializeAuth().then(() => {
-      if (active) { setAuthenticated(!!signedInAccount()); setReady(true) }
+    window.addEventListener('app-profile-refresh', refresh)
+    window.addEventListener('focus', refresh)
+    initializeAuth().then(async () => {
+      await refresh()
+      if (active) setReady(true)
     }).catch((cause: unknown) => {
       if (active) { setError(cause instanceof Error ? cause.message : 'Sign-in initialization failed.'); setReady(true) }
     })
-    return () => { active = false; window.removeEventListener('auth-required', expired) }
+    return () => { active = false; window.removeEventListener('auth-required', expired); window.removeEventListener('app-profile-refresh', refresh); window.removeEventListener('focus', refresh) }
   }, [])
-  if (authenticated) return children
+  if (authenticated && appUser) return <AppUserContext.Provider value={appUser}>{children}</AppUserContext.Provider>
   return (
     <main className="auth-screen">
       <div className="auth-layout">
@@ -59,6 +75,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 }
 
 export function AccountMenu() {
+  const appUser = useAppUser()
   const [error, setError] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
@@ -75,7 +92,7 @@ export function AccountMenu() {
     }
   }
   return <div className="account-menu">
-    <span title={account?.username}>{account?.name || account?.username}</span>
+    <span title={`${account?.username} · ${appUser.roles.join(', ')}`}>{appUser.displayName || account?.name || account?.username}</span>
     <button onClick={() => { setError(null); setConfirmOpen(true) }}><LogOut size={14} aria-hidden="true" />Sign out</button>
     <Modal
       open={confirmOpen}

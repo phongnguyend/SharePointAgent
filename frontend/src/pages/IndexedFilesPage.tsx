@@ -48,6 +48,7 @@ const COLUMNS: { key: SortKey; label: string; width: string; numeric?: boolean }
 const PAGE_SIZES = [10, 25, 50, 100]
 
 export default function IndexedFilesPage() {
+  const readOnly = !canManageAdministration(useAppUser())
   const [search, setSearch] = useState('')
   const [driveId, setDriveId] = useState('')
   const [sort, setSort] = useState<SortKey>('indexedAtUtc')
@@ -268,7 +269,7 @@ export default function IndexedFilesPage() {
                                 <FileText size={13} />View Markdown
                               </button>
                               <button
-                                disabled={reindexingKey !== null}
+                                disabled={readOnly || reindexingKey !== null}
                                 onClick={(event) => {
                                   event.stopPropagation()
                                   void reindex(file)
@@ -489,3 +490,4 @@ function DetailBlock({
     </div>
   )
 }
+import { useAppUser, canManageAdministration } from '../components/AppUserContext'

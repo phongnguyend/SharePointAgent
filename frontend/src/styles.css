@@ -547,6 +547,7 @@ button {
 }
 
 input[type='text'],
+input[type='email'],
 input[type='search'],
 input[type='number'],
 select,
@@ -576,6 +577,41 @@ input[readonly] {
   background: var(--surface-2);
   color: var(--text-secondary);
   cursor: default;
+}
+
+.user-roles {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
+  padding: 8px 12px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.user-roles legend {
+  padding: 0 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.user-role-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.user-role-option input {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.user-roles .hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .field {

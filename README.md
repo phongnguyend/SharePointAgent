@@ -210,14 +210,37 @@ Configure the existing app registration before signing in:
 2. Under **Authentication → Add a platform → Single-page application**, register `http://localhost:5173/auth-redirect.html` for development and `https://<frontend-host>/auth-redirect.html` for production. If using Vite preview, also register `http://localhost:4173/auth-redirect.html`. Use the **SPA** platform, not Web. Leave implicit grants disabled; MSAL uses authorization code with PKCE.
 3. Under **Expose an API**, set the Application ID URI to `api://<ClientId>` and add the enabled delegated scope **`access_as_user`** (admin consent). Authorize this same client application to request the scope and grant tenant admin consent. This is the app's own API scope, separate from its Microsoft Graph application permissions.
 4. In the app manifest, set **`api.requestedAccessTokenVersion` to `2`**. The API validates the tenant's v2 issuer, client-ID audience, token signature and expiry, tenant, calling client, user object ID, and exact `access_as_user` scope. Graph tokens and ID tokens cannot be used as API credentials.
-5. In **Enterprise applications → this application → Properties**, set **Assignment required? → Yes**, then assign the approved operators under **Users and groups**. This application has shared administrative views and actions; signing in does not add per-user conversation ownership or restrict indexed-file previews to the user's SharePoint permissions.
-6. Restart the API and frontend. Choose **Sign in with your organization**; the header shows the signed-in account and **Sign out**.
+5. Optionally restrict tenant sign-in under **Enterprise applications → this application → Properties → Assignment required? → Yes**, then assign approved users under **Users and groups**. Application roles are managed separately in the app's **Users** page.
+6. Under **API permissions → Add a permission → Microsoft Graph → Application permissions**, select **`User.Read.All`**, then **Add permissions**. Have a tenant administrator select **Grant admin consent** and confirm the status shows **Granted for your tenant**. The backend uses its client credentials to look up the signed-in user's directory email for account linking; delegated `User.Read` or `User.Read.All` does not authorize this app-only call.
+7. Restart the API to obtain a fresh Graph token, then start or reload the frontend. Choose **Sign in with your organization**; the header shows the signed-in account and **Sign out**.
 
 All UI API routes require a bearer access token. Only `/health`, `/api/auth/config`, and `/api/sharepoint/webhook` are anonymous; the webhook retains its existing subscription `clientState` checks. MSAL obtains and renews tokens, including for uploads, downloads, previews, and streamed chat. Expired sessions requiring interaction return to the sign-in screen. Browser tokens use session storage. Serve both apps over HTTPS outside localhost and deploy `auth-redirect.html` with the frontend assets; it is a dedicated MSAL redirect bridge, not a React route.
 
-The API's existing operator-selected `userId` search filter remains available. This sign-in feature is an access gate for trusted operators, not a conversion to a per-user document portal. Background indexing and Graph decryption continue using the app identity. See Microsoft's [SPA/API registration guidance](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-web-api-dotnet-protect-app) and [access token version guidance](https://learn.microsoft.com/en-us/entra/identity-platform/access-tokens).
+Application users and roles are stored through EF Core Identity in SQL Server. These are **in-app roles**, independent of Entra directory roles. Entra remains the sign-in provider; no application passwords are created.
+
+| Application role | Access |
+| --- | --- |
+| Global Admin | Manage users, roles assigned to users, and all application settings/content. |
+| Global Reader Admin | Read all administration pages, conversations, and uploads; search, without making changes. |
+| User | Search with their own SharePoint principals, chat, and manage their own conversations/uploads. |
+
+Before first sign-in, configure at least one initial administrator using the API's `AppIdentity:BootstrapAdminEmails` array. For local development:
+
+```powershell
+dotnet user-secrets set "AppIdentity:BootstrapAdminEmails:0" "admin@your-tenant.example" --project backend/SharePointAgent.Api
+```
+
+Use the account's primary Microsoft Graph `mail` address (or `userPrincipalName` when `mail` is empty). Grant **Microsoft Graph → Application → `User.Read.All`** with admin consent so the API can verify this address. The API matches a pre-created email case-insensitively on first sign-in, preserves its assigned role, and binds it to the immutable Entra tenant/object IDs. An unknown email creates a **User** account. Bootstrap configuration creates missing admins only; it does not promote or reactivate existing accounts. Configure it before users start signing in.
+
+The **Users** page lets Global Admin create accounts ahead of time, select one or more application roles using checkboxes, change display names, and disable access. Permissions from selected roles are combined: **Global Reader Admin + User** can read administration pages and manage their own conversations/uploads, while **Global Admin** grants full management access. Reader access never grants permission to modify another user's content. At least one role is required. The API accepts and returns a `roles` array; existing assignments remain in Identity's user-role table without a schema migration. Linked email addresses cannot be changed there, and the last active Global Admin cannot be disabled or have that role removed. No invitation is sent. Roles and active status are checked on each API request; changing Entra roles does not change application roles.
+
+Startup migrations add the Identity tables and nullable `CreatedById` references on conversations and attachment files. Existing records without a creator remain visible to administrators only. When `SqlServer:AutoMigrate` is disabled, apply the EF migrations before starting the API.
+
+Admin roles retain the operator-selected `userId` search filter. For **User**, the API forces the signed-in Entra object ID for search/chat, checks conversation and upload ownership using `CreatedById`, and checks SharePoint principals before serving indexed-file previews. Background indexing and Graph decryption continue using the app identity. See Microsoft's [SPA/API registration guidance](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-web-api-dotnet-protect-app) and [access token version guidance](https://learn.microsoft.com/en-us/entra/identity-platform/access-tokens).
 
 ### Application service permissions
+
+For sign-in and application account linking, grant **Microsoft Graph → Application permissions → `User.Read.All`** with tenant admin consent on the app registration matching `SharePoint:ClientId`. The API reads the user's directory profile before linking a pre-created application account or creating a new one. See Microsoft's [app-only Graph authentication guidance](https://learn.microsoft.com/en-us/graph/auth-v2-service?tabs=http).
 
 For live sensitivity label names in the UI, add **API permissions → Add a permission → Microsoft Graph → Application permissions → SensitivityLabels.Read.All** to the same client application and select **Grant admin consent**. This permission reads the tenant label catalog; it does not authorize document decryption. See the [Microsoft Graph sensitivity label permissions](https://learn.microsoft.com/en-us/graph/api/tenantdatasecurityandgovernance-list-sensitivitylabels?view=graph-rest-1.0).
 
@@ -231,10 +254,15 @@ To process documents encrypted by sensitivity labels, configure the same client 
 
 | API | Permission | Type | Scope | Admin consent |
 | --- | --- | --- | --- | --- |
+| Microsoft Graph | `User.Read.All` | Application | Verify directory email for account linking and resolve user profiles for permission-aware queries | Required |
 | Microsoft Graph | `SensitivityLabels.Read.All` | Application | Read the tenant sensitivity label catalog for live UI display names | Required |
 | Azure Rights Management Service | `Content.SuperUser` | Application | Read all protected content for this tenant | Required |
 
 `Content.SuperUser` grants tenant-wide access to protected content, beyond the application's Graph site permissions. Grant it only to an application approved for that scope. It enables the current app-only decryption flow for indexing/reindexing, View Markdown, and agent downloads; Graph permissions alone do not authorize decryption. Documents without encryption do not require this additional permission. See the [Microsoft MIP permission reference](https://learn.microsoft.com/en-us/information-protection/develop/concept-api-permissions).
+
+**Troubleshooting: “Cannot verify the user with Microsoft Graph. Configure User.Read.All application permission with admin consent.”**
+
+This message means Graph returned HTTP 401 or 403 during the directory lookup. Check that `User.Read.All` is listed as **Application**, with consent granted in the tenant configured by `SharePoint:TenantId`, on the application matching the API's effective `SharePoint:ClientId`. Check environment variables and user secrets if they override `appsettings.json`. After granting consent, restart the API to refresh its cached Graph token and retry sign-in. An in-app **Global Admin** role does not grant Microsoft Graph permissions. If the error persists after these checks, inspect the Graph authorization failure; the message alone does not prove that missing consent is the cause.
 
 `AzureOpenAI:Endpoint` takes the resource endpoint with no API path, such as `https://<resource>.openai.azure.com` or `https://<resource>.services.ai.azure.com`. The SDK appends `/openai/deployments/<deployment>/embeddings` itself, so the OpenAI-compatible base URL that the Foundry portal also offers — the same host with `/openai/v1` appended — would be doubled into a path that returns 404 on every embedding request. Startup validation rejects an endpoint that carries a path rather than letting it fail per request.
 

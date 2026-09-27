@@ -33,6 +33,7 @@ const STATUS_CLASSES: Record<UploadIndexStatus, string> = {
 }
 
 export default function AttachmentFilesPage() {
+  const readOnly = !canManageOwnContent(useAppUser())
   const [search, setSearch] = useState('')
   const [skip, setSkip] = useState(0)
   const [working, setWorking] = useState<string | null>(null)
@@ -140,7 +141,7 @@ export default function AttachmentFilesPage() {
                           <button onClick={() => setMarkdownFile({ id: file.id, name: file.fileName })}>
                             <FileText size={13} />View Markdown
                           </button>
-                          <button disabled={working === file.id} onClick={() => void reindex(file.id)}>
+                          <button disabled={readOnly || working === file.id} onClick={() => void reindex(file.id)}>
                             <RotateCw size={13} />{working === file.id ? 'Indexing…' : 'Reindex'}
                           </button>
                           {file.isOrphan ? (
@@ -152,7 +153,7 @@ export default function AttachmentFilesPage() {
                                 </button>
                               </>
                             ) : (
-                              <button className="danger" onClick={() => setConfirmDelete(file.id)}>
+                              <button className="danger" disabled={readOnly} onClick={() => setConfirmDelete(file.id)}>
                                 <Trash2 size={13} />Delete orphan
                               </button>
                             )
@@ -191,3 +192,4 @@ export default function AttachmentFilesPage() {
     </div>
   )
 }
+import { useAppUser, canManageOwnContent } from '../components/AppUserContext'

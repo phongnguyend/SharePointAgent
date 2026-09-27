@@ -12,17 +12,17 @@ namespace SharePointAgent.Application;
 
 public interface IChatRepository
 {
-    Task<IReadOnlyList<ChatConversation>> ListConversationsAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<ChatConversation>> ListConversationsAsync(CancellationToken cancellationToken, Guid? createdById = null);
     Task<ChatConversation?> GetConversationAsync(Guid id, CancellationToken cancellationToken);
     Task<ChatConversation> CreateConversationAsync(
         string title,
         string? userId,
         Guid agentId,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken, Guid? createdById = null);
     Task<ChatConversation?> BranchConversationAsync(
         Guid conversationId,
         Guid throughMessageId,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken, Guid? createdById = null);
     Task RenameConversationAsync(Guid id, string title, CancellationToken cancellationToken);
 
     /// <summary>Removes a conversation and every message in it. Returns false when it was already gone.</summary>

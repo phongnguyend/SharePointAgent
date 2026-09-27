@@ -5,11 +5,6 @@ import { ErrorBanner } from './ui'
 
 type View = 'plain' | 'rendered'
 
-function isOutsideDialog(dialog: HTMLDialogElement, x: number, y: number) {
-  const bounds = dialog.getBoundingClientRect()
-  return x < bounds.left || x > bounds.right || y < bounds.top || y > bounds.bottom
-}
-
 export function MarkdownPreview({
   name,
   sourceKey,
@@ -31,7 +26,6 @@ export function MarkdownPreview({
   const closeRef = useRef<HTMLButtonElement>(null)
   const plainRef = useRef<HTMLButtonElement>(null)
   const renderedRef = useRef<HTMLButtonElement>(null)
-  const backdropPointerDown = useRef(false)
   const tabId = useId()
 
   useEffect(() => {
@@ -107,15 +101,6 @@ export function MarkdownPreview({
       className="office-dialog markdown-dialog"
       aria-label={`View Markdown for ${name}`}
       onCancel={(event) => { event.preventDefault(); onClose() }}
-      onPointerDown={(event) => {
-        backdropPointerDown.current = event.target === event.currentTarget && isOutsideDialog(event.currentTarget, event.clientX, event.clientY)
-      }}
-      onPointerCancel={() => { backdropPointerDown.current = false }}
-      onClick={(event) => {
-        const startedOnBackdrop = backdropPointerDown.current
-        backdropPointerDown.current = false
-        if (startedOnBackdrop && event.target === event.currentTarget && isOutsideDialog(event.currentTarget, event.clientX, event.clientY)) onClose()
-      }}
     >
       <div className="office-toolbar">
         <strong title={name}>{name}</strong>

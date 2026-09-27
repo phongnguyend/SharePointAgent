@@ -1,4 +1,23 @@
 /** Mirrors the records the API returns. Property names match its camelCase JSON. */
+export type AppRole = 'Global Admin' | 'Global Reader Admin' | 'User'
+export interface AppUser {
+  id: string
+  email: string
+  displayName: string
+  roles: AppRole[]
+  isActive: boolean
+  hasSignedIn: boolean
+  createdAtUtc: string
+  lastLoginAtUtc: string | null
+  concurrencyStamp: string
+}
+export interface AppUserInput {
+  email: string
+  displayName: string
+  roles: AppRole[]
+  isActive: boolean
+  concurrencyStamp?: string
+}
 
 export interface AgentDefinition {
   id: string

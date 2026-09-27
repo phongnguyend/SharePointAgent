@@ -53,6 +53,7 @@ const MODE_ICONS: Record<SearchMode, typeof Type> = {
 }
 
 export default function SearchPage() {
+  const ownResults = !canReadAdministration(useAppUser())
   // The executed search lives in the URL, so a result is a link somebody can send on, and the browser's
   // back button steps through searches rather than leaving the page.
   const [params, setParams] = useSearchParams()
@@ -150,13 +151,14 @@ export default function SearchPage() {
               />
             </Field>
             <Field
-              label="User ID"
-              help="Optional — object ID or UPN. Blank searches unfiltered."
+              label={ownResults ? 'Search access' : 'User ID'}
+              help={ownResults ? 'Results are restricted to your account.' : 'Optional — object ID or UPN. Blank searches unfiltered.'}
             >
               <input
                 type="text"
                 placeholder="(no permission filter)"
-                value={userId}
+                disabled={ownResults}
+                value={ownResults ? 'Your SharePoint permissions' : userId}
                 onChange={(event) => setUserId(event.target.value)}
               />
             </Field>
@@ -481,3 +483,4 @@ function highlight(text: string, terms: string[]): ReactNode {
     index % 2 === 1 ? <mark key={index}>{part}</mark> : part,
   )
 }
+import { useAppUser, canReadAdministration } from '../components/AppUserContext'

@@ -37,6 +37,7 @@ const STATUS_BADGES: Record<SubscriptionStatus, { className: string; label: stri
 }
 
 export default function SubscriptionsPage() {
+  const readOnly = !canManageAdministration(useAppUser())
   const overview = useAsync((signal) => listSubscriptions(signal), [])
 
   const [subscriptionName, setSubscriptionName] = useState('')
@@ -163,7 +164,7 @@ export default function SubscriptionsPage() {
             <RefreshCw size={14} />
             Refresh
           </button>
-          <button className="primary" disabled={!data} onClick={() => openDialog('new')}>
+          <button className="primary" disabled={readOnly || !data} onClick={() => openDialog('new')}>
             <Plus size={14} />
             New subscription
           </button>
@@ -390,7 +391,8 @@ function SubscriptionCard({
 }) {
   const [confirming, setConfirming] = useState(false)
   const status = STATUS_BADGES[item.status]
-  const anyBusy = busy !== null
+  const readOnly = !canManageAdministration(useAppUser())
+  const anyBusy = busy !== null || readOnly
 
   return (
     <div className="card">
@@ -580,3 +582,4 @@ function MatchValue({ value, matches }: { value: string; matches: boolean }) {
     </span>
   )
 }
+import { useAppUser, canManageAdministration } from '../components/AppUserContext'

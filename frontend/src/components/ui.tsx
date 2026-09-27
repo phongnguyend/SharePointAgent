@@ -14,8 +14,7 @@ import {
 
 /**
  * A modal built on the native <dialog>, so Escape, the focus trap, and the inert backdrop come from
- * the platform rather than being reimplemented. Clicking the backdrop closes it too, which <dialog>
- * does not do on its own.
+ * the platform rather than being reimplemented. Outside clicks leave the modal open.
  */
 export function Modal({
   open,
@@ -54,11 +53,6 @@ export function Modal({
       onCancel={(event) => {
         event.preventDefault()
         onClose()
-      }}
-      onClick={(event) => {
-        // A click that lands on the dialog element itself is a click on the backdrop: the content
-        // sits in children that would have been the target otherwise.
-        if (event.target === ref.current) onClose()
       }}
     >
       <div className="modal-head">

@@ -72,6 +72,7 @@ public sealed class IndexedFileEntity
 
 public sealed class ChatConversationEntity
 {
+    public Guid? CreatedById { get; set; }
     public Guid Id { get; set; }
     public string Title { get; set; } = "";
     public string? UserId { get; set; }
@@ -123,6 +124,7 @@ public sealed class ChatMessageEntity
 
 public sealed class ChatMessageAttachmentFileEntity
 {
+    public Guid? CreatedById { get; set; }
     public Guid Id { get; set; }
     public string FileName { get; set; } = "";
     public string BlobName { get; set; } = "";

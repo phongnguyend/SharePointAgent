@@ -40,7 +40,7 @@ public sealed class ChatMessageAttachmentFileService(
         string? contentType,
         long sizeBytes,
         Stream content,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, Guid? createdById = null)
     {
         if (sizeBytes <= 0)
         {
@@ -66,6 +66,7 @@ public sealed class ChatMessageAttachmentFileService(
             context.ChatMessageAttachmentFiles.Add(new ChatMessageAttachmentFileEntity
             {
                 Id = id,
+                CreatedById = createdById,
                 FileName = safeName,
                 BlobName = blobName,
                 ContentType = contentType,
@@ -90,10 +91,10 @@ public sealed class ChatMessageAttachmentFileService(
         return await IndexAsync(id, cancellationToken);
     }
 
-    public async Task<AttachmentFilePage> ListAsync(string? search, int skip, int top, CancellationToken cancellationToken)
+    public async Task<AttachmentFilePage> ListAsync(string? search, int skip, int top, CancellationToken cancellationToken, Guid? createdById = null)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var query = context.ChatMessageAttachmentFiles.AsNoTracking();
+        var query = context.ChatMessageAttachmentFiles.AsNoTracking().Where(x => createdById == null || x.CreatedById == createdById);
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();

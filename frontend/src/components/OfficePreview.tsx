@@ -14,11 +14,6 @@ function officeKind(name: string): OfficeKind {
   return name.split('.').pop()!.toLowerCase() as OfficeKind
 }
 
-function isOutsideDialog(dialog: HTMLDialogElement, x: number, y: number) {
-  const bounds = dialog.getBoundingClientRect()
-  return x < bounds.left || x > bounds.right || y < bounds.top || y > bounds.bottom
-}
-
 export function OfficePreview({
   name,
   sourceKey,
@@ -35,7 +30,6 @@ export function OfficePreview({
   const [error, setError] = useState<string | null>(null)
   const dialogRef = useRef<HTMLDialogElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
-  const backdropPointerDown = useRef(false)
   const kind = officeKind(name)
 
   useEffect(() => {
@@ -76,15 +70,6 @@ export function OfficePreview({
         className={`office-dialog office-dialog--${kind}`}
         aria-label={`Preview ${name}`}
         onCancel={(event) => { event.preventDefault(); onClose() }}
-        onPointerDown={(event) => {
-          backdropPointerDown.current = event.target === event.currentTarget && isOutsideDialog(event.currentTarget, event.clientX, event.clientY)
-        }}
-        onPointerCancel={() => { backdropPointerDown.current = false }}
-        onClick={(event) => {
-          const startedOnBackdrop = backdropPointerDown.current
-          backdropPointerDown.current = false
-          if (startedOnBackdrop && event.target === event.currentTarget && isOutsideDialog(event.currentTarget, event.clientX, event.clientY)) onClose()
-        }}
       >
         <div className="office-toolbar">
           <strong title={name}>{name}</strong>

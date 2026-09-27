@@ -27,6 +27,8 @@ back button steps through searches. So is the open conversation
 
 Configure [Entra ID sign-in](../README.md#entra-id-sign-in) on the existing SharePoint app registration first. The frontend reads the tenant/client IDs from `/api/auth/config`; no client secret belongs in frontend configuration. Register `http://localhost:5173/auth-redirect.html` as a **Single-page application** redirect URI and expose the delegated `api://<ClientId>/access_as_user` scope with v2 access tokens.
 
+The backend also requires **Microsoft Graph → Application permissions → `User.Read.All`** with **admin consent** to verify the user's directory email and link their application account. After granting consent, restart the API before retrying sign-in. If the UI shows **Cannot verify the user with Microsoft Graph**, follow the [service permission setup and troubleshooting](../README.md#application-service-permissions). Application roles such as Global Admin do not grant Graph permissions.
+
 The app shows **Sign in with your organization** before loading its pages. The account and **Sign out** appear in the header. API calls, including streaming chat and attachment downloads, carry access tokens acquired by MSAL. Deploy the generated `auth-redirect.html` alongside `index.html`; do not rewrite that file to the React entry point.
 
 DOCX, XLSX, and PPTX files can be opened in the app from Search results, the Indexed files detail panel,

@@ -5,6 +5,8 @@ using SharePointAgent.Application;
 using SharePointAgent.Domain;
 using SharePointAgent.Infrastructure;
 using SharePointAgent.Api;
+using SharePointAgent.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 const string FrontendCorsPolicy = "frontend";
 const string NotificationUrlError =
@@ -18,6 +20,7 @@ builder.Services.AddIndexStateServices(builder.Configuration);
 builder.Services.AddChatServices(builder.Configuration);
 builder.Services.AddAttachmentFileServices(builder.Configuration);
 builder.Services.AddIndexedFileReindexServices(builder.Configuration);
+builder.Services.AddAppIdentity();
 
 // The viewer front end is served from its own origin during development. Origins are configured rather
 // than wildcarded. Browser requests carry Entra access tokens.
@@ -33,6 +36,8 @@ var app = builder.Build();
 app.UseCors(FrontendCorsPolicy);
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<AppIdentityMiddleware>();
+app.MapAppUsers();
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" })).AllowAnonymous();
 
@@ -94,19 +99,22 @@ app.MapPost("/api/sharepoint/webhook", async (
 }).AllowAnonymous();
 
 app.MapPost("/api/search/fulltext", (
+    HttpContext context,
     SearchPayload payload,
     ISearchQueryStore store,
-    CancellationToken cancellationToken) => SearchAsync(SearchQueryMode.FullText, payload, store, cancellationToken));
+    CancellationToken cancellationToken) => SearchAsync(SearchQueryMode.FullText, payload, store, context, cancellationToken));
 
 app.MapPost("/api/search/vector", (
+    HttpContext context,
     SearchPayload payload,
     ISearchQueryStore store,
-    CancellationToken cancellationToken) => SearchAsync(SearchQueryMode.Vector, payload, store, cancellationToken));
+    CancellationToken cancellationToken) => SearchAsync(SearchQueryMode.Vector, payload, store, context, cancellationToken));
 
 app.MapPost("/api/search/hybrid", (
+    HttpContext context,
     SearchPayload payload,
     ISearchQueryStore store,
-    CancellationToken cancellationToken) => SearchAsync(SearchQueryMode.Hybrid, payload, store, cancellationToken));
+    CancellationToken cancellationToken) => SearchAsync(SearchQueryMode.Hybrid, payload, store, context, cancellationToken));
 
 // Operator views and checkpoint actions over the worker's SQL Server state. Like the search
 // endpoints, these require Entra sign-in but remain shared operator views over the whole index.
@@ -356,7 +364,7 @@ app.MapPost("/api/attachment-files", async (
     try
     {
         await using var content = file.OpenReadStream();
-        var created = await files.CreateAsync(file.FileName, file.ContentType, file.Length, content, cancellationToken);
+        var created = await files.CreateAsync(file.FileName, file.ContentType, file.Length, content, cancellationToken, request.HttpContext.AppUser().Id);
         return Results.Created($"/api/attachment-files/{created.Id}", created);
     }
     catch (Exception ex) when (ex is UploadTooLargeException or ArgumentException)
@@ -366,6 +374,7 @@ app.MapPost("/api/attachment-files", async (
 });
 
 app.MapGet("/api/attachment-files", async (
+    HttpContext context,
     ChatMessageAttachmentFileService files,
     CancellationToken cancellationToken,
     string? search = null,
@@ -376,7 +385,8 @@ app.MapGet("/api/attachment-files", async (
     {
         return Results.BadRequest(new { error = "'skip' must be non-negative and 'top' must be between 1 and 200." });
     }
-    return Results.Ok(await files.ListAsync(search, skip, top, cancellationToken));
+    return Results.Ok(await files.ListAsync(search, skip, top, cancellationToken,
+        !AppAccess.CanReadAdministration(context.AppUser().Roles) ? context.AppUser().Id : null));
 });
 
 app.MapGet("/api/attachment-files/{id:guid}/download", async (
@@ -623,17 +633,21 @@ app.MapPut("/api/agents/{id:guid}", async (
 // The chat assistant. Conversations live in SQL Server; each turn replays the stored history to an
 // agent that can search the index, and both the question and the answer are appended.
 app.MapGet("/api/chat/conversations", (
+    HttpContext context,
     IChatRepository store,
-    CancellationToken cancellationToken) => store.ListConversationsAsync(cancellationToken));
+    CancellationToken cancellationToken) => store.ListConversationsAsync(cancellationToken,
+        !AppAccess.CanReadAdministration(context.AppUser().Roles) ? context.AppUser().Id : null));
 
 app.MapPost("/api/chat/conversations", async (
+    HttpContext context,
     NewConversation? body,
     IChatRepository store,
     IAgentRepository agentRepository,
     CancellationToken cancellationToken) =>
 {
     var title = string.IsNullOrWhiteSpace(body?.Title) ? "New chat" : body!.Title!.Trim();
-    var userId = string.IsNullOrWhiteSpace(body?.UserId) ? null : body!.UserId!.Trim();
+    var userId = !context.AppUser().Roles.Contains(AppRoles.GlobalAdmin) ? context.EntraObjectId()
+        : string.IsNullOrWhiteSpace(body?.UserId) ? null : body!.UserId!.Trim();
     Guid? requestedAgentId = null;
     if (!string.IsNullOrWhiteSpace(body?.AgentId))
     {
@@ -654,7 +668,7 @@ app.MapPost("/api/chat/conversations", async (
             : Results.BadRequest(new { error = "The selected agent does not exist." });
     }
 
-    return Results.Ok(await store.CreateConversationAsync(title, userId, selectedAgent.Id, cancellationToken));
+    return Results.Ok(await store.CreateConversationAsync(title, userId, selectedAgent.Id, cancellationToken, context.AppUser().Id));
 });
 
 app.MapDelete("/api/chat/conversations/{id:guid}", async (
@@ -668,10 +682,11 @@ app.MapDelete("/api/chat/conversations/{id:guid}", async (
 app.MapPost("/api/chat/conversations/{id:guid}/branch/{messageId:guid}", async (
     Guid id,
     Guid messageId,
+    HttpContext context,
     IChatRepository store,
     CancellationToken cancellationToken) =>
 {
-    var branch = await store.BranchConversationAsync(id, messageId, cancellationToken);
+    var branch = await store.BranchConversationAsync(id, messageId, cancellationToken, context.AppUser().Id);
     return branch is null
         ? Results.NotFound(new { error = "The conversation or selected message does not exist." })
         : Results.Ok(branch);
@@ -693,6 +708,8 @@ app.MapGet("/api/chat/conversations/{id:guid}/messages", async (
 });
 
 app.MapPost("/api/chat/conversations/{id:guid}/messages", async (
+    HttpContext context,
+    SharePointIndexDbContext db,
     Guid id,
     ChatTurnRequest body,
     IChatRepository store,
@@ -709,6 +726,15 @@ app.MapPost("/api/chat/conversations/{id:guid}/messages", async (
     }
 
     var attachmentFileIds = body.AttachmentFileIds?.Distinct().ToArray() ?? [];
+    if (!context.AppUser().Roles.Contains(AppRoles.GlobalAdmin))
+    {
+        var owner = context.AppUser().Id;
+        var ownedCount = await db.ChatMessageAttachmentFiles.CountAsync(x => attachmentFileIds.Contains(x.Id) && x.CreatedById == owner, cancellationToken);
+        if (ownedCount != attachmentFileIds.Length) return Results.NotFound(new { error = "Attachment not found." });
+        // A former admin may own conversations created with another user's search scope.
+        await db.ChatConversations.Where(x => x.Id == id && x.CreatedById == owner)
+            .ExecuteUpdateAsync(set => set.SetProperty(x => x.UserId, context.EntraObjectId()), cancellationToken);
+    }
     if (attachmentFileIds.Length > 10)
     {
         return Results.BadRequest(new { error = "At most 10 attachments can be sent with one message." });
@@ -855,6 +881,7 @@ static async Task<IResult> SearchAsync(
     SearchQueryMode mode,
     SearchPayload payload,
     ISearchQueryStore store,
+    HttpContext context,
     CancellationToken cancellationToken)
 {
     if (string.IsNullOrWhiteSpace(payload.Query))
@@ -872,7 +899,8 @@ static async Task<IResult> SearchAsync(
         return Results.BadRequest(new { error = "'skip' must not be negative." });
     }
 
-    var request = new SearchQueryRequest(payload.Query, payload.UserId, payload.Top, payload.Skip);
+    var request = new SearchQueryRequest(payload.Query,
+        !AppAccess.CanReadAdministration(context.AppUser().Roles) ? context.EntraObjectId() : payload.UserId, payload.Top, payload.Skip);
     var results = await store.SearchAsync(mode, request, cancellationToken);
     return Results.Ok(results);
 }

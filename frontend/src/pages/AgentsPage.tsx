@@ -14,6 +14,7 @@ import { useAsync } from '../lib/useAsync'
 type EditorTarget = AgentDefinition | 'new' | null
 
 export default function AgentsPage() {
+  const readOnly = !canManageAdministration(useAppUser())
   const agents = useAsync((signal) => listAgents(signal), [])
   const defaults = useAsync((signal) => getDefaultAgentInstructions(signal), [])
   const [viewing, setViewing] = useState<AgentDefinition | null>(null)
@@ -90,7 +91,7 @@ export default function AgentsPage() {
             <RefreshCw size={14} />
             Refresh
           </button>
-          <button className="primary" disabled={!defaults.data} onClick={openCreate}>
+          <button className="primary" disabled={readOnly || !defaults.data} onClick={openCreate}>
             <Plus size={14} />
             New agent
           </button>
@@ -130,7 +131,7 @@ export default function AgentsPage() {
                     <Eye size={14} />
                     View
                   </button>
-                  <button className="primary" onClick={() => openEdit(agent)}>
+                  <button className="primary" disabled={readOnly} onClick={() => openEdit(agent)}>
                     <Pencil size={14} />
                     Edit
                   </button>
@@ -278,3 +279,4 @@ export default function AgentsPage() {
     </div>
   )
 }
+import { useAppUser, canManageAdministration } from '../components/AppUserContext'

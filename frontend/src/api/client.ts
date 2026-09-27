@@ -1,5 +1,7 @@
 import { authorizedFetch, API_BASE } from '../auth'
 import type {
+  AppUser,
+  AppUserInput,
   AgentDefinition,
   ChatConversation,
   ChatFeedback,
@@ -24,6 +26,13 @@ import type {
 
 /** Empty by default, so requests go to the dev server's /api proxy on this same origin. */
 const BASE_URL = API_BASE
+
+export const getCurrentUser = (signal?: AbortSignal) => request<AppUser>('/api/auth/me', { signal })
+export const listUsers = (search: string, skip: number, top: number, signal?: AbortSignal) =>
+  request<PagedResult<AppUser>>(`/api/users${query({ search, skip, top })}`, { signal })
+export const saveUser = (id: string | null, input: AppUserInput) => request<AppUser>(id ? `/api/users/${encodeURIComponent(id)}` : '/api/users', {
+  method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+})
 
 export function getSensitivityLabels(signal?: AbortSignal): Promise<Record<string, string>> {
   return request<Record<string, string>>('/api/sensitivity-labels', { signal })

@@ -13,6 +13,7 @@ import {
   Sun,
   Webhook,
   Upload,
+  Users,
 } from 'lucide-react'
 import OverviewPage from './pages/OverviewPage'
 import IndexedFilesPage from './pages/IndexedFilesPage'
@@ -24,6 +25,8 @@ import FeedbackPage from './pages/FeedbackPage'
 import AgentsPage from './pages/AgentsPage'
 import AttachmentFilesPage from './pages/AttachmentFilesPage'
 import { AccountMenu } from './components/AuthGate'
+import { useAppUser, canReadAdministration } from './components/AppUserContext'
+import UsersPage from './pages/UsersPage'
 
 type Theme = 'system' | 'light' | 'dark'
 
@@ -38,6 +41,9 @@ function readTheme(): Theme {
 }
 
 export default function App() {
+  const user = useAppUser()
+  const canReadAdmin = canReadAdministration(user)
+  const home = canReadAdmin ? '/overview' : '/chat'
   const [theme, setTheme] = useState<Theme>(readTheme)
 
   useEffect(() => {
@@ -59,7 +65,7 @@ export default function App() {
           <strong>SharePoint Agent</strong>
         </div>
         <nav className="nav">
-          <NavLink to="/overview">
+          {canReadAdmin && <><NavLink to="/overview">
             <LayoutDashboard size={16} />
             Overview
           </NavLink>
@@ -75,6 +81,7 @@ export default function App() {
             <Webhook size={16} />
             Subscriptions
           </NavLink>
+          </>}
           <NavLink to="/search">
             <Search size={16} />
             Search
@@ -83,20 +90,20 @@ export default function App() {
             <Sparkles size={16} />
             Chat
           </NavLink>
-          <NavLink to="/feedback">
+          {canReadAdmin && <NavLink to="/feedback">
             <Scale size={16} />
             Feedback
-          </NavLink>
+          </NavLink>}
           <NavLink to="/attachment-files">
             <Upload size={16} />
             Attachment files
           </NavLink>
-          <NavLink to="/agents">
+          {canReadAdmin && <NavLink to="/agents">
             <Bot size={16} />
             Agents
-          </NavLink>
+          </NavLink>}
+          {canReadAdmin && <NavLink to="/users"><Users size={16} />Users</NavLink>}
         </nav>
-        <AccountMenu />
         <button
           className="ghost"
           title="Switch between system, light, and dark"
@@ -105,21 +112,23 @@ export default function App() {
           <ThemeIcon size={15} />
           {THEME_LABELS[theme]}
         </button>
+        <AccountMenu />
       </header>
 
       <main className="main">
         <Routes>
-          <Route path="/" element={<Navigate to="/overview" replace />} />
-          <Route path="/overview" element={<OverviewPage />} />
-          <Route path="/files" element={<IndexedFilesPage />} />
+          <Route path="/" element={<Navigate to={home} replace />} />
+          <Route path="/overview" element={canReadAdmin ? <OverviewPage /> : <Navigate to={home} replace />} />
+          <Route path="/files" element={canReadAdmin ? <IndexedFilesPage /> : <Navigate to={home} replace />} />
           <Route path="/attachment-files" element={<AttachmentFilesPage />} />
-          <Route path="/delta" element={<DeltaStatePage />} />
-          <Route path="/subscriptions" element={<SubscriptionsPage />} />
+          <Route path="/delta" element={canReadAdmin ? <DeltaStatePage /> : <Navigate to={home} replace />} />
+          <Route path="/subscriptions" element={canReadAdmin ? <SubscriptionsPage /> : <Navigate to={home} replace />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/chat" element={<ChatPage />} />
-          <Route path="/feedback" element={<FeedbackPage />} />
-          <Route path="/agents" element={<AgentsPage />} />
-          <Route path="*" element={<Navigate to="/overview" replace />} />
+          <Route path="/feedback" element={canReadAdmin ? <FeedbackPage /> : <Navigate to={home} replace />} />
+          <Route path="/agents" element={canReadAdmin ? <AgentsPage /> : <Navigate to={home} replace />} />
+          <Route path="/users" element={canReadAdmin ? <UsersPage /> : <Navigate to={home} replace />} />
+          <Route path="*" element={<Navigate to={home} replace />} />
         </Routes>
       </main>
     </div>
