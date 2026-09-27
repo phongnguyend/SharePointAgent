@@ -41,12 +41,17 @@ Assign Azure RBAC appropriate to each process: Service Bus Data Sender, Storage 
 
 Neither the SQL Server nor the MarkItDown service is deployed by the Bicep templates. Provision the database separately and pass its connection string to the worker as a secret.
 
+Environment parameter files for dev, test, and local Azure resources are available in [`infra/`](infra/README.md), with deployment commands and local setup notes.
+
+The manual [Deploy infrastructure workflow](.github/workflows/infra.yml) deploys these environments using Azure OIDC authentication. See the [infrastructure guide](infra/README.md) for GitHub environment secrets, variables, and optional Container App bootstrapping.
+
 Infrastructure is split into two deployments. `main.bicep` deploys the shared Azure services, Azure Container Registry, Log Analytics, and the Container Apps environment. It does not deploy the SQL Server:
 
 ```powershell
 $resourceGroup = '<resource-group>'
 $location = '<azure-region>'
-$namePrefix = '<unique-prefix>'
+$workloadName = 'sharepointagent'
+$environmentName = 'dev'
 $deployDocumentIntelligence = 'false'
 $imageTag = 'v1'
 
@@ -72,7 +77,8 @@ $deployment = az deployment group create `
   --resource-group $resourceGroup `
   --template-file infra/main.bicep `
   --parameters `
-    namePrefix=$namePrefix `
+    workloadName=$workloadName `
+    environmentName=$environmentName `
     location=$location `
     deployDocumentIntelligence=$deployDocumentIntelligence `
     serviceBusTopicName=$serviceBusTopicName `
@@ -89,7 +95,8 @@ $appsDeployment = az deployment group create `
   --resource-group $resourceGroup `
   --template-file infra/container-apps.bicep `
   --parameters `
-    namePrefix=$namePrefix `
+    workloadName=$workloadName `
+    environmentName=$environmentName `
     location=$location `
     deployDocumentIntelligence=$deployDocumentIntelligence | ConvertFrom-Json
 

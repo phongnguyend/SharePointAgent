@@ -1,9 +1,14 @@
 targetScope = 'resourceGroup'
 
-@description('The same prefix used to deploy main.bicep.')
+@description('Workload name used in resource names and tags. Use lowercase letters and digits.')
 @minLength(2)
-@maxLength(12)
-param namePrefix string = 'spsearch'
+@maxLength(15)
+param workloadName string = 'sharepointagent'
+
+@description('Environment name used in resource names and tags, such as local, dev, test, or prod. Use lowercase letters and digits.')
+@minLength(2)
+@maxLength(5)
+param environmentName string
 
 @description('Azure region used by the shared infrastructure.')
 param location string = resourceGroup().location
@@ -14,17 +19,25 @@ param tags object = {}
 @description('Must match deployDocumentIntelligence from main.bicep.')
 param deployDocumentIntelligence bool = false
 
-var uniqueSuffix = uniqueString(subscription().subscriptionId, resourceGroup().id)
+var namePrefix = toLower('${workloadName}-${environmentName}')
+var compactPrefix = replace(namePrefix, '-', '')
+var resourceTags = union(tags, {
+  workload: workloadName
+  environment: environmentName
+  managedBy: 'Bicep'
+})
+var uniqueSuffix = uniqueString(namePrefix, subscription().subscriptionId, resourceGroup().id)
 var serviceBusNamespaceName = take(toLower('${namePrefix}-sb-${uniqueSuffix}'), 50)
 var searchServiceName = take(toLower('${namePrefix}-search-${uniqueSuffix}'), 60)
 var openAiAccountName = take(toLower('${namePrefix}-openai-${uniqueSuffix}'), 64)
 var documentIntelligenceAccountName = take(toLower('${namePrefix}-docintel-${uniqueSuffix}'), 64)
-var containerRegistryName = 'cr${uniqueString(namePrefix, subscription().subscriptionId, resourceGroup().id)}'
+var containerRegistryName = 'cr${compactPrefix}${uniqueSuffix}'
 var containerAppsEnvironmentName = take(toLower('${namePrefix}-cae-${uniqueSuffix}'), 60)
-var storageAccountName = take(toLower(replace('${namePrefix}uploads${uniqueSuffix}', '-', '')), 24)
+// Keep the workload/environment visible and retain a suffix within Storage's 24-character limit.
+var storageAccountName = '${compactPrefix}${take(uniqueSuffix, 4)}'
 var registryPullIdentityName = take(toLower('${namePrefix}-acr-pull-${uniqueSuffix}'), 128)
-var apiContainerAppName = take(toLower('${namePrefix}-api-${uniqueSuffix}'), 32)
-var workerContainerAppName = take(toLower('${namePrefix}-worker-${uniqueSuffix}'), 32)
+var apiContainerAppName = '${namePrefix}-api-${take(uniqueSuffix, 6)}'
+var workerContainerAppName = '${namePrefix}-wrk-${take(uniqueSuffix, 6)}'
 var placeholderContainerImage = 'mcr.microsoft.com/k8se/quickstart:latest'
 
 var acrPullRoleId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
@@ -67,7 +80,7 @@ resource documentIntelligenceAccount 'Microsoft.CognitiveServices/accounts@2024-
 resource registryPullIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: registryPullIdentityName
   location: location
-  tags: tags
+  tags: resourceTags
 }
 
 resource registryPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -83,7 +96,7 @@ resource registryPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' =
 resource apiContainerApp 'Microsoft.App/containerApps@2025-01-01' = {
   name: apiContainerAppName
   location: location
-  tags: tags
+  tags: resourceTags
   identity: {
     type: 'SystemAssigned,UserAssigned'
     userAssignedIdentities: {
@@ -180,7 +193,7 @@ resource apiContainerApp 'Microsoft.App/containerApps@2025-01-01' = {
 resource workerContainerApp 'Microsoft.App/containerApps@2025-01-01' = {
   name: workerContainerAppName
   location: location
-  tags: tags
+  tags: resourceTags
   identity: {
     type: 'SystemAssigned,UserAssigned'
     userAssignedIdentities: {

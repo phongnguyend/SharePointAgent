@@ -1,0 +1,59 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "workloadName": {
+      "value": "sharepointagent"
+    },
+    "environmentName": {
+      "value": "test"
+    },
+    "location": {
+      "value": "eastus"
+    },
+    "tags": {
+      "value": {
+        "application": "SharePointAgent"
+      }
+    },
+    "allowServiceBusLocalAuth": {
+      "value": true
+    },
+    "allowSearchApiKeyAuth": {
+      "value": true
+    },
+    "allowOpenAiApiKeyAuth": {
+      "value": true
+    },
+    "deployDocumentIntelligence": {
+      "value": false
+    },
+    "allowDocumentIntelligenceApiKeyAuth": {
+      "value": true
+    },
+    "embeddingDeploymentName": {
+      "value": "text-embedding-3-small"
+    },
+    "embeddingModelName": {
+      "value": "text-embedding-3-small"
+    },
+    "embeddingModelVersion": {
+      "value": "1"
+    },
+    "embeddingDeploymentSku": {
+      "value": "GlobalStandard"
+    },
+    "embeddingDeploymentCapacity": {
+      "value": 10
+    },
+    "serviceBusTopicName": {
+      "value": "sharepoint-changes"
+    },
+    "serviceBusSubscriptionName": {
+      "value": "search-indexer"
+    },
+    "searchSku": {
+      "value": "basic"
+    }
+  }
+}

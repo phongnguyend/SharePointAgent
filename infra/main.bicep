@@ -1,9 +1,14 @@
 targetScope = 'resourceGroup'
 
-@description('Short prefix used to generate globally unique resource names.')
+@description('Workload name used in resource names and tags. Use lowercase letters and digits.')
 @minLength(2)
-@maxLength(12)
-param namePrefix string = 'spsearch'
+@maxLength(15)
+param workloadName string = 'sharepointagent'
+
+@description('Environment name used in resource names and tags, such as local, dev, test, or prod. Use lowercase letters and digits.')
+@minLength(2)
+@maxLength(5)
+param environmentName string
 
 @description('Azure region for resources. Azure OpenAI model availability varies by region.')
 param location string = resourceGroup().location
@@ -57,20 +62,28 @@ param serviceBusSubscriptionName string = 'search-indexer'
 ])
 param searchSku string = 'basic'
 
-var uniqueSuffix = uniqueString(subscription().subscriptionId, resourceGroup().id)
+var namePrefix = toLower('${workloadName}-${environmentName}')
+var compactPrefix = replace(namePrefix, '-', '')
+var resourceTags = union(tags, {
+  workload: workloadName
+  environment: environmentName
+  managedBy: 'Bicep'
+})
+var uniqueSuffix = uniqueString(namePrefix, subscription().subscriptionId, resourceGroup().id)
 var serviceBusNamespaceName = take(toLower('${namePrefix}-sb-${uniqueSuffix}'), 50)
 var searchServiceName = take(toLower('${namePrefix}-search-${uniqueSuffix}'), 60)
 var openAiAccountName = take(toLower('${namePrefix}-openai-${uniqueSuffix}'), 64)
 var documentIntelligenceAccountName = take(toLower('${namePrefix}-docintel-${uniqueSuffix}'), 64)
-var containerRegistryName = 'cr${uniqueString(namePrefix, subscription().subscriptionId, resourceGroup().id)}'
+var containerRegistryName = 'cr${compactPrefix}${uniqueSuffix}'
 var logAnalyticsWorkspaceName = take(toLower('${namePrefix}-logs-${uniqueSuffix}'), 63)
 var containerAppsEnvironmentName = take(toLower('${namePrefix}-cae-${uniqueSuffix}'), 60)
-var storageAccountName = take(toLower(replace('${namePrefix}uploads${uniqueSuffix}', '-', '')), 24)
+// Keep the workload/environment visible and retain a suffix within Storage's 24-character limit.
+var storageAccountName = '${compactPrefix}${take(uniqueSuffix, 4)}'
 
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   name: containerRegistryName
   location: location
-  tags: tags
+  tags: resourceTags
   sku: {
     name: 'Basic'
   }
@@ -83,7 +96,7 @@ resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-07-01' =
 resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: logAnalyticsWorkspaceName
   location: location
-  tags: tags
+  tags: resourceTags
   properties: {
     features: {
       enableLogAccessUsingOnlyResourcePermissions: true
@@ -100,7 +113,7 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09
 resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2025-01-01' = {
   name: containerAppsEnvironmentName
   location: location
-  tags: tags
+  tags: resourceTags
   properties: {
     appLogsConfiguration: {
       destination: 'log-analytics'
@@ -115,7 +128,7 @@ resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2025-01-01'
 resource uploadStorage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: storageAccountName
   location: location
-  tags: tags
+  tags: resourceTags
   kind: 'StorageV2'
   sku: { name: 'Standard_LRS' }
   properties: {
@@ -140,7 +153,7 @@ resource uploadContainer 'Microsoft.Storage/storageAccounts/blobServices/contain
 resource serviceBusNamespace 'Microsoft.ServiceBus/namespaces@2024-01-01' = {
   name: serviceBusNamespaceName
   location: location
-  tags: tags
+  tags: resourceTags
   sku: {
     name: 'Standard'
     tier: 'Standard'
@@ -203,7 +216,7 @@ resource workerServiceBusAuthorizationRule 'Microsoft.ServiceBus/namespaces/auth
 resource searchService 'Microsoft.Search/searchServices@2025-05-01' = {
   name: searchServiceName
   location: location
-  tags: tags
+  tags: resourceTags
   sku: {
     name: searchSku
   }
@@ -224,7 +237,7 @@ resource searchService 'Microsoft.Search/searchServices@2025-05-01' = {
 resource openAiAccount 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
   name: openAiAccountName
   location: location
-  tags: tags
+  tags: resourceTags
   kind: 'OpenAI'
   sku: {
     name: 'S0'
@@ -256,7 +269,7 @@ resource embeddingDeployment 'Microsoft.CognitiveServices/accounts/deployments@2
 resource documentIntelligenceAccount 'Microsoft.CognitiveServices/accounts@2024-10-01' = if (deployDocumentIntelligence) {
   name: documentIntelligenceAccountName
   location: location
-  tags: tags
+  tags: resourceTags
   kind: 'FormRecognizer'
   sku: {
     name: 'S0'

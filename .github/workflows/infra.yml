@@ -1,0 +1,149 @@
+name: Deploy infrastructure
+run-name: Deploy infrastructure (${{ inputs.environment }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options:
+          - local
+          - dev
+          - test
+        default: local
+      deploy_container_apps:
+        description: Bootstrap Container App shells for dev/test (overwrites existing app images)
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: infra-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+      DEPLOY_CONTAINER_APPS: ${{ inputs.deploy_container_apps }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      AZURE_RESOURCE_GROUP_LOCATION: ${{ vars.AZURE_RESOURCE_GROUP_LOCATION }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Check deployment settings
+        run: |
+          if ($env:DEPLOY_ENVIRONMENT -notin @('local', 'dev', 'test')) {
+            throw 'Unsupported environment.'
+          }
+          if ($env:DEPLOY_ENVIRONMENT -eq 'local' -and $env:DEPLOY_CONTAINER_APPS -eq 'true') {
+            throw 'Container App shells are only supported for dev/test deployments.'
+          }
+          $parametersFile = "infra/parameters.$env:DEPLOY_ENVIRONMENT.json"
+          $settings = (Get-Content $parametersFile -Raw | ConvertFrom-Json).parameters
+          if ([string]::IsNullOrWhiteSpace($settings.location.value)) {
+            throw "Set parameters.location.value in $parametersFile."
+          }
+          if ([string]::IsNullOrWhiteSpace($env:AZURE_RESOURCE_GROUP_LOCATION)) {
+            throw 'Set AZURE_RESOURCE_GROUP_LOCATION in the selected GitHub environment variables.'
+          }
+          if ($settings.environmentName.value -ne $env:DEPLOY_ENVIRONMENT) {
+            throw 'The parameter file environment does not match the selected environment.'
+          }
+          $resourceGroup = $env:AZURE_RESOURCE_GROUP
+          if ([string]::IsNullOrWhiteSpace($resourceGroup)) {
+            $resourceGroup = "rg-$($settings.workloadName.value)-$env:DEPLOY_ENVIRONMENT"
+          }
+          "RESOURCE_GROUP=$resourceGroup" >> $env:GITHUB_ENV
+          "PARAMETERS_FILE=$parametersFile" >> $env:GITHUB_ENV
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Compile templates
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          az bicep build --file infra/main.bicep --outfile "$env:RUNNER_TEMP/main.json"
+          az bicep build --file infra/container-apps.bicep --outfile "$env:RUNNER_TEMP/container-apps.json"
+
+      - name: Create resource group and deploy shared resources
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $settings = (Get-Content $env:PARAMETERS_FILE -Raw | ConvertFrom-Json).parameters
+          az group create --name $env:RESOURCE_GROUP --location $env:AZURE_RESOURCE_GROUP_LOCATION `
+            --tags "workload=$($settings.workloadName.value)" "environment=$env:DEPLOY_ENVIRONMENT" managedBy=Bicep application=SharePointAgent `
+            --output none
+
+          az deployment group validate `
+            --resource-group $env:RESOURCE_GROUP `
+            --template-file "$env:RUNNER_TEMP/main.json" `
+            --parameters $env:PARAMETERS_FILE `
+            --output none
+
+          az deployment group what-if `
+            --resource-group $env:RESOURCE_GROUP `
+            --template-file "$env:RUNNER_TEMP/main.json" `
+            --parameters $env:PARAMETERS_FILE
+
+          az deployment group create `
+            --name "infra-$env:DEPLOY_ENVIRONMENT-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT" `
+            --resource-group $env:RESOURCE_GROUP `
+            --mode Incremental `
+            --template-file "$env:RUNNER_TEMP/main.json" `
+            --parameters $env:PARAMETERS_FILE `
+            --query properties.outputs --output json
+
+      - name: Bootstrap Container App shells
+        if: inputs.deploy_container_apps && inputs.environment != 'local'
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $document = Get-Content $env:PARAMETERS_FILE -Raw | ConvertFrom-Json -AsHashtable
+          $appParameters = @{}
+          foreach ($name in @('workloadName', 'environmentName', 'location', 'tags', 'deployDocumentIntelligence')) {
+            $appParameters[$name] = $document.parameters[$name]
+          }
+          $document.parameters = $appParameters
+          $appParametersFile = "$env:RUNNER_TEMP/container-apps.parameters.json"
+          $document | ConvertTo-Json -Depth 20 | Set-Content $appParametersFile
+
+          az deployment group what-if `
+            --resource-group $env:RESOURCE_GROUP `
+            --template-file "$env:RUNNER_TEMP/container-apps.json" `
+            --parameters $appParametersFile
+
+          az deployment group create `
+            --name "apps-$env:DEPLOY_ENVIRONMENT-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT" `
+            --resource-group $env:RESOURCE_GROUP `
+            --mode Incremental `
+            --template-file "$env:RUNNER_TEMP/container-apps.json" `
+            --parameters $appParametersFile `
+            --query properties.outputs --output json
+
+      - name: Deployment summary
+        run: |
+          $settings = (Get-Content $env:PARAMETERS_FILE -Raw | ConvertFrom-Json).parameters
+          "## Infrastructure deployed" >> $env:GITHUB_STEP_SUMMARY
+          "- Environment: $env:DEPLOY_ENVIRONMENT" >> $env:GITHUB_STEP_SUMMARY
+          "- Resource group: $env:RESOURCE_GROUP" >> $env:GITHUB_STEP_SUMMARY
+          "- Resource group location: $($env:AZURE_RESOURCE_GROUP_LOCATION)" >> $env:GITHUB_STEP_SUMMARY
+          "- Resource location: $($settings.location.value)" >> $env:GITHUB_STEP_SUMMARY
+          "- Parameter file: $env:PARAMETERS_FILE" >> $env:GITHUB_STEP_SUMMARY
+          "- Container App shells requested: $env:DEPLOY_CONTAINER_APPS" >> $env:GITHUB_STEP_SUMMARY
