@@ -8,6 +8,7 @@ against the search index, side by side.
 
 | Page | What it shows |
 | --- | --- |
+| **Token usage** | Two report tabs: **Token Usage** for chat input/output/total tokens, turns, per-turn averages, daily trends, model/user breakdowns and a paginated turn log; **Embedding Usage** for indexing/search tokens, activities and attribution. Both support filters and detail popups. Available to Global Admin and Global Reader Admin. |
 | **Overview** | Totals over the indexed-file table: files, chunks, source size, drives, files outside the current reconciliation round, and how many distinct index fingerprints are in play. Plus files by content type, the most recently indexed files, and the delta checkpoints. |
 | **Indexed files** | The `SharePointIndexedFiles` table, filterable and sortable, with per-file embedding token usage and a Reindex action on each row. Select a row to see every recorded column — ETag, CTag, permissions hash, index fingerprint, scan ID, and the drive and item IDs. |
 | **Attachment files** | Chat attachment files with conversion/index status, conversation links, chunk counts, embedding token usage, errors, download, reindex, and orphan deletion actions. |

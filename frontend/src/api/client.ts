@@ -1,5 +1,9 @@
 import { authorizedFetch, API_BASE } from '../auth'
 import type {
+  ChatUsageFilter,
+  ChatUsageReport,
+  EmbeddingUsageReport,
+  EmbeddingUsageFilter,
   AppUser,
   SystemAttachmentStorage,
   AppUserInput,
@@ -28,6 +32,12 @@ import type {
 
 /** Empty by default, so requests go to the dev server's /api proxy on this same origin. */
 const BASE_URL = API_BASE
+
+export const getChatTokenUsage = (filters: ChatUsageFilter, skip: number, signal?: AbortSignal) =>
+  request<ChatUsageReport>(`/api/usage/tokens${query({ ...filters, questionId: filters.questionId || undefined, skip, top: 25 })}`, { signal })
+
+export const getEmbeddingUsage = (filters: EmbeddingUsageFilter, skip: number, signal?: AbortSignal) =>
+  request<EmbeddingUsageReport>(`/api/usage/embeddings${query({ ...filters, skip, top: 25 })}`, { signal })
 
 export const getCurrentUser = (signal?: AbortSignal) => request<AppUser>('/api/auth/me', { signal })
 export const saveUserTokenLimit = (id: string, input: { monthlyTokenLimit: number | null; concurrencyStamp: string }) =>

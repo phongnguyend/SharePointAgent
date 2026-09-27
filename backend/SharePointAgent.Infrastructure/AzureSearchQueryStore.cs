@@ -36,6 +36,7 @@ public sealed class AzureSearchQueryStore(
 
         if (mode is SearchQueryMode.Vector or SearchQueryMode.Hybrid)
         {
+            using var embeddingAttribution = EmbeddingUsageScope.Begin(new(Operation: "SharePoint" + mode + "Search"));
             var vector = await ChatEmbeddingUsage.GenerateQueryVectorAsync(embeddings, request.Query, cancellationToken);
             options.VectorSearch = new VectorSearchOptions
             {

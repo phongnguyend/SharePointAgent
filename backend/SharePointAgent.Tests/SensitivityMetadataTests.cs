@@ -52,6 +52,6 @@ public sealed class SensitivityMetadataTests
         using var context = new SharePointIndexDbContext(new DbContextOptionsBuilder<SharePointIndexDbContext>()
             .UseSqlServer("Server=unused;Database=unused;Integrated Security=true").Options);
         Assert.False(context.Database.HasPendingModelChanges());
-        Assert.Single(context.Database.GetMigrations());
+        Assert.Contains(context.Database.GetMigrations(), migration => migration.EndsWith("_InitialCreate"));
     }
 }

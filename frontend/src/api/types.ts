@@ -287,6 +287,85 @@ export interface SubscriptionOverview {
 /** The three retrieval strategies the API exposes over one request body. */
 export type SearchMode = 'fulltext' | 'vector' | 'hybrid'
 
+export interface EmbeddingUsageRecord {
+  id: string
+  createdAtUtc: string
+  operation: string
+  embeddingModelId: string
+  deploymentId: string
+  inputTokens: number | null
+  totalTokens: number | null
+  userId: string | null
+  conversationId: string | null
+  questionId: string | null
+  driveId: string | null
+  fileId: string | null
+  attachmentId: string | null
+  scanId: string | null
+  chunkNumber: number | null
+  traceId: string | null
+}
+
+export interface ChatUsageFilter {
+  from: string
+  to: string
+  model: string
+  user: string
+  questionId: string
+  unknownModel: boolean
+}
+export interface ChatUsageTotals {
+  turns: number
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+}
+export interface ChatUsageRecord extends Omit<ChatUsageTotals, 'turns'> {
+  questionId: string
+  userId: string
+  modelId: string | null
+  day: number
+  month: number
+  createdAtUtc: string | null
+}
+export interface ChatUsageReport {
+  from: string
+  to: string
+  summary: ChatUsageTotals & { users: number; unknownModelTurns: number }
+  daily: (ChatUsageTotals & { day: number })[]
+  models: (ChatUsageTotals & { modelId: string | null })[]
+  users: (ChatUsageTotals & { userId: string; name: string })[]
+  items: { usage: ChatUsageRecord; userName: string }[]
+  modelOptions: (string | null)[]
+}
+export interface EmbeddingUsageGroup {
+  name: string
+  calls: number
+  tokens: number
+  unknownCalls: number
+}
+export interface EmbeddingUsageReport {
+  from: string
+  to: string
+  summary: { calls: number; tokens: number; inputTokens: number; unknownCalls: number; models: number; users: number }
+  daily: { day: string; calls: number; tokens: number; unknownCalls: number }[]
+  models: EmbeddingUsageGroup[]
+  operations: EmbeddingUsageGroup[]
+  users: (EmbeddingUsageGroup & { userId: string | null })[]
+  items: { usage: EmbeddingUsageRecord; userName: string | null }[]
+  modelOptions: string[]
+  operationOptions: string[]
+}
+export interface EmbeddingUsageFilter {
+  from: string
+  to: string
+  model: string
+  operation: string
+  user: string
+  reference: string
+  unattributed: boolean
+}
+
 export const SEARCH_MODES: SearchMode[] = ['fulltext', 'vector', 'hybrid']
 
 export const SEARCH_MODE_LABELS: Record<SearchMode, string> = {

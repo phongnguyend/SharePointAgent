@@ -19,6 +19,7 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
 
     public DbSet<AgentDefinitionEntity> AgentDefinitions => Set<AgentDefinitionEntity>();
     public DbSet<UserTokenUsageEntity> UserTokenUsage => Set<UserTokenUsageEntity>();
+    public DbSet<EmbeddingTokenUsageEntity> EmbeddingTokenUsage => Set<EmbeddingTokenUsageEntity>();
     public DbSet<WebhookSubscriptionEntity> WebhookSubscriptions => Set<WebhookSubscriptionEntity>();
     public DbSet<DeltaStateEntity> DeltaState => Set<DeltaStateEntity>();
     public DbSet<IndexedFileEntity> IndexedFiles => Set<IndexedFileEntity>();
@@ -30,6 +31,23 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<EmbeddingTokenUsageEntity>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).ValueGeneratedNever();
+            entity.Property(x => x.Operation).HasMaxLength(100);
+            entity.Property(x => x.EmbeddingModelId).HasMaxLength(200);
+            entity.Property(x => x.DeploymentId).HasMaxLength(200);
+            entity.Property(x => x.DriveId).HasMaxLength(IdentifierLength);
+            entity.Property(x => x.FileId).HasMaxLength(IdentifierLength);
+            entity.Property(x => x.TraceId).HasMaxLength(32);
+            entity.HasIndex(x => new { x.UserId, x.CreatedAtUtc });
+            entity.HasIndex(x => new { x.EmbeddingModelId, x.CreatedAtUtc });
+            entity.HasIndex(x => new { x.Operation, x.CreatedAtUtc });
+            entity.HasIndex(x => x.QuestionId);
+            entity.HasIndex(x => new { x.DriveId, x.FileId });
+            entity.HasIndex(x => x.AttachmentId);
+        });
         modelBuilder.Entity<UserTokenUsageEntity>(entity =>
         {
             entity.HasKey(x => x.QuestionId);

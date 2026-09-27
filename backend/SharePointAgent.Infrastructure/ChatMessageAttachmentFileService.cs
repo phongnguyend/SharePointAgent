@@ -101,11 +101,13 @@ public sealed class ChatMessageAttachmentFileService(
             }
         }
 
+        using var embeddingOperation = EmbeddingUsageScope.Begin(new(Operation: "AttachmentIndex", UserId: createdById));
         return await IndexAsync(id, cancellationToken);
     }
 
     public async Task<AttachmentFileRecord?> ReindexAsync(Guid id, CancellationToken cancellationToken)
     {
+        using var embeddingOperation = EmbeddingUsageScope.Begin(new(Operation: "AttachmentReindex"));
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         if (!await context.ChatMessageAttachmentFiles.AnyAsync(x => x.Id == id, cancellationToken))
         {
@@ -307,6 +309,8 @@ public sealed class ChatMessageAttachmentFileService(
 
         await EnsureInfrastructureAsync(cancellationToken);
         var count = Math.Clamp(top, 1, 10);
+        using var embeddingAttribution = EmbeddingUsageScope.Begin(new(
+            Operation: "AttachmentVectorSearch", ConversationId: conversationId, AttachmentId: attachmentId));
         var vector = await ChatEmbeddingUsage.GenerateQueryVectorAsync(embeddings, query, cancellationToken);
         var hits = new List<AttachmentSearchHit>();
         foreach (var batch in attachmentIds.Chunk(100))
@@ -362,6 +366,9 @@ public sealed class ChatMessageAttachmentFileService(
             long? embeddingTokenCount = 0;
             for (var index = 0; index < texts.Count; index++)
             {
+                using var embeddingAttribution = EmbeddingUsageScope.Begin(new(
+                    UserId: EmbeddingUsageScope.Current.UserId ?? row.CreatedById,
+                    AttachmentId: id, ChunkNumber: index));
                 var generated = await embeddings.GenerateAsync([texts[index]], cancellationToken: cancellationToken);
                 var vector = generated[0].Vector;
                 var tokens = generated.Usage?.TotalTokenCount ?? generated.Usage?.InputTokenCount;

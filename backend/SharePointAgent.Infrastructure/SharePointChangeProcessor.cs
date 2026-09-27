@@ -38,6 +38,7 @@ public sealed class SharePointChangeProcessor(
 
     public async Task<FileIndexRecord?> ReindexAsync(string driveId, string itemId, CancellationToken cancellationToken)
     {
+        using var embeddingOperation = EmbeddingUsageScope.Begin(new(Operation: "SharePointReindex"));
         await _gate.WaitAsync(cancellationToken);
         try
         {
@@ -221,6 +222,8 @@ public sealed class SharePointChangeProcessor(
                 return;
             }
 
+            using var embeddingOperation = EmbeddingUsageScope.Begin(new(
+                Operation: tracked is null ? "SharePointIndex" : "SharePointReindex"));
             await ReindexFileAsync(driveId, scanId, item, cancellationToken);
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
@@ -301,6 +304,8 @@ public sealed class SharePointChangeProcessor(
         long? embeddingTokenCount = 0;
         for (var index = 0; index < textChunks.Count; index++)
         {
+            using var embeddingAttribution = EmbeddingUsageScope.Begin(new(
+                DriveId: driveId, FileId: item.Id, ScanId: scanId, ChunkNumber: index));
             var generated = await embeddings.GenerateAsync([textChunks[index]], cancellationToken: cancellationToken);
             var vector = generated[0].Vector;
             var tokens = generated.Usage?.TotalTokenCount ?? generated.Usage?.InputTokenCount;

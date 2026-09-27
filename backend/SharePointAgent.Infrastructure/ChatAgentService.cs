@@ -41,6 +41,8 @@ public sealed class ChatAgentService(
         CancellationToken cancellationToken)
     {
         var context = await contextLoader.LoadAsync(request, cancellationToken);
+        using var embeddingAttribution = EmbeddingUsageScope.Begin(new(
+            UserId: request.UserId, ConversationId: context.Conversation.Id, QuestionId: context.Question.Id));
         return await RunStreamingCoreAsync(
             context.Conversation.Id, context.History, context.Question, context.Conversation.UserId,
             context.Agent.ModelId, context.Agent.Instructions, onText, onStatus, cancellationToken);

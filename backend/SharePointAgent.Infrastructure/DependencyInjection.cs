@@ -297,7 +297,9 @@ public static class DependencyInjection
             var client = options.UsedManagedIdentity
                 ? new AzureOpenAIClient(new Uri(options.Endpoint), CreateManagedIdentityCredential(), clientOptions)
                 : new AzureOpenAIClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!), clientOptions);
-            return client.GetEmbeddingClient(options.EmbeddingDeployment).AsIEmbeddingGenerator(dimensions);
+            return new TrackedEmbeddingGenerator(
+                client.GetEmbeddingClient(options.EmbeddingDeployment).AsIEmbeddingGenerator(dimensions),
+                sp.GetRequiredService<IDbContextFactory<SharePointIndexDbContext>>(), options.EmbeddingDeployment);
         });
     }
 

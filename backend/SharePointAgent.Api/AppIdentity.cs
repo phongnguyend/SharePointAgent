@@ -90,6 +90,7 @@ public sealed class AppIdentityMiddleware(RequestDelegate next)
                 user = await users.LinkEntraAccountAsync(tenant, objectId, email ?? "", directoryUser.DisplayName ?? "", ct);
             }
             context.Items[typeof(AppUserView)] = user;
+            using var embeddingAttribution = SharePointAgent.Application.EmbeddingUsageScope.Begin(new(UserId: user.Id));
             if (!AppAccess.Allows(user.Roles, context.Request.Method, context.Request.Path.Value!))
             {
                 throw new UserManagementException("Your application role does not allow this action.", 403);

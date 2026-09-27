@@ -3,7 +3,7 @@ using SharePointAgent.Domain;
 namespace SharePointAgent.Application;
 
 /// <summary>Only persisted identifiers cross the hosting boundary; SQL owns the conversation.</summary>
-public sealed record ChatAgentRequest(Guid ConversationId, Guid QuestionId);
+public sealed record ChatAgentRequest(Guid ConversationId, Guid QuestionId, Guid? UserId = null);
 
 public interface IChatAgentExecutor
 {

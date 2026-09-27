@@ -14,6 +14,7 @@ import {
   Webhook,
   Upload,
   Users,
+  ChartNoAxesCombined,
 } from 'lucide-react'
 import OverviewPage from './pages/OverviewPage'
 import IndexedFilesPage from './pages/IndexedFilesPage'
@@ -27,6 +28,7 @@ import AttachmentFilesPage from './pages/AttachmentFilesPage'
 import { AccountMenu } from './components/AuthGate'
 import { useAppUser, canReadAdministration } from './components/AppUserContext'
 import UsersPage from './pages/UsersPage'
+import TokenUsagePage from './pages/TokenUsagePage'
 
 type Theme = 'system' | 'light' | 'dark'
 
@@ -103,6 +105,7 @@ export default function App() {
             Agents
           </NavLink>}
           {canReadAdmin && <NavLink to="/users"><Users size={16} />Users</NavLink>}
+          {canReadAdmin && <NavLink to="/token-usage"><ChartNoAxesCombined size={16} />Token usage</NavLink>}
         </nav>
         <button
           className="ghost"
@@ -128,6 +131,8 @@ export default function App() {
           <Route path="/feedback" element={canReadAdmin ? <FeedbackPage /> : <Navigate to={home} replace />} />
           <Route path="/agents" element={canReadAdmin ? <AgentsPage /> : <Navigate to={home} replace />} />
           <Route path="/users" element={canReadAdmin ? <UsersPage /> : <Navigate to={home} replace />} />
+          <Route path="/token-usage" element={canReadAdmin ? <TokenUsagePage /> : <Navigate to={home} replace />} />
+          <Route path="/embedding-usage" element={<Navigate to="/token-usage?tab=embeddings" replace />} />
           <Route path="*" element={<Navigate to={home} replace />} />
         </Routes>
       </main>
