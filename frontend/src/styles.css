@@ -589,6 +589,41 @@ input[readonly] {
   border-radius: var(--radius-sm);
 }
 
+.attachment-storage-usage {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.system-storage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 12px;
+}
+
+.attachment-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-strong);
+  padding-bottom: 8px;
+}
+
+.attachment-tabs [role='tab'][aria-selected='true'] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+
+.attachment-storage-usage progress {
+  width: 100%;
+  height: 6px;
+  accent-color: var(--accent);
+}
+
+.attachment-storage-usage .badge {
+  justify-self: start;
+}
+
 .user-roles legend {
   padding: 0 4px;
   font-size: 12px;

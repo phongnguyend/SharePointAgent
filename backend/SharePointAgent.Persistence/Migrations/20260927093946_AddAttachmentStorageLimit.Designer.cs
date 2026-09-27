@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SharePointAgent.Persistence;
 
@@ -11,9 +12,11 @@ using SharePointAgent.Persistence;
 namespace SharePointAgent.Persistence.Migrations
 {
     [DbContext(typeof(SharePointIndexDbContext))]
-    partial class SharePointIndexDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260927093946_AddAttachmentStorageLimit")]
+    partial class AddAttachmentStorageLimit
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

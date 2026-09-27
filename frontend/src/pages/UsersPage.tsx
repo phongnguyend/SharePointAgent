@@ -1,13 +1,15 @@
 import { useState } from 'react'
-import { Users, UserPlus, Pencil, RefreshCw, ShieldCheck, Save, X, LoaderCircle } from 'lucide-react'
-import { listUsers, saveUser } from '../api/client'
+import { Users, UserPlus, Pencil, RefreshCw, ShieldCheck, Save, X, LoaderCircle, HardDrive } from 'lucide-react'
+import { listUsers, saveUser, saveUserStorage } from '../api/client'
 import type { AppRole, AppUser, AppUserInput } from '../api/types'
 import { useAppUser } from '../components/AppUserContext'
 import { Empty, ErrorBanner, Field, LoadingBar, Modal, Pagination } from '../components/ui'
 import { useAsync, useDebounced } from '../lib/useAsync'
 import { formatDateTime } from '../lib/format'
+import { AttachmentStorageUsage } from '../components/AttachmentStorageUsage'
 
 const roles: AppRole[] = ['Global Admin', 'Global Reader Admin', 'User']
+const BYTES_PER_GB = 1024 ** 3
 const blank: AppUserInput = { email: '', displayName: '', roles: ['User'], isActive: true }
 
 export default function UsersPage() {
@@ -20,6 +22,8 @@ export default function UsersPage() {
   const [editing, setEditing] = useState<AppUser | null>(null)
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<AppUserInput>(blank)
+  const [storageLimitGB, setStorageLimitGB] = useState('')
+  const [storageUser, setStorageUser] = useState<AppUser | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -41,6 +45,29 @@ export default function UsersPage() {
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
     finally { setBusy(false) }
   }
+  const manageStorage = (user: AppUser) => {
+    setStorageUser(user)
+    setStorageLimitGB(user.attachmentStorageLimitBytes == null ? '' : String(user.attachmentStorageLimitBytes / BYTES_PER_GB))
+    setError(null)
+  }
+  const saveStorage = async () => {
+    if (!storageUser) return
+    setBusy(true)
+    setError(null)
+    try {
+      const limit = storageLimitGB.trim() === '' ? null : Math.round(Number(storageLimitGB) * BYTES_PER_GB)
+      if (limit !== null && (!Number.isSafeInteger(limit) || limit < 0)) throw new Error('Enter a valid non-negative storage limit.')
+      const saved = await saveUserStorage(storageUser.id, {
+        concurrencyStamp: storageUser.concurrencyStamp,
+        attachmentStorageLimitBytes: limit,
+      })
+      setStorageUser(null)
+      setNotice(`Storage limit updated for ${saved.displayName}.`)
+      page.reload()
+      if (saved.id === me.id) window.dispatchEvent(new Event('app-profile-refresh'))
+    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
+    finally { setBusy(false) }
+  }
   return <div className="stack">
     <div className="page-head">
       <div><h1><Users size={20} />Users</h1><p>Manage application access. These roles are separate from Microsoft Entra ID roles.</p></div>
@@ -53,14 +80,18 @@ export default function UsersPage() {
     <LoadingBar active={page.loading} />
     {page.error && <ErrorBanner message={page.error} onRetry={page.reload} />}
     <div className="card">
-      <div className="table-scroll"><table><thead><tr><th>User</th><th>Application roles</th><th>Status</th><th>Entra sign-in</th><th>Last sign-in</th>{canManage && <th>Actions</th>}</tr></thead>
+      <div className="table-scroll"><table><thead><tr><th>User</th><th>Application roles</th><th>Attachment storage</th><th>Status</th><th>Entra sign-in</th><th>Last sign-in</th>{canManage && <th>Actions</th>}</tr></thead>
         <tbody>{page.data?.items.map(user => <tr key={user.id}>
           <td><strong>{user.displayName}</strong><div>{user.email}</div></td>
           <td><div className="row">{user.roles.map(role => <span key={role} className="badge"><ShieldCheck size={12} />{role}</span>)}</div></td>
+          <td><AttachmentStorageUsage used={user.attachmentStorageUsedBytes} limit={user.attachmentStorageLimitBytes} /></td>
           <td><span className={`badge ${user.isActive ? 'good' : 'warning'}`}>{user.isActive ? 'Active' : 'Disabled'}</span></td>
           <td>{user.hasSignedIn ? 'Linked' : 'Awaiting first sign-in'}</td>
           <td>{formatDateTime(user.lastLoginAtUtc)}</td>
-          {canManage && <td><button onClick={() => edit(user)} aria-label={`Edit ${user.email}`}><Pencil size={13} />Edit</button></td>}
+          {canManage && <td><div className="row">
+            <button onClick={() => edit(user)} aria-label={`Edit ${user.email}`}><Pencil size={13} />Edit</button>
+            <button onClick={() => manageStorage(user)} aria-label={`Manage storage for ${user.email}`}><HardDrive size={13} />Manage storage</button>
+          </div></td>}
         </tr>)}</tbody></table></div>
       {page.data?.items.length === 0 && <Empty title="No users found" />}
       <Pagination skip={skip} top={25} total={page.data?.totalCount ?? 0} onSkip={setSkip} />
@@ -87,6 +118,22 @@ export default function UsersPage() {
         <p>Global Admin manages the application. Global Reader Admin can view administration pages. User can search, chat, and manage their own uploads.</p>
         {error && <ErrorBanner message={error} />}
       </form>
+    </Modal>
+    <Modal open={storageUser !== null} title="Manage attachment storage" icon={<HardDrive size={18} />} onClose={() => { if (!busy) setStorageUser(null) }} footer={<>
+      <button disabled={busy} onClick={() => setStorageUser(null)}><X size={14} aria-hidden="true" />Cancel</button>
+      <button disabled={busy} type="submit" form="storage-editor">
+        {busy ? <LoaderCircle size={14} className="auth-spinner" aria-hidden="true" /> : <Save size={14} aria-hidden="true" />}
+        {busy ? 'Saving…' : 'Save storage limit'}
+      </button>
+    </>}>
+      {storageUser && <form id="storage-editor" className="stack" onSubmit={event => { event.preventDefault(); void saveStorage() }}>
+        <div><strong>{storageUser.displayName}</strong><div>{storageUser.email}</div></div>
+        <AttachmentStorageUsage used={storageUser.attachmentStorageUsedBytes} limit={storageUser.attachmentStorageLimitBytes} />
+        <Field label="Attachment storage limit (GB)" help="Leave blank for unlimited. Set 0 to block new uploads. Lowering the limit does not delete existing files.">
+          <input type="number" min={0} step={1} placeholder="Unlimited" disabled={busy} value={storageLimitGB} onChange={e => setStorageLimitGB(e.target.value)} />
+        </Field>
+        {error && <ErrorBanner message={error} />}
+      </form>}
     </Modal>
   </div>
 }

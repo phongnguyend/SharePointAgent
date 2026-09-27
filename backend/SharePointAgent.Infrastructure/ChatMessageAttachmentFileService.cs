@@ -55,15 +55,10 @@ public sealed class ChatMessageAttachmentFileService(
         var safeName = Path.GetFileName(fileName);
         var blobName = $"{id:N}/{safeName}";
         var now = DateTimeOffset.UtcNow;
-        await Container.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
-        await Container.GetBlobClient(blobName).UploadAsync(
-            content,
-            new BlobUploadOptions { HttpHeaders = new BlobHttpHeaders { ContentType = contentType } },
-            cancellationToken);
-
+        var uploadStarted = false;
         await using (var context = await contextFactory.CreateDbContextAsync(cancellationToken))
         {
-            context.ChatMessageAttachmentFiles.Add(new ChatMessageAttachmentFileEntity
+            var row = new ChatMessageAttachmentFileEntity
             {
                 Id = id,
                 CreatedById = createdById,
@@ -74,8 +69,34 @@ public sealed class ChatMessageAttachmentFileService(
                 Status = UploadIndexStatus.NotStarted,
                 CreatedAtUtc = now,
                 UpdatedAtUtc = now,
-            });
-            await context.SaveChangesAsync(cancellationToken);
+            };
+            try
+            {
+                await AttachmentStorageQuota.StoreAsync(context, row, async ct =>
+                {
+                    await Container.CreateIfNotExistsAsync(cancellationToken: ct);
+                    uploadStarted = true;
+                    await Container.GetBlobClient(blobName).UploadAsync(content,
+                        new BlobUploadOptions { HttpHeaders = new BlobHttpHeaders { ContentType = contentType } }, ct);
+                }, cancellationToken);
+            }
+            catch
+            {
+                if (uploadStarted)
+                {
+                    // The quota transaction rolled back. Clean up even when the request was cancelled.
+                    try
+                    {
+                        using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                        await Container.GetBlobClient(blobName).DeleteIfExistsAsync(cancellationToken: cleanup.Token);
+                    }
+                    catch (Exception cleanupError)
+                    {
+                        logger.LogError(cleanupError, "Failed to clean up unsuccessful attachment upload {AttachmentId}", id);
+                    }
+                }
+                throw;
+            }
         }
 
         return await IndexAsync(id, cancellationToken);

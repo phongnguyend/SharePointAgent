@@ -34,6 +34,20 @@ public sealed class AppUserService(SharePointIndexDbContext db, UserManager<Appl
         return user with { LastLoginAtUtc = now };
     }
 
+    public async Task<SystemAttachmentStorage> GetSystemAttachmentStorageAsync(CancellationToken ct)
+    {
+        var files = db.ChatMessageAttachmentFiles.AsNoTracking();
+        var totals = await files.GroupBy(x => 1).Select(group => new
+        {
+            FileCount = group.LongCount(),
+            UsedBytes = group.Sum(x => x.SizeBytes),
+            UnassignedBytes = group.Sum(x => x.CreatedById == null ? x.SizeBytes : 0)
+        }).SingleOrDefaultAsync(ct);
+        var orphanBytes = await files.Where(x => x.ChatMessageAttachmentId == null && !x.MessageAttachments.Any())
+            .SumAsync(x => (long?)x.SizeBytes, ct) ?? 0;
+        return new(totals?.FileCount ?? 0, totals?.UsedBytes ?? 0, orphanBytes, totals?.UnassignedBytes ?? 0);
+    }
+
     public async Task<AppUserView?> FindBoundAsync(string tenant, string objectId, CancellationToken ct)
     {
         var user = await users.Users.SingleOrDefaultAsync(x => x.EntraTenantId == tenant && x.EntraObjectId == objectId, ct);
@@ -142,9 +156,24 @@ public sealed class AppUserService(SharePointIndexDbContext db, UserManager<Appl
         return await ViewAsync(user);
     }
 
+    public async Task<AppUserView> SaveStorageAsync(Guid id, AppUserStorageInput input, CancellationToken ct)
+    {
+        if (input.AttachmentStorageLimitBytes is < 0 or > 9_007_199_254_740_991)
+            throw new UserManagementException("Storage limit must be a non-negative number of bytes within the supported range.");
+        await using var transaction = await BeginAsync(ct);
+        var user = await users.FindByIdAsync(id.ToString()) ?? throw new UserManagementException("User not found.", 404);
+        if (string.IsNullOrEmpty(input.ConcurrencyStamp) || input.ConcurrencyStamp != user.ConcurrencyStamp)
+            throw new UserManagementException("This user changed. Refresh the list and try again.", 409);
+        user.AttachmentStorageLimitBytes = input.AttachmentStorageLimitBytes;
+        Check(await users.UpdateAsync(user));
+        await transaction.CommitAsync(ct);
+        return await ViewAsync(user);
+    }
+
     private async Task<AppUserView> ViewAsync(ApplicationUser user) => new(user.Id, user.Email!, user.DisplayName,
         (await users.GetRolesAsync(user)).OrderBy(role => Array.IndexOf(AppRoles.All, role)).ToArray(), user.IsActive, user.EntraObjectId is not null,
-        user.CreatedAtUtc, user.LastLoginAtUtc, user.ConcurrencyStamp!);
+        user.CreatedAtUtc, user.LastLoginAtUtc, user.ConcurrencyStamp!, user.AttachmentStorageLimitBytes,
+        await db.ChatMessageAttachmentFiles.Where(x => x.CreatedById == user.Id).SumAsync(x => (long?)x.SizeBytes) ?? 0);
 
     private static ApplicationUser NewUser(string email, string name) => new()
     {

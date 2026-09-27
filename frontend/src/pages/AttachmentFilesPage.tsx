@@ -1,12 +1,13 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Download, Eye, FileText, MessageSquare, Paperclip, RefreshCw, RotateCw, SearchX, Trash2, X } from 'lucide-react'
+import { Download, Eye, FileText, HardDrive, MessageSquare, Paperclip, RefreshCw, RotateCw, SearchX, Trash2, X } from 'lucide-react'
 import {
   downloadAttachmentFile,
   getAttachmentFileMarkdown,
   deleteOrphanAttachmentFile,
   listAttachmentFiles,
   reindexAttachmentFile,
+  getCurrentUser,
 } from '../api/client'
 import type { UploadIndexStatus } from '../api/types'
 import { Empty, ErrorBanner, LoadingBar, Pagination } from '../components/ui'
@@ -14,6 +15,9 @@ import { FileTypeIcon } from '../components/FileTypeIcon'
 import { AttachmentDownload } from '../components/AttachmentDownload'
 import { OfficePreview } from '../components/OfficePreview'
 import { MarkdownPreview } from '../components/MarkdownPreview'
+import { AttachmentStorageUsage } from '../components/AttachmentStorageUsage'
+import { SystemAttachmentStorage } from '../components/SystemAttachmentStorage'
+import { canReadAdministration } from '../components/AppUserContext'
 import { isPreviewableOfficeFile } from '../lib/officeFiles'
 import { formatBytes, formatDateTime, formatRelative } from '../lib/format'
 import { useAsync, useDebounced } from '../lib/useAsync'
@@ -33,6 +37,9 @@ const STATUS_CLASSES: Record<UploadIndexStatus, string> = {
 }
 
 export default function AttachmentFilesPage() {
+  const [tab, setTab] = useState<'files' | 'usage'>('files')
+  const tabId = useId()
+  const canReadSystemStorage = canReadAdministration(useAppUser())
   const readOnly = !canManageOwnContent(useAppUser())
   const [search, setSearch] = useState('')
   const [skip, setSkip] = useState(0)
@@ -42,6 +49,7 @@ export default function AttachmentFilesPage() {
   const [preview, setPreview] = useState<{ id: string; name: string } | null>(null)
   const [markdownFile, setMarkdownFile] = useState<{ id: string; name: string } | null>(null)
   const debouncedSearch = useDebounced(search)
+  const storage = useAsync(signal => getCurrentUser(signal), [])
   const page = useAsync(
     (signal) => listAttachmentFiles({ search: debouncedSearch, skip, top: 25 }, signal),
     [debouncedSearch, skip],
@@ -66,6 +74,7 @@ export default function AttachmentFilesPage() {
     setActionError(null)
     try {
       await deleteOrphanAttachmentFile(id)
+      storage.reload()
       setConfirmDelete(null)
       page.reload()
     } catch (cause) {
@@ -82,9 +91,37 @@ export default function AttachmentFilesPage() {
           <h1><Paperclip size={20} />Attachment files</h1>
           <p>Files prepared for chat, their index status, and the conversation each file belongs to.</p>
         </div>
-        <button onClick={page.reload}><RefreshCw size={14} />Refresh</button>
+        <button onClick={() => { page.reload(); storage.reload() }}><RefreshCw size={14} />Refresh</button>
       </div>
 
+      <div className="attachment-tabs" role="tablist" aria-label="Attachment files views" onKeyDown={event => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+        event.preventDefault()
+        const next = event.key === 'Home' ? 'files' : event.key === 'End' ? 'usage' : tab === 'files' ? 'usage' : 'files'
+        setTab(next)
+        event.currentTarget.querySelector<HTMLButtonElement>(`[data-tab="${next}"]`)?.focus()
+      }}>
+        <button role="tab" data-tab="files" id={`${tabId}-files-tab`} aria-controls={`${tabId}-files-panel`} aria-selected={tab === 'files'} tabIndex={tab === 'files' ? 0 : -1} onClick={() => setTab('files')}>
+          <Paperclip size={15} aria-hidden="true" />Files
+        </button>
+        <button role="tab" data-tab="usage" id={`${tabId}-usage-tab`} aria-controls={`${tabId}-usage-panel`} aria-selected={tab === 'usage'} tabIndex={tab === 'usage' ? 0 : -1} onClick={() => setTab('usage')}>
+          <HardDrive size={15} aria-hidden="true" />Storage usage
+        </button>
+      </div>
+
+      <div role="tabpanel" id={`${tabId}-usage-panel`} aria-labelledby={`${tabId}-usage-tab`} hidden={tab !== 'usage'} tabIndex={0}>
+      <div className="stack">
+      {tab === 'usage' && canReadSystemStorage && <SystemAttachmentStorage refreshKey={page.data} />}
+      <div className="card"><div className="card-body">
+        <h2>My attachment storage</h2>
+        {storage.data && <AttachmentStorageUsage used={storage.data.attachmentStorageUsedBytes} limit={storage.data.attachmentStorageLimitBytes} />}
+        <LoadingBar active={storage.loading} />
+        {storage.error && <ErrorBanner message={storage.error} onRetry={storage.reload} />}
+      </div></div>
+      </div>
+      </div>
+      <div role="tabpanel" id={`${tabId}-files-panel`} aria-labelledby={`${tabId}-files-tab`} hidden={tab !== 'files'} tabIndex={0}>
+      <div className="stack">
       <div className="card"><div className="card-body">
         <input
           type="search"
@@ -170,6 +207,8 @@ export default function AttachmentFilesPage() {
         ) : page.loading ? <Empty title="Loading…" /> : (
           <Empty title="No attachment files" icon={<SearchX size={26} strokeWidth={1.5} />} detail="Files attached in chat will appear here." />
         )}
+      </div>
+      </div>
       </div>
       {preview ? (
         <OfficePreview

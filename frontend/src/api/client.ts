@@ -1,7 +1,9 @@
 import { authorizedFetch, API_BASE } from '../auth'
 import type {
   AppUser,
+  SystemAttachmentStorage,
   AppUserInput,
+  AppUserStorageInput,
   AgentDefinition,
   ChatConversation,
   ChatFeedback,
@@ -28,6 +30,10 @@ import type {
 const BASE_URL = API_BASE
 
 export const getCurrentUser = (signal?: AbortSignal) => request<AppUser>('/api/auth/me', { signal })
+export const saveUserStorage = (id: string, input: AppUserStorageInput) => request<AppUser>(`/api/users/${encodeURIComponent(id)}/storage`, {
+  method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+})
+export const getSystemAttachmentStorage = (signal?: AbortSignal) => request<SystemAttachmentStorage>('/api/storage/attachments', { signal })
 export const listUsers = (search: string, skip: number, top: number, signal?: AbortSignal) =>
   request<PagedResult<AppUser>>(`/api/users${query({ search, skip, top })}`, { signal })
 export const saveUser = (id: string | null, input: AppUserInput) => request<AppUser>(id ? `/api/users/${encodeURIComponent(id)}` : '/api/users', {

@@ -40,6 +40,12 @@ public sealed class AppIdentityTests
     [InlineData(AppRoles.GlobalReaderAdmin, "PUT", "/api/users/123", false)]
     [InlineData(AppRoles.GlobalReaderAdmin, "POST", "/api/chat/conversations", false)]
     [InlineData(AppRoles.User, "GET", "/api/users", false)]
+    [InlineData(AppRoles.User, "PUT", "/api/users/123/storage", false)]
+    [InlineData(AppRoles.GlobalReaderAdmin, "PUT", "/api/users/123/storage", false)]
+    [InlineData(AppRoles.GlobalAdmin, "PUT", "/api/users/123/storage", true)]
+    [InlineData(AppRoles.User, "GET", "/api/storage/attachments", false)]
+    [InlineData(AppRoles.GlobalReaderAdmin, "GET", "/api/storage/attachments", true)]
+    [InlineData(AppRoles.GlobalAdmin, "GET", "/api/storage/attachments", true)]
     [InlineData(AppRoles.User, "GET", "/api/state/indexed-files", false)]
     [InlineData(AppRoles.User, "POST", "/api/search/hybrid", true)]
     [InlineData(AppRoles.User, "POST", "/api/chat/conversations", true)]
@@ -179,6 +185,118 @@ public sealed class AppIdentityTests
         Assert.Equal(expectedStatus, context.Response.StatusCode);
         Assert.Equal(ownsFile, reachedEndpoint);
     }
+
+    [Fact]
+    public async Task StorageQuotaCountsFilesByCreatorAndAllowsExactLimit()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var user = await fixture.Service.SaveAsync(null, new("quota@example.com", "Quota", [AppRoles.User]), default);
+        user = await fixture.Service.SaveStorageAsync(user.Id, new(100, user.ConcurrencyStamp), default);
+        var other = await fixture.Service.SaveAsync(null, new("other@example.com", "Other", [AppRoles.User]), default);
+        fixture.Db.ChatMessageAttachmentFiles.Add(Attachment(other.Id, 999));
+        var retained = Attachment(user.Id, 40);
+        retained.Status = UploadIndexStatus.Failed;
+        fixture.Db.ChatMessageAttachmentFiles.Add(retained);
+        await fixture.Db.SaveChangesAsync();
+        var wrote = false;
+        await AttachmentStorageQuota.StoreAsync(fixture.Db, Attachment(user.Id, 60), _ => { wrote = true; return Task.CompletedTask; }, default);
+        Assert.True(wrote);
+        var error = await Assert.ThrowsAsync<UserManagementException>(() => AttachmentStorageQuota.StoreAsync(fixture.Db,
+            Attachment(user.Id, 1), _ => throw new InvalidOperationException("Must reject before writing content"), default));
+        Assert.Equal(409, error.Status);
+        var linked = await fixture.Service.LinkEntraAccountAsync("tenant", "quota", user.Email, "Quota", default);
+        Assert.Equal(100L, linked.AttachmentStorageUsedBytes);
+        Assert.Equal(100L, linked.AttachmentStorageLimitBytes);
+        fixture.Db.ChatMessageAttachmentFiles.Remove(retained);
+        await fixture.Db.SaveChangesAsync();
+        await AttachmentStorageQuota.StoreAsync(fixture.Db, Attachment(user.Id, 40), _ => Task.CompletedTask, default);
+    }
+
+    [Theory]
+    [InlineData(0L, false)]
+    [InlineData(9L, false)]
+    [InlineData(10L, true)]
+    [InlineData(null, true)]
+    public async Task StorageQuotaAppliesToAdminsAndSupportsUnlimited(long? limit, bool allowed)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var user = await fixture.Service.SaveAsync(null, new("admin@example.com", "Admin", [AppRoles.GlobalAdmin]), default);
+        user = await fixture.Service.SaveStorageAsync(user.Id, new(limit, user.ConcurrencyStamp), default);
+        var upload = () => AttachmentStorageQuota.StoreAsync(fixture.Db, Attachment(user.Id, 10), _ => Task.CompletedTask, default);
+        if (allowed) await upload();
+        else Assert.Equal(409, (await Assert.ThrowsAsync<UserManagementException>(upload)).Status);
+        Assert.Equal(allowed ? 1 : 0, await fixture.Db.ChatMessageAttachmentFiles.CountAsync());
+    }
+
+    [Fact]
+    public async Task FailedUploadRollsBackUsageAndLoweredLimitKeepsExistingFiles()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var user = await fixture.Service.SaveAsync(null, new("quota@example.com", "Quota", [AppRoles.User]), default);
+        user = await fixture.Service.SaveStorageAsync(user.Id, new(100, user.ConcurrencyStamp), default);
+        await Assert.ThrowsAsync<IOException>(() => AttachmentStorageQuota.StoreAsync(fixture.Db, Attachment(user.Id, 80),
+            _ => throw new IOException("Storage unavailable"), default));
+        Assert.Equal(0, await fixture.Db.ChatMessageAttachmentFiles.CountAsync());
+        await AttachmentStorageQuota.StoreAsync(fixture.Db, Attachment(user.Id, 80), _ => Task.CompletedTask, default);
+        var updated = await fixture.Service.SaveStorageAsync(user.Id, new(50, user.ConcurrencyStamp), default);
+        Assert.Equal(80L, updated.AttachmentStorageUsedBytes);
+        Assert.Equal(50L, updated.AttachmentStorageLimitBytes);
+        await Assert.ThrowsAsync<UserManagementException>(() => AttachmentStorageQuota.StoreAsync(fixture.Db,
+            Attachment(user.Id, 1), _ => Task.CompletedTask, default));
+        Assert.Equal(1, await fixture.Db.ChatMessageAttachmentFiles.CountAsync());
+    }
+
+    [Fact]
+    public async Task InvalidStorageLimitsAreRejected()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var user = await fixture.Service.SaveAsync(null, new("quota@example.com", "Quota", [AppRoles.User]), default);
+        foreach (var limit in new[] { -1L, long.MaxValue })
+            await Assert.ThrowsAsync<UserManagementException>(() => fixture.Service.SaveStorageAsync(user.Id,
+                new(limit, user.ConcurrencyStamp), default));
+    }
+
+    [Fact]
+    public async Task StorageUpdatesAreIndependentAndRejectStaleVersions()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var user = await fixture.Service.SaveAsync(null, new("quota@example.com", "Quota", [AppRoles.User, AppRoles.GlobalReaderAdmin], false), default);
+        var storage = await fixture.Service.SaveStorageAsync(user.Id, new(100, user.ConcurrencyStamp), default);
+        Assert.Equal(user.Email, storage.Email);
+        Assert.Equal(user.DisplayName, storage.DisplayName);
+        Assert.Equal(user.Roles, storage.Roles);
+        Assert.False(storage.IsActive);
+        Assert.Equal(409, (await Assert.ThrowsAsync<UserManagementException>(() => fixture.Service.SaveStorageAsync(user.Id, new(200, user.ConcurrencyStamp), default))).Status);
+        var edited = await fixture.Service.SaveAsync(user.Id, new(user.Email, "Updated name", [AppRoles.User], true, storage.ConcurrencyStamp), default);
+        Assert.Equal(100L, edited.AttachmentStorageLimitBytes);
+        var unlimited = await fixture.Service.SaveStorageAsync(user.Id, new(null, edited.ConcurrencyStamp), default);
+        Assert.Null(unlimited.AttachmentStorageLimitBytes);
+        Assert.Equal("Updated name", unlimited.DisplayName);
+        Assert.Equal(404, (await Assert.ThrowsAsync<UserManagementException>(() => fixture.Service.SaveStorageAsync(Guid.NewGuid(), new(100, "missing"), default))).Status);
+    }
+
+    [Fact]
+    public async Task SystemStorageIncludesAllUsersAndLegacyFilesRegardlessOfIndexStatus()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        Assert.Equal(new SystemAttachmentStorage(0, 0, 0, 0), await fixture.Service.GetSystemAttachmentStorageAsync(default));
+        var user = await fixture.Service.SaveAsync(null, new("storage@example.com", "Storage", [AppRoles.User]), default);
+        var owned = Attachment(user.Id, 100);
+        owned.Status = UploadIndexStatus.Failed;
+        var legacy = Attachment(user.Id, 50);
+        legacy.CreatedById = null;
+        fixture.Db.ChatMessageAttachmentFiles.AddRange(owned, legacy);
+        await fixture.Db.SaveChangesAsync();
+        Assert.Equal(new SystemAttachmentStorage(2, 150, 150, 50), await fixture.Service.GetSystemAttachmentStorageAsync(default));
+        fixture.Db.ChatMessageAttachmentFiles.Remove(legacy);
+        await fixture.Db.SaveChangesAsync();
+        Assert.Equal(new SystemAttachmentStorage(1, 100, 100, 0), await fixture.Service.GetSystemAttachmentStorageAsync(default));
+    }
+
+    private static ChatMessageAttachmentFileEntity Attachment(Guid creator, long size) => new()
+    {
+        Id = Guid.NewGuid(), CreatedById = creator, FileName = "file.txt", BlobName = Guid.NewGuid().ToString(), SizeBytes = size
+    };
 
     private sealed class Fixture(SqliteConnection connection, ServiceProvider provider, IServiceScope scope) : IAsyncDisposable
     {

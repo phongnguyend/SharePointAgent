@@ -1,5 +1,11 @@
 /** Mirrors the records the API returns. Property names match its camelCase JSON. */
 export type AppRole = 'Global Admin' | 'Global Reader Admin' | 'User'
+export interface SystemAttachmentStorage {
+  fileCount: number
+  usedBytes: number
+  orphanBytes: number
+  unassignedBytes: number
+}
 export interface AppUser {
   id: string
   email: string
@@ -10,6 +16,8 @@ export interface AppUser {
   createdAtUtc: string
   lastLoginAtUtc: string | null
   concurrencyStamp: string
+  attachmentStorageLimitBytes: number | null
+  attachmentStorageUsedBytes: number
 }
 export interface AppUserInput {
   email: string
@@ -17,6 +25,11 @@ export interface AppUserInput {
   roles: AppRole[]
   isActive: boolean
   concurrencyStamp?: string
+}
+
+export interface AppUserStorageInput {
+  attachmentStorageLimitBytes: number | null
+  concurrencyStamp: string
 }
 
 export interface AgentDefinition {
