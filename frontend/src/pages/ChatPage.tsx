@@ -33,12 +33,12 @@ import {
   sendChatMessage,
   setMessageFeedback,
   uploadAttachmentFile,
-  attachmentFileDownloadUrl,
   downloadAttachmentFile,
 } from '../api/client'
 import type { ChatConversation, ChatFeedback, ChatMessage, ChatMessageAttachment } from '../api/types'
 import { Empty, ErrorBanner, LoadingBar } from '../components/ui'
 import { FileTypeIcon } from '../components/FileTypeIcon'
+import { AttachmentDownload } from '../components/AttachmentDownload'
 import { OfficePreview } from '../components/OfficePreview'
 import { isPreviewableOfficeFile } from '../lib/officeFiles'
 import {
@@ -640,11 +640,11 @@ function MessageBubble({
                   <Eye size={12} />
                 </button>
               ) : (
-                <a href={attachmentFileDownloadUrl(file.id)} key={file.id} title={`Download ${file.fileName}`}>
+                <AttachmentDownload id={file.id} name={file.fileName} key={file.id}>
                   <FileTypeIcon name={file.fileName} mimeType={file.contentType} size={14} />
                   <span>{file.fileName}</span>
                   <Download size={12} />
-                </a>
+                </AttachmentDownload>
               )
             ))}
           </div>

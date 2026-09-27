@@ -200,6 +200,25 @@ OfficeCli__Command
 
 Microsoft Graph authentication uses the SharePoint `TenantId`, `ClientId`, and `ClientSecret` settings. Store `ClientSecret` in user secrets, environment variables, or a secret store rather than committing a real value to `appsettings.json`. The Entra application needs Microsoft Graph application permissions for the target SharePoint site or drive, with admin consent.
 
+### Entra ID sign-in
+
+The frontend and API reuse **`SharePoint:TenantId` and `SharePoint:ClientId`**. No separate frontend client ID or tenant setting is needed: `/api/auth/config` returns those public identifiers and the API scope. The client secret stays on the server for existing app-only Graph operations and is never returned to the browser.
+
+Configure the existing app registration before signing in:
+
+1. In **Microsoft Entra ID → App registrations**, open the application matching `SharePoint:ClientId`. Use **Accounts in this organizational directory only**.
+2. Under **Authentication → Add a platform → Single-page application**, register `http://localhost:5173/auth-redirect.html` for development and `https://<frontend-host>/auth-redirect.html` for production. If using Vite preview, also register `http://localhost:4173/auth-redirect.html`. Use the **SPA** platform, not Web. Leave implicit grants disabled; MSAL uses authorization code with PKCE.
+3. Under **Expose an API**, set the Application ID URI to `api://<ClientId>` and add the enabled delegated scope **`access_as_user`** (admin consent). Authorize this same client application to request the scope and grant tenant admin consent. This is the app's own API scope, separate from its Microsoft Graph application permissions.
+4. In the app manifest, set **`api.requestedAccessTokenVersion` to `2`**. The API validates the tenant's v2 issuer, client-ID audience, token signature and expiry, tenant, calling client, user object ID, and exact `access_as_user` scope. Graph tokens and ID tokens cannot be used as API credentials.
+5. In **Enterprise applications → this application → Properties**, set **Assignment required? → Yes**, then assign the approved operators under **Users and groups**. This application has shared administrative views and actions; signing in does not add per-user conversation ownership or restrict indexed-file previews to the user's SharePoint permissions.
+6. Restart the API and frontend. Choose **Sign in with your organization**; the header shows the signed-in account and **Sign out**.
+
+All UI API routes require a bearer access token. Only `/health`, `/api/auth/config`, and `/api/sharepoint/webhook` are anonymous; the webhook retains its existing subscription `clientState` checks. MSAL obtains and renews tokens, including for uploads, downloads, previews, and streamed chat. Expired sessions requiring interaction return to the sign-in screen. Browser tokens use session storage. Serve both apps over HTTPS outside localhost and deploy `auth-redirect.html` with the frontend assets; it is a dedicated MSAL redirect bridge, not a React route.
+
+The API's existing operator-selected `userId` search filter remains available. This sign-in feature is an access gate for trusted operators, not a conversion to a per-user document portal. Background indexing and Graph decryption continue using the app identity. See Microsoft's [SPA/API registration guidance](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-web-api-dotnet-protect-app) and [access token version guidance](https://learn.microsoft.com/en-us/entra/identity-platform/access-tokens).
+
+### Application service permissions
+
 For live sensitivity label names in the UI, add **API permissions → Add a permission → Microsoft Graph → Application permissions → SensitivityLabels.Read.All** to the same client application and select **Grant admin consent**. This permission reads the tenant label catalog; it does not authorize document decryption. See the [Microsoft Graph sensitivity label permissions](https://learn.microsoft.com/en-us/graph/api/tenantdatasecurityandgovernance-list-sensitivitylabels?view=graph-rest-1.0).
 
 To process documents encrypted by sensitivity labels, configure the same client application with Azure Rights Management permission as well:
@@ -451,7 +470,7 @@ Chat attachment files record the same count in `ChatMessageAttachmentFiles`; the
 
 The indexed-file reindex endpoint uses the API's `Processor` and `DocumentIntelligence` settings. Keep the API's `Processor` chunk size, overlap, file-size limit, and allowed extensions aligned with the worker so a manual reindex produces the same chunks as a delta pass.
 
-Like the search endpoints they are unauthenticated and unfiltered, so put authentication in front of them before exposing the API. The GET responses expose indexed-file metadata and Graph delta tokens; the POST and DELETE endpoints change worker checkpoints. Run checkpoint actions while synchronization is idle, since an active pass can write a new checkpoint afterward.
+Like the search endpoints they require Entra sign-in and remain shared operator views. The GET responses expose indexed-file metadata and Graph delta tokens; the POST and DELETE endpoints change worker checkpoints. Run checkpoint actions while synchronization is idle, since an active pass can write a new checkpoint afterward.
 
 ## Subscription endpoints
 
@@ -477,7 +496,7 @@ Changing a subscription's client state creates a replacement because Microsoft G
 
 Custom `clientState` values must be 16-128 characters and are saved in `WebhookSubscriptions.ClientState`. The webhook validates notifications against the saved value, and automatic recreation of the Default subscription reuses it. The value is never returned; each entry carries `clientStateMatches` and `hasCustomClientState` instead. A rejection from Graph comes back as `502` with Graph's message.
 
-**These endpoints change tenant state and are unauthenticated like the rest.** `DELETE` in particular stops change notifications, leaving the scheduled synchronization as the only trigger.
+**These endpoints change tenant state and require Entra sign-in.** `DELETE` in particular stops change notifications, leaving the scheduled synchronization as the only trigger.
 
 ## Chat assistant
 
@@ -499,7 +518,7 @@ Each replayed message includes the IDs and names of its attachments. `search_att
 | `POST /api/chat/messages/{id}/feedback` | Rates an answer. Body `{ "feedback": "Like" \| "Dislike" \| null }`, where null clears an earlier rating |
 | `GET /api/chat/feedback` | Every rated answer, newest first, each with the question that prompted it and the documents it cited. `feedback` narrows to one rating, `search` matches the answer or the conversation title, `skip` and `top` (1-100, default 20) page it. The `liked` and `disliked` totals ignore the rating filter, so they hold still while it is toggled |
 
-A conversation created with a `userId` passes it to every search the assistant runs in that conversation, so answers are restricted to what that user may view — the same filter the search endpoints apply. **Without one the assistant searches the whole index**, so an unauthenticated deployment lets any caller read any indexed document through it.
+A conversation created with a `userId` passes it to every search the assistant runs in that conversation, so answers are restricted to what that user may view — the same filter the search endpoints apply. **Without one the assistant searches the whole index**. Conversations remain shared among signed-in operators.
 
 The first question replaces the placeholder title, so conversations name themselves. The question is stored before the model runs, so a turn that fails still shows what was asked.
 
@@ -535,7 +554,7 @@ Uploading changes what other people see, so the instructions hold the agent to a
 Two requirements that indexing alone does not give you:
 
 - **Write access for the Entra application.** Indexing needs only read — `Sites.Selected` with a read grant, or `Sites.Read.All`. Uploading needs write: a `Sites.Selected` grant of `write`, or `Sites.ReadWrite.All`. Without it Graph rejects the upload and the model reports the rejection.
-- **A deliberate decision about who may trigger it.** The permission filter behind `search_documents` is a *read* filter: it says the user may see the document, not that they may change it. Any file a conversation can search, it can overwrite. With no `userId` on the conversation that is the whole index, and the chat endpoints are unauthenticated — so put authentication in front of them before granting the application write access.
+- **A deliberate decision about who may trigger it.** The permission filter behind `search_documents` is a *read* filter: it says the user may see the document, not that they may change it. Any file a conversation can search, it can overwrite. With no `userId` on the conversation that is the whole index. Restrict enterprise application assignment to trusted operators before granting the application write access.
 
 ### Editing a file with officecli
 
@@ -556,7 +575,7 @@ Install it with `npm install -g @officecli/officecli`, which puts the shim `Offi
 
 The server is one child process per application, started by the first turn that needs its tools and shared by every turn after — starting it per turn would add its startup to every answer — and shut down with the host. **A server that cannot be started costs one turn, not every turn**: the failure is logged, the assistant answers with its own four tools, and the next attempt is after a restart. Startup validation only requires that `OfficeCli:Command` is set when `OfficeCli:Enabled` is true; whether the command works is discovered on first use rather than at boot, so a missing officecli does not stop the API from starting.
 
-**These tools read and write this host's file system as the API process.** officecli takes a path, and nothing constrains that path to `Downloads:Directory` — the child process runs there, so a bare file name lands among the downloaded files, but an absolute path elsewhere is the model's to pass. Combined with an unauthenticated API, that is a wide capability: put authentication in front of the chat endpoints, run the API as an account with little else to reach, or set `OfficeCli:Enabled` to `false` where editing is not wanted.
+**These tools read and write this host's file system as the API process.** officecli takes a path, and nothing constrains that path to `Downloads:Directory` — the child process runs there, so a bare file name lands among the downloaded files, but an absolute path elsewhere is the model's to pass. Signed-in operators can invoke this capability: restrict application assignment, run the API as an account with little else to reach, or set `OfficeCli:Enabled` to `false` where editing is not wanted.
 
 The tool only accepts a `fileId` that one of the same turn's searches returned, so the permission filter that trims those results also bounds what can be downloaded — the model cannot reach a file by inventing an ID. That still means **any file a conversation can search, it can also write to the host's file system**, and with no `userId` on the conversation that is the whole index. The file name is sanitized and the resolved path is checked to be inside `Downloads:Directory`, so a name coming back from SharePoint cannot write outside it. Failures — a file over the limit, a rejection from Graph, a disk error — come back to the model as a message rather than failing the turn.
 
@@ -595,7 +614,7 @@ hasAnonymousAccess eq true or allowedPrincipals/any(p: search.in(p, 'user:<objec
 
 Principals are resolved server-side from the user ID and cached for 10 minutes; principal identifiers are never accepted directly from the request body. This needs `User.Read.All` and `GroupMember.Read.All` (or `Directory.Read.All`) Graph application permissions in addition to the site/drive permissions used for indexing.
 
-**Omitting `userId` searches the whole index with no security filter.** The endpoints themselves are unauthenticated, so put authentication in front of them and derive `userId` from the validated caller identity rather than from client input — otherwise any caller can read every indexed document.
+**Omitting `userId` searches the whole index with no security filter.** The endpoints require Entra sign-in, but `userId` remains an operator-selected filter rather than the signed-in identity. A per-user portal would additionally need server-derived user IDs, ownership checks, and document authorization on every read/write path; the current UI is for assigned, trusted operators.
 
 SharePoint site groups (`siteGroup:`/`siteUser:` principals) are not Entra groups and cannot be expanded from directory membership, so grants made only through a site group are not matched. Validate the permission model against your SharePoint inheritance and group-expansion requirements before production use.
 

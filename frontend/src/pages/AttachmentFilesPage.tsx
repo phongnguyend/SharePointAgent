@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Download, Eye, FileText, MessageSquare, Paperclip, RefreshCw, RotateCw, SearchX, Trash2, X } from 'lucide-react'
 import {
-  attachmentFileDownloadUrl,
   downloadAttachmentFile,
   getAttachmentFileMarkdown,
   deleteOrphanAttachmentFile,
@@ -12,6 +11,7 @@ import {
 import type { UploadIndexStatus } from '../api/types'
 import { Empty, ErrorBanner, LoadingBar, Pagination } from '../components/ui'
 import { FileTypeIcon } from '../components/FileTypeIcon'
+import { AttachmentDownload } from '../components/AttachmentDownload'
 import { OfficePreview } from '../components/OfficePreview'
 import { MarkdownPreview } from '../components/MarkdownPreview'
 import { isPreviewableOfficeFile } from '../lib/officeFiles'
@@ -133,7 +133,7 @@ export default function AttachmentFilesPage() {
                       <td title={formatDateTime(file.indexedAtUtc)}>{formatRelative(file.indexedAtUtc)}</td>
                       <td>
                         <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-                          <a className="button-link" href={attachmentFileDownloadUrl(file.id)}><Download size={13} />Download</a>
+                          <AttachmentDownload id={file.id} name={file.fileName}><Download size={13} />Download</AttachmentDownload>
                           {isPreviewableOfficeFile(file.fileName) ? (
                             <button onClick={() => setPreview({ id: file.id, name: file.fileName })}><Eye size={13} />Preview</button>
                           ) : null}

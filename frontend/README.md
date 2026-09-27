@@ -25,6 +25,10 @@ back button steps through searches. So is the open conversation
 
 ## Running it
 
+Configure [Entra ID sign-in](../README.md#entra-id-sign-in) on the existing SharePoint app registration first. The frontend reads the tenant/client IDs from `/api/auth/config`; no client secret belongs in frontend configuration. Register `http://localhost:5173/auth-redirect.html` as a **Single-page application** redirect URI and expose the delegated `api://<ClientId>/access_as_user` scope with v2 access tokens.
+
+The app shows **Sign in with your organization** before loading its pages. The account and **Sign out** appear in the header. API calls, including streaming chat and attachment downloads, carry access tokens acquired by MSAL. Deploy the generated `auth-redirect.html` alongside `index.html`; do not rewrite that file to the React entry point.
+
 DOCX, XLSX, and PPTX files can be opened in the app from Search results, the Indexed files detail panel,
 the Attachment files page, or a chat message attachment. The preview downloads the file bytes to the browser
 and offers a save button. Indexed-file previews fetch the current SharePoint version and are limited by
@@ -98,6 +102,4 @@ The Subscriptions page additionally uses, and these **change tenant state**:
 - `POST /api/subscriptions/{id}/renew` — optional body `{ "days": 28 }`
 - `DELETE /api/subscriptions/{id}` — refused for the default subscription
 
-**Every one of these endpoints is unauthenticated, like the search endpoints. Between them they expose
-the whole index, indexed metadata, and original Office files, and let any caller delete the webhook subscription.** Put
-authentication in front of the API before exposing it anywhere but a development machine.
+**These endpoints require Entra sign-in and provide shared operator access.** Assign only trusted operators to the enterprise application: indexed files, conversations, uploads, and subscription administration are not isolated per signed-in user. Health checks, public sign-in configuration, and the validated Graph webhook are the only anonymous API endpoints.

@@ -4,12 +4,14 @@ using Microsoft.Extensions.Options;
 using SharePointAgent.Application;
 using SharePointAgent.Domain;
 using SharePointAgent.Infrastructure;
+using SharePointAgent.Api;
 
 const string FrontendCorsPolicy = "frontend";
 const string NotificationUrlError =
     "'notificationUrl' must be an absolute HTTPS URL; Microsoft Graph calls it to validate the subscription before creating it.";
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddEntraAuthentication(builder.Configuration);
 builder.Services.AddWebhookServices(builder.Configuration);
 builder.Services.AddSearchQueryServices(builder.Configuration);
 builder.Services.AddIndexStateServices(builder.Configuration);
@@ -18,7 +20,7 @@ builder.Services.AddAttachmentFileServices(builder.Configuration);
 builder.Services.AddIndexedFileReindexServices(builder.Configuration);
 
 // The viewer front end is served from its own origin during development. Origins are configured rather
-// than wildcarded, because these endpoints are unauthenticated and expose the whole index.
+// than wildcarded. Browser requests carry Entra access tokens.
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
     ?? ["http://localhost:5173"];
 builder.Services.AddCors(options => options.AddPolicy(FrontendCorsPolicy, policy => policy
@@ -29,8 +31,22 @@ builder.Services.AddCors(options => options.AddPolicy(FrontendCorsPolicy, policy
 var app = builder.Build();
 
 app.UseCors(FrontendCorsPolicy);
+app.UseAuthentication();
+app.UseAuthorization();
 
-app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" })).AllowAnonymous();
+
+app.MapGet("/api/auth/config", (HttpContext context, IConfiguration configuration) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    var clientId = Guid.Parse(configuration["SharePoint:ClientId"]!).ToString();
+    return Results.Ok(new
+    {
+        tenantId = Guid.Parse(configuration["SharePoint:TenantId"]!).ToString(),
+        clientId,
+        scope = $"api://{clientId}/{EntraAuthentication.Scope}"
+    });
+}).AllowAnonymous();
 
 app.MapPost("/api/sharepoint/webhook", async (
     HttpRequest request,
@@ -75,7 +91,7 @@ app.MapPost("/api/sharepoint/webhook", async (
             DateTimeOffset.UtcNow), cancellationToken);
     }
     return Results.Accepted();
-});
+}).AllowAnonymous();
 
 app.MapPost("/api/search/fulltext", (
     SearchPayload payload,
@@ -93,7 +109,7 @@ app.MapPost("/api/search/hybrid", (
     CancellationToken cancellationToken) => SearchAsync(SearchQueryMode.Hybrid, payload, store, cancellationToken));
 
 // Operator views and checkpoint actions over the worker's SQL Server state. Like the search
-// endpoints, these are unauthenticated and unfiltered, so protect the API before exposing it.
+// endpoints, these require Entra sign-in but remain shared operator views over the whole index.
 app.MapGet("/api/sensitivity-labels", async (SensitivityLabelCatalog catalog, HttpContext context, CancellationToken cancellationToken) =>
 {
     context.Response.Headers.CacheControl = "no-store";

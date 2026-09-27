@@ -1,3 +1,4 @@
+import { authorizedFetch, API_BASE } from '../auth'
 import type {
   AgentDefinition,
   ChatConversation,
@@ -22,7 +23,7 @@ import type {
 } from './types'
 
 /** Empty by default, so requests go to the dev server's /api proxy on this same origin. */
-const BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
+const BASE_URL = API_BASE
 
 export function getSensitivityLabels(signal?: AbortSignal): Promise<Record<string, string>> {
   return request<Record<string, string>>('/api/sensitivity-labels', { signal })
@@ -61,7 +62,7 @@ async function toError(response: Response): Promise<ApiError> {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response
   try {
-    response = await fetch(`${BASE_URL}${path}`, {
+    response = await authorizedFetch(`${BASE_URL}${path}`, {
       ...init,
       headers: { Accept: 'application/json', ...init?.headers },
     })
@@ -141,7 +142,7 @@ export function createConversation(options?: {
 async function downloadBlob(path: string, signal?: AbortSignal): Promise<Blob> {
   let response: Response
   try {
-    response = await fetch(`${BASE_URL}${path}`, { signal })
+    response = await authorizedFetch(`${BASE_URL}${path}`, { signal })
   } catch (cause) {
     if (cause instanceof DOMException && cause.name === 'AbortError') throw cause
     throw new ApiError('Could not reach the API. Is SharePointAgent.Api running?', null)
@@ -209,7 +210,7 @@ export async function sendChatMessage(
 ): Promise<ChatTurnResult> {
   let response: Response
   try {
-    response = await fetch(
+    response = await authorizedFetch(
       `${BASE_URL}/api/chat/conversations/${encodeURIComponent(id)}/messages`,
       {
         method: 'POST',
@@ -287,10 +288,6 @@ export function listAttachmentFiles(
 
 export function reindexAttachmentFile(id: string): Promise<AttachmentFileRecord> {
   return request<AttachmentFileRecord>(`/api/attachment-files/${encodeURIComponent(id)}/reindex`, { method: 'POST' })
-}
-
-export function attachmentFileDownloadUrl(id: string): string {
-  return `${BASE_URL}/api/attachment-files/${encodeURIComponent(id)}/download`
 }
 
 export function deleteOrphanAttachmentFile(id: string): Promise<{ deleted: string }> {

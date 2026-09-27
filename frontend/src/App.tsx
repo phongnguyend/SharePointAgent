@@ -23,6 +23,7 @@ import ChatPage from './pages/ChatPage'
 import FeedbackPage from './pages/FeedbackPage'
 import AgentsPage from './pages/AgentsPage'
 import AttachmentFilesPage from './pages/AttachmentFilesPage'
+import { AccountMenu } from './components/AuthGate'
 
 type Theme = 'system' | 'light' | 'dark'
 
@@ -95,6 +96,7 @@ export default function App() {
             Agents
           </NavLink>
         </nav>
+        <AccountMenu />
         <button
           className="ghost"
           title="Switch between system, light, and dark"
