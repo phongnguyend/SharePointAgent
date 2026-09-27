@@ -8,6 +8,7 @@ import {
   listAttachmentFiles,
   reindexAttachmentFile,
   getCurrentUser,
+  getAttachmentOptions,
 } from '../api/client'
 import type { UploadIndexStatus } from '../api/types'
 import { Empty, ErrorBanner, LoadingBar, Pagination } from '../components/ui'
@@ -50,6 +51,7 @@ export default function AttachmentFilesPage() {
   const [markdownFile, setMarkdownFile] = useState<{ id: string; name: string } | null>(null)
   const debouncedSearch = useDebounced(search)
   const storage = useAsync(signal => getCurrentUser(signal), [])
+  const attachmentOptions = useAsync(signal => getAttachmentOptions(signal), [])
   const page = useAsync(
     (signal) => listAttachmentFiles({ search: debouncedSearch, skip, top: 25 }, signal),
     [debouncedSearch, skip],
@@ -175,9 +177,11 @@ export default function AttachmentFilesPage() {
                           {isPreviewableOfficeFile(file.fileName) ? (
                             <button onClick={() => setPreview({ id: file.id, name: file.fileName })}><Eye size={13} />Preview</button>
                           ) : null}
-                          <button onClick={() => setMarkdownFile({ id: file.id, name: file.fileName })}>
-                            <FileText size={13} />View Markdown
-                          </button>
+                          {attachmentOptions.data && !attachmentOptions.data.textFileExtensions.includes(file.fileName.slice(file.fileName.lastIndexOf('.')).toLowerCase()) ? (
+                            <button onClick={() => setMarkdownFile({ id: file.id, name: file.fileName })}>
+                              <FileText size={13} />View Markdown
+                            </button>
+                          ) : null}
                           <button disabled={readOnly || working === file.id} onClick={() => void reindex(file.id)}>
                             <RotateCw size={13} />{working === file.id ? 'Indexing…' : 'Reindex'}
                           </button>

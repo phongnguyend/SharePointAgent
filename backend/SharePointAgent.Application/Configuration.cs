@@ -60,11 +60,33 @@ public sealed class SearchOptions
 
 public sealed class UploadOptions
 {
+    public string[] AllowedFileExtensions { get; set; } = [".docx", ".pptx", ".xlsx", ".txt", ".md", ".json", ".csv"];
+
+    public string[] TextFileExtensions { get; set; } = [".txt", ".md", ".json", ".csv"];
+
+    public string[] GetAllowedFileExtensions() => NormalizeExtensions(AllowedFileExtensions);
+    public string[] GetTextFileExtensions() => NormalizeExtensions(TextFileExtensions);
+    public bool IsTextFile(string fileName) => GetTextFileExtensions()
+        .Contains(Path.GetExtension(fileName), StringComparer.OrdinalIgnoreCase);
+
+    private static string[] NormalizeExtensions(IEnumerable<string> extensions) => extensions
+        .Where(x => !string.IsNullOrWhiteSpace(x))
+        .Select(x => "." + x.Trim().TrimStart('.').ToLowerInvariant())
+        .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+
+    public void ValidateFileName(string fileName)
+    {
+        var allowed = GetAllowedFileExtensions();
+        if (!allowed.Contains(Path.GetExtension(fileName), StringComparer.OrdinalIgnoreCase))
+            throw new ArgumentException($"File type is not allowed. Allowed extensions: {string.Join(", ", allowed)}.", nameof(fileName));
+    }
+
     public const string SectionName = "Uploads";
     public bool UsedManagedIdentity { get; set; }
     public string? ConnectionString { get; set; }
     public string? ServiceUri { get; set; }
     [Required] public string ContainerName { get; set; } = "chat-uploads";
+    public string CacheDirectory { get; set; } = Path.Combine(Path.GetTempPath(), "SharePointAgent", "attachments");
     [Range(1024, 209_715_200)] public int MaxFileBytes { get; set; } = 20 * 1024 * 1024;
     [Range(100, 8000)] public int ChunkSizeCharacters { get; set; } = 4000;
     [Range(0, 2000)] public int ChunkOverlapCharacters { get; set; } = 400;

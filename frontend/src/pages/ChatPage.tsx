@@ -33,6 +33,7 @@ import {
   sendChatMessage,
   setMessageFeedback,
   uploadAttachmentFile,
+  getAttachmentOptions,
   downloadAttachmentFile,
 } from '../api/client'
 import type { ChatConversation, ChatFeedback, ChatMessage, ChatMessageAttachment } from '../api/types'
@@ -56,6 +57,7 @@ export default function ChatPage() {
   const readOnly = !canManageOwnContent(useAppUser())
   const conversations = useAsync((signal) => listConversations(signal), [])
   const agents = useAsync((signal) => listAgents(signal), [])
+  const attachmentOptions = useAsync((signal) => getAttachmentOptions(signal), [])
   // The open conversation is in the URL, so a link from elsewhere — the Feedback page — can open the
   // one it is pointing at rather than dropping the reader into whichever is most recent.
   const [params, setParams] = useSearchParams()
@@ -250,6 +252,13 @@ export default function ChatPage() {
 
   const addFiles = async (files: FileList | null) => {
     if (!files?.length) return
+    const allowed = attachmentOptions.data?.allowedFileExtensions ?? []
+    const invalid = Array.from(files).find((file) => !allowed.includes(file.name.slice(file.name.lastIndexOf('.')).toLowerCase()))
+    if (invalid) {
+      setError(`${invalid.name}: file type is not allowed. Allowed extensions: ${allowed.join(', ')}.`)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
     setUploading(true)
     setError(null)
     try {
@@ -486,14 +495,15 @@ export default function ChatPage() {
               ref={fileInputRef}
               className="visually-hidden"
               type="file"
+              accept={attachmentOptions.data?.allowedFileExtensions.join(',')}
               multiple
               onChange={(event) => void addFiles(event.target.files)}
             />
             <button
               className="chat-composer-action"
-              disabled={readOnly || sending || uploading || attachments.length >= 10}
+              disabled={readOnly || sending || uploading || attachments.length >= 10 || !attachmentOptions.data?.allowedFileExtensions.length}
               onClick={() => fileInputRef.current?.click()}
-              title="Attach files"
+              title={attachmentOptions.error ?? `Attach files (${attachmentOptions.data?.allowedFileExtensions.join(', ') ?? 'loading allowed types…'})`}
             >
               <Paperclip size={15} />
               {uploading ? 'Uploading…' : 'Attach'}

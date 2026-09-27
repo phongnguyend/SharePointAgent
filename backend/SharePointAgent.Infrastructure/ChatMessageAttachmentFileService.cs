@@ -21,7 +21,7 @@ public sealed class ChatMessageAttachmentFileService(
     IDbContextFactory<SharePointIndexDbContext> contextFactory,
     BlobServiceClient blobService,
     SearchIndexClient indexClient,
-    MarkItDownClient markItDown,
+    AttachmentContentCache contentCache,
     IEmbeddingGenerator<string, Embedding<float>> embeddings,
     IOptions<UploadOptions> uploadOptions,
     IOptions<SearchOptions> searchOptions,
@@ -29,6 +29,7 @@ public sealed class ChatMessageAttachmentFileService(
 {
     private readonly UploadOptions _uploads = uploadOptions.Value;
     private readonly SearchOptions _search = searchOptions.Value;
+    public IReadOnlyList<string> TextFileExtensions => _uploads.GetTextFileExtensions();
     private readonly SemaphoreSlim _initializationLock = new(1, 1);
     private bool _initialized;
 
@@ -42,6 +43,7 @@ public sealed class ChatMessageAttachmentFileService(
         Stream content,
         CancellationToken cancellationToken, Guid? createdById = null)
     {
+        _uploads.ValidateFileName(fileName);
         if (sizeBytes <= 0)
         {
             throw new ArgumentException("The uploaded file is empty.", nameof(sizeBytes));
@@ -149,8 +151,8 @@ public sealed class ChatMessageAttachmentFileService(
         {
             return null;
         }
-        var response = await Container.GetBlobClient(row.BlobName).DownloadStreamingAsync(cancellationToken: cancellationToken);
-        return new AttachmentFileDownload(response.Value.Content, row.FileName, row.ContentType ?? "application/octet-stream");
+        var cached = await contentCache.DownloadAsync(row, cancellationToken);
+        return new AttachmentFileDownload(new FileStream(cached.LocalPath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete), row.FileName, row.ContentType ?? "application/octet-stream");
     }
 
     public async Task<string?> ConvertToMarkdownAsync(Guid id, CancellationToken cancellationToken)
@@ -162,18 +164,35 @@ public sealed class ChatMessageAttachmentFileService(
         {
             return null;
         }
-        if (row.SizeBytes > _uploads.MaxFileBytes)
-        {
-            throw new UploadTooLargeException(_uploads.MaxFileBytes);
-        }
+        return (await contentCache.GetMarkdownAsync(row, cancellationToken)).Content;
+    }
 
-        var blob = await Container.GetBlobClient(row.BlobName).DownloadContentAsync(cancellationToken);
-        var bytes = blob.Value.Content.ToArray();
-        if (bytes.Length > _uploads.MaxFileBytes)
-        {
-            throw new UploadTooLargeException(_uploads.MaxFileBytes);
-        }
-        return await markItDown.ConvertAsync(row.FileName, bytes, row.ContentType, cancellationToken);
+    public async Task<DownloadedFile?> DownloadConversationAttachmentAsync(Guid conversationId, Guid attachmentId,
+        CancellationToken cancellationToken)
+    {
+        var row = await FindConversationAttachmentAsync(conversationId, attachmentId, cancellationToken);
+        if (row is null) return null;
+        var original = await contentCache.DownloadAsync(row, cancellationToken);
+        return new DownloadedFile(original.LocalPath, row.FileName, new FileInfo(original.LocalPath).Length, original.CacheHit);
+    }
+
+    public async Task<DownloadedFile?> DownloadConversationAttachmentMarkdownAsync(Guid conversationId, Guid attachmentId,
+        CancellationToken cancellationToken)
+    {
+        var row = await FindConversationAttachmentAsync(conversationId, attachmentId, cancellationToken);
+        if (row is null) return null;
+        if (_uploads.IsTextFile(row.FileName))
+            throw new ArgumentException("This attachment is already text. Use download_attachment, then read_text with its localPath. Do not call download_attachment_markdown for text files.");
+        var cached = await contentCache.GetMarkdownAsync(row, cancellationToken);
+        return new DownloadedFile(cached.LocalPath, row.FileName + ".md", new FileInfo(cached.LocalPath).Length, cached.MarkdownCacheHit);
+    }
+
+    private async Task<ChatMessageAttachmentFileEntity?> FindConversationAttachmentAsync(Guid conversationId, Guid attachmentId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.ChatMessageAttachmentFiles.AsNoTracking().FirstOrDefaultAsync(file =>
+            file.Id == attachmentId && file.MessageAttachments.Any(link => link.Message!.ConversationId == conversationId), cancellationToken);
     }
 
     public async Task<bool> DeleteOrphanAsync(Guid id, CancellationToken cancellationToken)
@@ -196,6 +215,7 @@ public sealed class ChatMessageAttachmentFileService(
         await EnsureInfrastructureAsync(cancellationToken);
         await DeleteIndexDocumentsAsync(id, cancellationToken);
         await Container.GetBlobClient(row.BlobName).DeleteIfExistsAsync(cancellationToken: cancellationToken);
+        await contentCache.DeleteAsync(id, cancellationToken);
         context.ChatMessageAttachmentFiles.Remove(row);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -325,9 +345,7 @@ public sealed class ChatMessageAttachmentFileService(
         try
         {
             await EnsureInfrastructureAsync(cancellationToken);
-            var blob = await Container.GetBlobClient(row.BlobName).DownloadContentAsync(cancellationToken);
-            var bytes = blob.Value.Content.ToArray();
-            var markdown = await markItDown.ConvertAsync(row.FileName, bytes, row.ContentType, cancellationToken);
+            var markdown = await contentCache.ConvertForIndexAsync(row, cancellationToken);
             var texts = TextChunker.Split(markdown, _uploads.ChunkSizeCharacters, _uploads.ChunkOverlapCharacters);
             var documents = new List<UploadChunkDocument>(texts.Count);
             long? embeddingTokenCount = 0;
@@ -356,9 +374,10 @@ public sealed class ChatMessageAttachmentFileService(
             {
                 foreach (var batch in documents.Chunk(1000))
                 {
-                    await Search.MergeOrUploadDocumentsAsync(batch, cancellationToken: cancellationToken);
+                    await Search.MergeOrUploadDocumentsAsync(batch, new IndexDocumentsOptions { ThrowOnAnyError = true }, cancellationToken);
                 }
             }
+            await contentCache.StoreMarkdownAsync(id, markdown, cancellationToken);
             await SetOutcomeAsync(id, UploadIndexStatus.Indexed, documents.Count, embeddingTokenCount, null, cancellationToken);
             logger.LogInformation("Indexed attachment {UploadId} ({FileName}) as {ChunkCount} chunks using {EmbeddingTokenCount} embedding tokens.", id, row.FileName, documents.Count, embeddingTokenCount);
         }

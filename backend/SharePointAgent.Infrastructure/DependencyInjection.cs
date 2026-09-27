@@ -166,6 +166,7 @@ public static class DependencyInjection
                 ? new SearchIndexClient(new Uri(options.Endpoint), CreateManagedIdentityCredential())
                 : new SearchIndexClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!));
         });
+        services.AddSingleton<AttachmentContentCache>();
         services.AddSingleton<ChatMessageAttachmentFileService>();
         return services;
     }

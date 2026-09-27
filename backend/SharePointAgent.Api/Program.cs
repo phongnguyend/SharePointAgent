@@ -346,6 +346,13 @@ app.MapDelete("/api/state/delta/{driveId}", async (
         ? Results.Ok(new { deleted = driveId })
         : Results.NotFound(new { error = "Delta state record not found." }));
 
+app.MapGet("/api/attachment-files/options", (IOptions<UploadOptions> options) =>
+    Results.Ok(new
+    {
+        allowedFileExtensions = options.Value.GetAllowedFileExtensions(),
+        textFileExtensions = options.Value.GetTextFileExtensions()
+    }));
+
 app.MapPost("/api/attachment-files", async (
     HttpRequest request,
     ChatMessageAttachmentFileService files,
@@ -413,6 +420,10 @@ app.MapGet("/api/attachment-files/{id:guid}/markdown", async (
         return markdown is null
             ? Results.NotFound(new { error = "Attachment file not found." })
             : Results.Ok(new { markdown });
+    }
+    catch (AttachmentMarkdownUnavailableException ex)
+    {
+        return Results.Conflict(new { error = ex.Message });
     }
     catch (UploadTooLargeException ex)
     {

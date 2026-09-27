@@ -294,6 +294,10 @@ export async function uploadAttachmentFile(file: File, signal?: AbortSignal): Pr
   return request<AttachmentFileRecord>('/api/attachment-files', { method: 'POST', body, signal })
 }
 
+export function getAttachmentOptions(signal?: AbortSignal): Promise<{ allowedFileExtensions: string[]; textFileExtensions: string[] }> {
+  return request('/api/attachment-files/options', { signal })
+}
+
 export function listAttachmentFiles(
   options: { search?: string; skip?: number; top?: number },
   signal?: AbortSignal,
