@@ -100,7 +100,7 @@ export default function UsersPage() {
     <LoadingBar active={page.loading} />
     {page.error && <ErrorBanner message={page.error} onRetry={page.reload} />}
     <div className="card">
-      <div className="table-scroll"><table><thead><tr><th>User</th><th>Application roles</th><th>Attachment storage</th><th>Monthly chat tokens</th><th>Status</th><th>Entra sign-in</th><th>Last sign-in</th>{canManage && <th>Actions</th>}</tr></thead>
+      <div className="table-scroll"><table><thead><tr><th>User</th><th>Application roles</th><th>Attachment storage</th><th>Monthly model tokens</th><th>Status</th><th>Entra sign-in</th><th>Last sign-in</th>{canManage && <th>Actions</th>}</tr></thead>
         <tbody>{page.data?.items.map(user => <tr key={user.id}>
           <td><strong>{user.displayName}</strong><div>{user.email}</div></td>
           <td><div className="row">{user.roles.map(role => <span key={role} className="badge"><ShieldCheck size={12} />{role}</span>)}</div></td>
@@ -164,7 +164,7 @@ export default function UsersPage() {
       {tokenUser && <form id="token-editor" className="stack" onSubmit={event => { event.preventDefault(); void saveTokens() }}>
         <div><strong>{tokenUser.displayName}</strong><div>{tokenUser.email}</div></div>
         <MonthlyTokenUsage user={tokenUser} showDetails />
-        <Field label="Monthly chat token limit (millions)" help="Enter whole millions: 1 = 1,000,000 tokens. Includes input and output tokens across tool-call rounds. Blank means unlimited; 0 blocks new chat turns. Resets on the first day of each month at 00:00 UTC.">
+        <Field label="Monthly model token limit (millions)" help="Enter whole millions: 1 = 1,000,000 tokens. Includes chat input/output tokens and independent image-description calls. Embeddings are excluded. Blank means unlimited; 0 blocks new chat turns. Resets on the first day of each month at 00:00 UTC.">
           <input type="number" min={0} step={1} placeholder="Unlimited" disabled={busy} value={tokenLimit} onChange={e => setTokenLimit(e.target.value)} />
         </Field>
         <p className="hint">An in-progress response can exceed the remaining allowance. Changes apply to subsequent turns and do not reset usage.</p>

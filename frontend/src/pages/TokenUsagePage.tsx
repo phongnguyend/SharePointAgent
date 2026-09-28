@@ -27,7 +27,7 @@ export default function TokenUsagePage() {
         event.preventDefault()
         select(next)
         document.getElementById(`usage-tab-${next}`)?.focus()
-      }}>{tab === 'tokens' ? <Cpu size={15} /> : tab === 'images' ? <Image size={15} /> : <Layers size={15} />}{tab === 'tokens' ? 'Token Usage' : tab === 'embeddings' ? 'Embedding Usage' : tab === 'images' ? 'Image Description' : 'Content Safety'}</button>)}
+      }}>{tab === 'tokens' ? <Cpu size={15} /> : tab === 'images' ? <Image size={15} /> : <Layers size={15} />}{tab === 'tokens' ? 'Chat Usage' : tab === 'embeddings' ? 'Embedding Usage' : tab === 'images' ? 'Image Description' : 'Content Safety'}</button>)}
     </div>
     <div role="tabpanel" id={`usage-panel-${active}`} aria-labelledby={`usage-tab-${active}`} tabIndex={0}>
       {active === 'tokens' ? <ChatTokenUsageReport /> : active === 'embeddings' ? <EmbeddingUsageReport /> : active === 'images' ? <ImageDescriptionUsageReport /> : <ContentSafetyUsageReport />}

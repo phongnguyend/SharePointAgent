@@ -7,6 +7,10 @@ public sealed class ImageDescriptionTokenUsageEntity
 
     public DateTimeOffset CreatedAtUtc { get; set; }
 
+    public int Day { get; set; }
+
+    public int Month { get; set; }
+
     public Guid? UserId { get; set; }
 
     public Guid ConversationId { get; set; }

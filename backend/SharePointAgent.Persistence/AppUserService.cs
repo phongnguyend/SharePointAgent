@@ -241,10 +241,7 @@ public sealed class AppUserService(SharePointIndexDbContext db, UserManager<Appl
     {
         var now = DateTimeOffset.UtcNow;
         var month = MonthlyTokenQuota.MonthKey(now);
-        var dailyModels = await db.UserTokenUsage.Where(x => x.UserId == user.Id && x.Month == month)
-            .GroupBy(x => new { x.Day, x.ModelId }).OrderBy(x => x.Key.Day).ThenBy(x => x.Key.ModelId)
-            .Select(x => new DailyModelTokenUsage(x.Key.Day, x.Key.ModelId, x.Sum(t => t.InputTokens), x.Sum(t => t.OutputTokens), x.Sum(t => t.TotalTokens)))
-            .ToListAsync();
+        var dailyModels = await MonthlyTokenQuota.DailyUsageAsync(db, user.Id, month);
         var daily = dailyModels.GroupBy(x => x.Day)
             .Select(x => new DailyTokenUsage(x.Key, x.Sum(t => t.InputTokens), x.Sum(t => t.OutputTokens), x.Sum(t => t.TotalTokens))).ToArray();
         return new(user.Id, user.Email!, user.DisplayName,

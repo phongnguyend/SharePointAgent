@@ -41,6 +41,8 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
             entity.Property(x => x.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedOnAdd();
             entity.Property(x => x.ModelId).HasMaxLength(200);
             entity.HasIndex(x => new { x.UserId, x.CreatedAtUtc });
+            entity.HasIndex(x => new { x.UserId, x.Month });
+            entity.HasIndex(x => new { x.ModelId, x.Month });
             entity.HasIndex(x => new { x.ModelId, x.CreatedAtUtc });
             entity.HasIndex(x => x.QuestionId);
             entity.HasIndex(x => x.ConversationId);

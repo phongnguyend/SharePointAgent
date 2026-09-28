@@ -37,7 +37,7 @@ export function MonthlyTokenUsage({ user, showDetails = false }: { user: AppUser
     <span className="row"><Cpu size={14} aria-hidden="true" />{used.toLocaleString()} tokens / {limit === null ? 'Unlimited' : limit.toLocaleString()}</span>
     {showDetails && <button type="button" className="daily-token-usage-button" onClick={() => setDailyOpen(true)}><CalendarDays size={14} />Daily usage this month</button>}
     </div>
-    {limit !== null && <progress aria-label="Monthly chat tokens used" max={limit || 1} value={limit === 0 ? 1 : Math.min(used, limit)} />}
+    {limit !== null && <progress aria-label="Monthly model tokens used" max={limit || 1} value={limit === 0 ? 1 : Math.min(used, limit)} />}
     {limit !== null && used >= limit && <span className="badge warning">{limit === 0 ? 'Chat disabled' : 'Monthly limit reached'}</span>}
     </div>
     {showDetails && <>

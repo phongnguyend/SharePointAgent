@@ -26,7 +26,7 @@ export default function ImageDescriptionUsageReport() {
   const peak = Math.max(1, ...(data?.daily.map(row => row.totalTokens) ?? []))
 
   return <div className="stack embedding-page">
-    <div className="row spread"><span className="muted">On-demand image descriptions. Successful-turn tokens are already included in chat totals; do not add them again.</span><button disabled={report.loading} onClick={report.reload}><RefreshCw size={14} />Refresh</button></div>
+    <div className="row spread"><span className="muted">Image descriptions are tracked independently from chat turns and count toward monthly limits. Historical calls may also be included in older chat totals.</span><button disabled={report.loading} onClick={report.reload}><RefreshCw size={14} />Refresh</button></div>
     <form className="card embedding-filters chat-token-filters" onSubmit={event => {
       event.preventDefault()
       apply({ ...draft })

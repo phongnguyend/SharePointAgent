@@ -21,6 +21,8 @@ public sealed class ImageDescriptionUsagePersistenceTests
         {
             ModelId = "vision",
             CreatedAtUtc = DateTimeOffset.UtcNow,
+            Month = 202612,
+            Day = 20261231,
             Prompt = "Describe this image.",
             Description = "A diagram."
         };
@@ -33,6 +35,8 @@ public sealed class ImageDescriptionUsagePersistenceTests
         db.ChangeTracker.Clear();
         var stored = await db.ImageDescriptionTokenUsage.SingleAsync();
         Assert.Equal(databaseId, stored.Id);
+        Assert.Equal(202612, stored.Month);
+        Assert.Equal(20261231, stored.Day);
         Assert.Equal(row.Prompt, stored.Prompt);
         Assert.Equal(row.Description, stored.Description);
     }

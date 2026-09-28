@@ -58,8 +58,30 @@ public sealed class MonthlyTokenQuota(IDbContextFactory<SharePointIndexDbContext
         }
     }
 
-    public static async Task<long> UsedAsync(SharePointIndexDbContext db, Guid userId, int month, CancellationToken ct = default) =>
-        await db.UserTokenUsage.Where(x => x.UserId == userId && x.Month == month).SumAsync(x => (long?)x.TotalTokens, ct) ?? 0;
+    public static async Task<long> UsedAsync(SharePointIndexDbContext db, Guid userId, int month, CancellationToken ct = default)
+    {
+        var chat = await db.UserTokenUsage.Where(x => x.UserId == userId && x.Month == month).SumAsync(x => (long?)x.TotalTokens, ct) ?? 0;
+        var images = await ImageUsage(db, userId, month).SumAsync(x => x.TotalTokens, ct) ?? 0;
+        return chat + images;
+    }
+
+    private static IQueryable<ImageDescriptionTokenUsageEntity> ImageUsage(SharePointIndexDbContext db, Guid userId, int month) =>
+        db.ImageDescriptionTokenUsage.Where(x => x.UserId == userId && x.Month == month);
+
+    public static async Task<IReadOnlyList<DailyModelTokenUsage>> DailyUsageAsync(
+        SharePointIndexDbContext db, Guid userId, int month, CancellationToken ct = default)
+    {
+        var chat = await db.UserTokenUsage.Where(x => x.UserId == userId && x.Month == month)
+            .GroupBy(x => new { x.Day, x.ModelId })
+            .Select(x => new DailyModelTokenUsage(x.Key.Day, x.Key.ModelId, x.Sum(t => t.InputTokens), x.Sum(t => t.OutputTokens), x.Sum(t => t.TotalTokens)))
+            .ToListAsync(ct);
+        var images = await ImageUsage(db, userId, month).GroupBy(x => new { x.Day, x.ModelId })
+            .Select(x => new DailyModelTokenUsage(x.Key.Day, x.Key.ModelId, x.Sum(t => t.InputTokens ?? 0), x.Sum(t => t.OutputTokens ?? 0), x.Sum(t => t.TotalTokens ?? 0)))
+            .ToListAsync(ct);
+        return chat.Concat(images).GroupBy(x => new { x.Day, x.ModelId })
+            .OrderBy(x => x.Key.Day).ThenBy(x => x.Key.ModelId)
+            .Select(x => new DailyModelTokenUsage(x.Key.Day, x.Key.ModelId, x.Sum(t => t.InputTokens), x.Sum(t => t.OutputTokens), x.Sum(t => t.TotalTokens))).ToArray();
+    }
 
     private static void AddResource(DbCommand command, string resource)
     {

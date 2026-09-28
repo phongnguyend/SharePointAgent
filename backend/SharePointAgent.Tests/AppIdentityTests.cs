@@ -368,6 +368,32 @@ public sealed class AppIdentityTests
     }
 
     [Fact]
+    public async Task IndependentImagesCountTowardQuotaWithOrWithoutCompletedTurns()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var user = await fixture.Service.SaveAsync(null, new("vision-quota@example.com", "Vision", [AppRoles.User]), default);
+        var now = DateTimeOffset.UtcNow;
+        var month = MonthlyTokenQuota.MonthKey(now);
+        var question = Guid.NewGuid();
+        await MonthlyTokenQuota.RecordUsageAsync(fixture.Db, user.Id, question, now, new(80, 20, 100), "chat", default);
+        fixture.Db.ImageDescriptionTokenUsage.AddRange(
+            new ImageDescriptionTokenUsageEntity { UserId = user.Id, QuestionId = question, Day = MonthlyTokenQuota.DayKey(now), Month = month, ModelId = "vision", InputTokens = 15, OutputTokens = 5, TotalTokens = 20 },
+            new ImageDescriptionTokenUsageEntity { UserId = user.Id, QuestionId = question, Day = MonthlyTokenQuota.DayKey(now), Month = month, ModelId = "vision", InputTokens = 20, OutputTokens = 10, TotalTokens = 30 },
+            new ImageDescriptionTokenUsageEntity { UserId = user.Id, QuestionId = Guid.NewGuid(), Day = MonthlyTokenQuota.DayKey(now), Month = month, ModelId = "vision", InputTokens = 30, OutputTokens = 10, TotalTokens = 40 },
+            new ImageDescriptionTokenUsageEntity { UserId = user.Id, Day = MonthlyTokenQuota.DayKey(now.AddMonths(-1)), Month = MonthlyTokenQuota.MonthKey(now.AddMonths(-1)), ModelId = "vision", TotalTokens = 900 });
+        await fixture.Db.SaveChangesAsync();
+
+        Assert.Equal(190, await MonthlyTokenQuota.UsedAsync(fixture.Db, user.Id, month));
+        var daily = await MonthlyTokenQuota.DailyUsageAsync(fixture.Db, user.Id, month);
+        Assert.Equal(190, daily.Sum(x => x.TotalTokens));
+        Assert.Equal(90, daily.Single(x => x.ModelId == "vision").TotalTokens);
+        Assert.Equal(100, (await fixture.Db.UserTokenUsage.SingleAsync()).TotalTokens);
+        var profile = await fixture.Service.SaveTokenLimitAsync(user.Id, new(190, user.ConcurrencyStamp), default);
+        Assert.Equal(190, profile.MonthlyTokensUsed);
+        Assert.Throws<UserManagementException>(() => MonthlyTokenQuota.EnsureAvailable(profile.MonthlyTokenLimit, profile.MonthlyTokensUsed));
+    }
+
+    [Fact]
     public void TokenPeriodsUseUtcAndRollOverAtYearBoundary()
     {
         var local = new DateTimeOffset(2027, 1, 1, 1, 0, 0, TimeSpan.FromHours(7));

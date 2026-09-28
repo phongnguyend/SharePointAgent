@@ -90,9 +90,12 @@ public sealed class ChatAgentService(
                 await using var db = await contextFactory.CreateDbContextAsync(recording.Token);
                 var appUserId = EmbeddingUsageScope.Current.UserId
                     ?? await db.ChatConversations.Where(x => x.Id == conversationId).Select(x => x.CreatedById).SingleOrDefaultAsync(recording.Token);
+                var recordedAt = DateTimeOffset.UtcNow;
                 db.ImageDescriptionTokenUsage.Add(new ImageDescriptionTokenUsageEntity
                 {
-                    CreatedAtUtc = DateTimeOffset.UtcNow,
+                    CreatedAtUtc = recordedAt,
+                    Day = MonthlyTokenQuota.DayKey(recordedAt),
+                    Month = MonthlyTokenQuota.MonthKey(recordedAt),
                     UserId = appUserId,
                     ConversationId = conversationId,
                     QuestionId = question.Id,
@@ -214,10 +217,6 @@ public sealed class ChatAgentService(
             }
         }
 
-        var imageUsage = imageDescriber.Usage;
-        inputTokens += imageUsage.InputTokens;
-        outputTokens += imageUsage.OutputTokens;
-        totalTokens += imageUsage.TotalTokens;
         var text = answer.ToString();
         if (string.IsNullOrWhiteSpace(text))
         {

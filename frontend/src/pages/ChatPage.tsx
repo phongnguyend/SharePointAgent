@@ -392,7 +392,7 @@ export default function ChatPage() {
             Ask about your documents, with sources.
           </p>
         </div>
-        <section className="chat-header-usage" aria-label="My chat token usage this month">
+        <section className="chat-header-usage" aria-label="My model token usage this month">
           {tokenUsage.data && <MonthlyTokenUsage user={tokenUsage.data} showDetails />}
         </section>
         <button onClick={tokenUsage.reload} disabled={tokenUsage.loading}><RefreshCw size={14} />Refresh</button>
