@@ -566,12 +566,21 @@ export default function ChatPage() {
                     return
                   }
                   event.preventDefault()
+                  const usedNames = new Set(attachments.map(file => file.fileName.toLowerCase()))
                   const files = images.map(file => {
-                    if (/\.[a-z0-9]+$/i.test(file.name)) {
-                      return file
+                    const hasExtension = /\.[a-z0-9]+$/i.test(file.name)
+                    const extension = hasExtension
+                      ? file.name.slice(file.name.lastIndexOf('.') + 1)
+                      : file.type === 'image/jpeg' ? 'jpg' : file.type.slice('image/'.length)
+                    const baseName = hasExtension ? file.name.slice(0, file.name.lastIndexOf('.')) : 'pasted-image'
+                    let name = `${baseName}.${extension}`
+                    let suffix = 2
+                    while (usedNames.has(name.toLowerCase())) {
+                      name = `${baseName} (${suffix}).${extension}`
+                      suffix += 1
                     }
-                    const extension = file.type === 'image/jpeg' ? 'jpg' : file.type.slice('image/'.length)
-                    return new File([file], `pasted-image-${crypto.randomUUID()}.${extension}`, { type: file.type })
+                    usedNames.add(name.toLowerCase())
+                    return new File([file], name, { type: file.type, lastModified: file.lastModified })
                   })
                   void addFiles(files)
                 }}

@@ -15,6 +15,7 @@ import { Empty, ErrorBanner, LoadingBar, Pagination } from '../components/ui'
 import { FileTypeIcon } from '../components/FileTypeIcon'
 import { AttachmentDownload } from '../components/AttachmentDownload'
 import { OfficePreview } from '../components/OfficePreview'
+import { ImagePreview } from '../components/ImagePreview'
 import { MarkdownPreview } from '../components/MarkdownPreview'
 import { AttachmentStorageUsage } from '../components/AttachmentStorageUsage'
 import { SystemAttachmentStorage } from '../components/SystemAttachmentStorage'
@@ -48,6 +49,7 @@ export default function AttachmentFilesPage() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [preview, setPreview] = useState<{ id: string; name: string } | null>(null)
+  const [imagePreview, setImagePreview] = useState<{ id: string; name: string } | null>(null)
   const [markdownFile, setMarkdownFile] = useState<{ id: string; name: string } | null>(null)
   const debouncedSearch = useDebounced(search)
   const storage = useAsync(signal => getCurrentUser(signal), [])
@@ -174,6 +176,9 @@ export default function AttachmentFilesPage() {
                       <td>
                         <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
                           <AttachmentDownload id={file.id} name={file.fileName}><Download size={13} />Download</AttachmentDownload>
+                          {attachmentOptions.data?.imageFileExtensions.includes(file.fileName.slice(file.fileName.lastIndexOf('.')).toLowerCase()) ? (
+                            <button onClick={() => setImagePreview({ id: file.id, name: file.fileName })}><Eye size={13} />Preview</button>
+                          ) : null}
                           {isPreviewableOfficeFile(file.fileName) ? (
                             <button onClick={() => setPreview({ id: file.id, name: file.fileName })}><Eye size={13} />Preview</button>
                           ) : null}
@@ -230,6 +235,15 @@ export default function AttachmentFilesPage() {
           sourceKey={markdownFile.id}
           load={(signal) => getAttachmentFileMarkdown(markdownFile.id, signal)}
           onClose={() => setMarkdownFile(null)}
+        />
+      ) : null}
+      {imagePreview ? (
+        <ImagePreview
+          key={imagePreview.id}
+          name={imagePreview.name}
+          sourceKey={imagePreview.id}
+          load={(signal) => downloadAttachmentFile(imagePreview.id, signal)}
+          onClose={() => setImagePreview(null)}
         />
       ) : null}
     </div>
