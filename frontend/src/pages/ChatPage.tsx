@@ -710,6 +710,11 @@ function MessageBubble({
           </div>
         ) : null}
         <div className="chat-meta">
+          {isUser ? (
+            <div className="chat-actions">
+              <MessageCopyButton content={message.content} label="Copy the question" />
+            </div>
+          ) : null}
           <span className="chat-time" title={formatDateTime(message.createdAtUtc)}>
             {formatMessageTime(message.createdAtUtc)}
           </span>
@@ -743,10 +748,32 @@ function MessageBubble({
   )
 }
 
-/**
- * Copy, and a thumbs up/down that toggles: pressing the reaction already set clears it, so a
- * mis-click is undone the same way it was made.
- */
+function MessageCopyButton({ content, label }: { content: string; label: string }) {
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    if (!copied) {
+      return
+    }
+    const timer = setTimeout(() => setCopied(false), 1400)
+    return () => clearTimeout(timer)
+  }, [copied])
+
+  return (
+    <button
+      type="button"
+      className="ghost icon-only"
+      title={copied ? 'Copied' : label}
+      aria-label={copied ? 'Copied' : label}
+      onClick={() => {
+        void copyText(content).then((ok) => setCopied(ok))
+      }}
+    >
+      {copied ? <Check size={13} color="var(--good)" /> : <Copy size={13} />}
+    </button>
+  )
+}
+
 function MessageActions({
   message,
   onFeedback,
@@ -756,28 +783,12 @@ function MessageActions({
   onFeedback: (id: string, feedback: ChatFeedback | null) => void
   onBranch: (id: string) => Promise<void>
 }) {
-  const [copied, setCopied] = useState(false)
   const readOnly = !canManageOwnContent(useAppUser())
   const [branching, setBranching] = useState(false)
 
-  useEffect(() => {
-    if (!copied) return
-    const timer = setTimeout(() => setCopied(false), 1400)
-    return () => clearTimeout(timer)
-  }, [copied])
-
   return (
     <div className="chat-actions">
-      <button
-        className="ghost icon-only"
-        title={copied ? 'Copied' : 'Copy the answer'}
-        aria-label="Copy the answer"
-        onClick={() => {
-          void copyText(message.content).then((ok) => setCopied(ok))
-        }}
-      >
-        {copied ? <Check size={13} color="var(--good)" /> : <Copy size={13} />}
-      </button>
+      <MessageCopyButton content={message.content} label="Copy the answer" />
       <button
         className={message.feedback === 'Like' ? 'ghost icon-only liked' : 'ghost icon-only'}
         title="Good answer"

@@ -1,78 +1,86 @@
-# Infrastructure deployment
+# Azure infrastructure
 
-Deploy `main.bicep` with one of these Azure Resource Manager parameter files:
+The Bicep template provisions shared Azure resources and describe the application's deployment targets. Python deployment scripts and their dependencies have been removed.
 
-| File | Resource prefix | Purpose |
+All Azure resources are defined in `main.bicep`: shared services, SQL, runtime identities, Foundry, Container Apps, Static Web Apps, role assignments and the Foundry secret connection.
+
+Main resource names start with `workloadName`, followed by the environment. ACR and Storage use the compact prefix without hyphens; for example, ACR uses `<workloadName><environment>cr<uniqueSuffix>`. Child resources retain their service-specific names. Changing a resource name creates a new resource rather than renaming an existing one; registries created with the previous `cr<workloadName>...` pattern and their images are not migrated automatically.
+
+## GitHub Actions deployment
+
+For a complete application release, run **Actions → Release → Run workflow** using [release.yml](../.github/workflows/release.yml). Select `dev` or `test`; the selected branch or tag supplies all application code. The release workflow deploys the API, Background and MarkItDown to ACA and AgentHost to Foundry, then builds and publishes the frontend to **Azure Static Web Apps**. The deployed API URL is passed directly into the frontend build as `VITE_API_BASE_URL`.
+
+Run the infrastructure workflow to create the Static Web App for each environment, then store its deployment token as `AZURE_STATIC_WEB_APPS_API_TOKEN` in the matching GitHub environment. Set `FRONTEND_ORIGIN` to its default HTTPS origin or configured custom domain, and register `<FRONTEND_ORIGIN>/auth-redirect.html` as an Entra **Single-page application** redirect URI. The API uses this origin for CORS. Each release publishes to that Static Web App's production site, rather than creating a preview environment. The template outputs `staticWebAppName` and `staticWebAppUrl`. Static Web Apps uses the Free tier by default; all supplied environment JSON files set `staticWebAppLocation` to `eastasia`. Change `staticWebAppSku` or the location in those files as needed.
+
+The frontend is deployed only after backend deployment succeeds. A frontend failure does not roll back the backend. SPA routes use `staticwebapp.config.json`; authentication continues through the application's Entra integration.
+
+Run **Actions → Deploy infrastructure → Run workflow** first. `infra.yml` provisions `main.bicep`, including API, Background and MarkItDown Container Apps with `mcr.microsoft.com/k8se/quickstart:latest`. The API and MarkItDown use port 80 and `/` readiness checks until released; Background has no ingress. Provisioning does not build images, run SQL migrations or publish a Foundry agent version.
+
+Then run **Release**. It reads the saved `infra-<environment>` deployment outputs, builds four Linux/amd64 images in ACR, applies SQL migrations and runtime grants, and applies `main.bicep` with `deployApplicationImages=true` and the release image tags. This replaces the hello images and configures application secrets, API port 8080 and MarkItDown port 8000 with `/health` probes. It publishes AgentHost to Foundry and the frontend to Static Web Apps. Image tags contain the commit SHA, run ID and attempt.
+
+Configure `API_IMAGE`, `BACKGROUND_IMAGE` and `MARKITDOWN_IMAGE` in the selected GitHub environment using the settings table below. Set all three to existing application images, preferably immutable tags or digests in this environment's ACR. Infrastructure automatically enables application runtime settings, ports and health checks and reads the application secrets from the same GitHub environment. SQL migrations and runtime database grants must already exist; infrastructure does not run them. Partial image configuration is rejected.
+
+Leave all three variables unset for the default hello images. Re-running infrastructure with them unset resets ACA apps to hello images. Release builds and deploys new images independently and does not update these GitHub variables; set them to the desired release references before the next infrastructure run. Both workflows share an environment concurrency group. AgentHost is published separately by Release and is not controlled by these ACA image variables.
+
+Create matching GitHub environments with these settings:
+
+| Name | Kind | Purpose |
 | --- | --- | --- |
-| `parameters.dev.json` | `sharepointagent-dev` | Shared development environment |
-| `parameters.test.json` | `sharepointagent-test` | Test environment |
-| `parameters.local.json` | `sharepointagent-local` | Azure resources used by locally running applications |
+| `API_IMAGE` | Optional variable | Existing API image, e.g. `YOUR_REGISTRY.azurecr.io/api:EXISTING_TAG`; set all three image variables together |
+| `AZURE_CLIENT_ID` | Secret | Application/client ID of the deployment principal used for Azure OIDC login |
+| `AZURE_RESOURCE_GROUP` | Optional variable | Defaults to `rg-<workloadName>-<environment>` |
+| `AZURE_RESOURCE_GROUP_LOCATION` | Variable | Resource-group metadata location |
+| `AZURE_STATIC_WEB_APPS_API_TOKEN` | Secret | Deployment token for this environment's Static Web App; required by `release.yml` |
+| `AZURE_SUBSCRIPTION_ID` | Secret | Azure subscription ID to deploy resources into |
+| `AZURE_TENANT_ID` | Secret | Entra tenant ID used for Azure OIDC login and SharePoint access |
+| `BACKGROUND_IMAGE` | Optional variable | Existing Background image, e.g. `YOUR_REGISTRY.azurecr.io/background:EXISTING_TAG`; set all three image variables together |
+| `BOOTSTRAP_ADMIN_EMAIL` | Variable | Initial application Global Admin |
+| `FRONTEND_ORIGIN` | Variable | Frontend HTTPS origin for CORS; configure its Entra redirect URI separately |
+| `MARKITDOWN_API_KEY` | Secret | Shared MarkItDown authentication key, at least 32 characters |
+| `MARKITDOWN_IMAGE` | Optional variable | Existing MarkItDown image, e.g. `YOUR_REGISTRY.azurecr.io/markitdown:EXISTING_TAG`; set all three image variables together |
+| `SHAREPOINT_CLIENT_ID` | Variable | Existing SharePoint/Entra application client ID; tenant uses `AZURE_TENANT_ID` |
+| `SHAREPOINT_CLIENT_SECRET` | Secret | Graph application credential |
+| `SHAREPOINT_CLIENT_STATE` | Secret | Webhook validation secret, at least 16 characters |
+| `SHAREPOINT_DOCUMENT_LIBRARY_NAME` | Variable | Name of the source SharePoint document library |
+| `SHAREPOINT_SITE_HOSTNAME` | Variable | Hostname of the source SharePoint site |
+| `SHAREPOINT_SITE_PATH` | Variable | Path of the source SharePoint site |
+| `SQL_ENTRA_ADMINISTRATOR_PRINCIPAL_TYPE` | Optional variable | `Application` (default), `Group` or `User`; use `Application` for a managed identity or service principal |
+| `SQL_ENTRA_ADMIN_OBJECT_ID` | Variable | Object ID of the SQL administrator matching the configured principal type, not its application/client ID |
 
-Each file sets `workloadName` and `environmentName`, Basic Azure AI Search, an embedding deployment with capacity 10, and key authentication enabled. Document Intelligence is disabled by default. Resource location is configured in each JSON file through `parameters.location.value` (initially `eastus`). Resource group location is configured separately through the required GitHub environment variable `AZURE_RESOURCE_GROUP_LOCATION`. The two locations can differ. Confirm model availability and quota in the resource region. For an existing resource group, use its current group location; changing the variable does not move the group.
+Configure the deployment principal's federated credential with issuer `https://token.actions.githubusercontent.com`, audience `api://AzureADTokenExchange`, and subject `repo:<owner>/<repository>:environment:<environment>`. It needs deployment and role-assignment permissions at the resource-group scope; creating a resource group requires subscription permission.
 
-To deploy through GitHub Actions, use [Deploy infrastructure](../.github/workflows/infra.yml) from the Actions tab and select `local`, `dev`, or `test`. The workflow is manual only and uses the corresponding parameter file. Runs for the same environment are serialized without cancelling an active deployment.
+Parameter files are `infra/parameters.<environment>.json`. Each supplied environment file sets `sqlLocation` to `southeastasia`. The template defaults SQL and other resources to the environment's `location` unless overridden. Configure `sqlLocation`, `foundryLocation` or `contentSafetyLocation` in the parameter files where needed. Confirm regional model/Foundry availability and quota. The chat model, version and capacity are configurable.
 
-Create GitHub environments named `local`, `dev`, and `test`, then configure each:
-
-| Setting | Kind | Purpose |
-| --- | --- | --- |
-| `AZURE_CLIENT_ID` | Secret | Entra application or user-assigned identity client ID |
-| `AZURE_TENANT_ID` | Secret | Azure tenant ID |
-| `AZURE_SUBSCRIPTION_ID` | Secret | Target subscription ID |
-| `AZURE_RESOURCE_GROUP` | Variable, optional | Defaults to `rg-<workloadName>-<environmentName>` |
-| `AZURE_RESOURCE_GROUP_LOCATION` | Variable, required | Resource group metadata region, independent of resource location in JSON |
-
-Configure an Azure federated identity credential for each GitHub environment with issuer `https://token.actions.githubusercontent.com`, audience `api://AzureADTokenExchange`, and subject `repo:<owner>/<repository>:environment:<environment>`. The workflow uses [Azure Login with OIDC](https://github.com/Azure/login#login-with-openid-connect-oidc-recommended); no client secret is needed. Grant the identity permission to create the target resource group and deploy its resources (for example, Contributor on the target subscription). If the group is provisioned separately, scope deployment access to that group. Bootstrapping Container Apps additionally requires permission to create role assignments, such as Role Based Access Control Administrator scoped to that resource group.
-
-The workflow compiles both templates, creates/tags the resource group, validates and previews the shared deployment, then deploys it in incremental mode. The what-if output is logged and deployment continues automatically. Enable `deploy_container_apps` only to bootstrap hosted dev/test environments: it deploys placeholder images and can overwrite existing application images. Leave it disabled for routine shared-infrastructure updates. Local rejects this option. SQL Server, MarkItDown, chat model deployment, and application image releases remain separate.
-
-For a CLI deployment, run from the repository root with Azure CLI and Bicep installed and an authenticated Azure subscription:
+For a direct deployment:
 
 ```powershell
-$environment = 'local' # dev, test, or local
-$resourceGroup = "rg-sharepointagent-$environment"
-$parametersFile = "infra/parameters.$environment.json"
-$settings = (Get-Content $parametersFile -Raw | ConvertFrom-Json).parameters
-$env:AZURE_RESOURCE_GROUP_LOCATION = 'eastus' # Resource group metadata region
-
-az group create --name $resourceGroup --location $env:AZURE_RESOURCE_GROUP_LOCATION
-
-az deployment group what-if `
-  --resource-group $resourceGroup `
+az deployment group create --resource-group YOUR_RESOURCE_GROUP `
   --template-file infra/main.bicep `
-  --parameters $parametersFile
-
-$deployment = az deployment group create `
-  --resource-group $resourceGroup `
-  --template-file infra/main.bicep `
-  --parameters $parametersFile | ConvertFrom-Json
-
-$deployment.properties.outputs
+  --parameters infra/parameters.dev.json sqlEntraAdminObjectId=YOUR_PRINCIPAL_OBJECT_ID
 ```
 
-Use a separate resource group for each environment. For a personal local environment, choose your own resource group to isolate its resources. Parameter values can be overridden after the file, for example `--parameters $parametersFile workloadName=spalice environmentName=local location=eastus`. Use lowercase letters and digits: `workloadName` must be 2-15 characters and `environmentName` 2-5 characters. Both templates derive the prefix as `<workloadName>-<environmentName>` and must receive the same values. Storage and registry names omit the separator; storage uses a four-character uniqueness suffix to fit its 24-character name limit. The worker Container App uses the `wrk` resource label to fit its 32-character name limit.
+## Deployment behavior
 
-`local` provisions real Azure resources, not emulators. The current shared template also creates Azure Container Registry, Log Analytics, and a Container Apps environment. For local application hosting, skip `container-apps.bicep`. SQL Server, MarkItDown, and a chat model deployment are not created by this template; configure those separately. Copy the deployed endpoints and embedding deployment name into your local application configuration and keep credentials in user secrets or ignored `appsettings.Local.json` files. Deployment parameter files contain no credentials and are intended to be committed.
+SQL migrations still connect as the GitHub OIDC deployment identity. When the SQL administrator is another application, group or user, grant the deployment identity the required SQL migration and user-management permissions beforehand. Changing the administrator type does not grant that access automatically. Foundry permissions remain assigned to the deployment identity independently of the SQL administrator.
 
-For hosted dev/test environments, create the Container App shells after the shared deployment. `container-apps.bicep` accepts only a subset of the shared template's parameters, so pass the matching values explicitly:
+Provision infrastructure once before the first release. Release validates frontend settings, reads infrastructure outputs, builds images, migrates SQL, deploys application images and settings, publishes and routes the Foundry version, checks backend health, and publishes the frontend.
 
-```powershell
-$settings = (Get-Content $parametersFile -Raw | ConvertFrom-Json).parameters
-$tagsJson = ConvertTo-Json -InputObject $settings.tags.value -Compress
+SQL migrations run as the deployment principal, while runtime identities receive only `db_datareader` and `db_datawriter`. The workflow temporarily allows its runner IP through the SQL firewall and removes that rule in an `always()` cleanup step. Credential-bearing parameter files live only in the runner temporary directory and are deleted during cleanup; they are not uploaded as artifacts. Keep migrations compatible with the previously deployed application while rolling out a new version. A failed deployment does not automatically roll back schema or infrastructure changes.
 
-az deployment group create `
-  --resource-group $resourceGroup `
-  --template-file infra/container-apps.bicep `
-  --parameters `
-    workloadName=$($settings.workloadName.value) `
-    environmentName=$($settings.environmentName.value) `
-    location=$($settings.location.value) `
-    tags=$tagsJson `
-    deployDocumentIntelligence=$($settings.deployDocumentIntelligence.value.ToString().ToLowerInvariant())
-```
+See [AgentHost configuration](../backend/SharePointAgent.AgentHost/README.md), [Foundry deployment](https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/deploy-hosted-agent) and [agent identity/routing](https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/manage-hosted-agent). The frontend is hosted separately.
 
-If you override the workload, environment, location, or Document Intelligence setting in the shared deployment, pass the same overrides to the Container Apps deployment. Do not routinely redeploy the shells after releasing application images: this template declares placeholder images. See the [root README](../README.md#prerequisites) for image builds, application configuration, and release commands.
+## Runtime configuration and networking
 
-All taggable resources created by both templates receive `workload`, `environment`, and `managedBy=Bicep` tags, merged with the custom `tags` parameter (the files also set `application=SharePointAgent`). The derived identification tags take precedence over custom tags so they stay consistent with deployment inputs. Child resources that do not support tags are identified through their parent resource.
+Azure SQL uses Entra-only authentication and a Basic database (5 DTUs, maximum 2 GB) by default. Override `sqlDatabaseSku` with an S-series SKU when more capacity is needed. SQL permits authenticated connections from Azure services through the `0.0.0.0` firewall rule; this is Azure-wide, not subscription-only. Non-Azure deployment clients need their own firewall rule. Private networking is not configured.
 
-Changing the naming inputs or migrating from the previous `namePrefix` scheme creates resources under new names; it does not rename existing resources. Review `what-if` before deploying to an existing resource group.
+API and Background have separate user-assigned identities selected through `AZURE_CLIENT_ID`; SQL connection strings use their client IDs. Foundry creates AgentHost's execution identity. MarkItDown has only ACR image-pull access.
+
+API listens on 8080, MarkItDown on 8000, and Background has no ingress. Background stays at one replica. MarkItDown uses external HTTPS so Foundry can reach it, and requires `X-Api-Key` before accepting upload bodies; `/health` remains public. Supply the same key as `MARKITDOWN_API_KEY` on the MarkItDown and `MarkItDown:ApiKey` on callers. Local MarkItDown instances with no key configured retain unauthenticated behavior. OfficeCLI is disabled because the images do not include it.
+
+## Content Safety
+
+`deployContentSafety=true` in the supplied parameter files provisions S0. The template configures API managed-identity access; AgentHost's role must be assigned when registering the hosted agent. `allowContentSafetyApiKeyAuth` controls local key authentication. Outputs include `contentSafetyEndpoint` and `contentSafetyResourceId`, never keys. Disabling the deployment flag does not delete a previously created resource in incremental deployment mode.
+
+## Validation
+
+Compile `main.bicep` with `az bicep build`. Compilation does not verify subscription quota, permissions, networking or Foundry regional availability. Application deployments use actual images and change runtime configuration; review them before applying to an existing environment.

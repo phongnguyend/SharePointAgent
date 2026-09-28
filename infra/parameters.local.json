@@ -2,37 +2,35 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
-    "workloadName": {
-      "value": "sharepointagent"
-    },
-    "environmentName": {
-      "value": "local"
-    },
-    "location": {
-      "value": "eastus"
-    },
-    "tags": {
-      "value": {
-        "application": "SharePointAgent"
-      }
-    },
-    "allowServiceBusLocalAuth": {
+    "allowContentSafetyApiKeyAuth": {
       "value": true
     },
-    "allowSearchApiKeyAuth": {
+    "allowDocumentIntelligenceApiKeyAuth": {
       "value": true
     },
     "allowOpenAiApiKeyAuth": {
       "value": true
     },
-    "deployDocumentIntelligence": {
-      "value": false
-    },
-    "allowDocumentIntelligenceApiKeyAuth": {
+    "allowSearchApiKeyAuth": {
       "value": true
+    },
+    "allowServiceBusLocalAuth": {
+      "value": true
+    },
+    "deployContentSafety": {
+      "value": true
+    },
+    "deployDocumentIntelligence": {
+      "value": true
+    },
+    "embeddingDeploymentCapacity": {
+      "value": 10
     },
     "embeddingDeploymentName": {
       "value": "text-embedding-3-small"
+    },
+    "embeddingDeploymentSku": {
+      "value": "GlobalStandard"
     },
     "embeddingModelName": {
       "value": "text-embedding-3-small"
@@ -40,20 +38,34 @@
     "embeddingModelVersion": {
       "value": "1"
     },
-    "embeddingDeploymentSku": {
-      "value": "GlobalStandard"
+    "environmentName": {
+      "value": "local"
     },
-    "embeddingDeploymentCapacity": {
-      "value": 10
+    "location": {
+      "value": "eastus"
     },
-    "serviceBusTopicName": {
-      "value": "sharepoint-changes"
+    "searchSku": {
+      "value": "basic"
     },
     "serviceBusSubscriptionName": {
       "value": "search-indexer"
     },
-    "searchSku": {
-      "value": "basic"
+    "serviceBusTopicName": {
+      "value": "sharepoint-changes"
+    },
+    "sqlLocation": {
+      "value": "southeastasia"
+    },
+    "staticWebAppLocation": {
+      "value": "eastasia"
+    },
+    "tags": {
+      "value": {
+        "application": "SharePointAgent"
+      }
+    },
+    "workloadName": {
+      "value": "sharepointagent"
     }
   }
 }

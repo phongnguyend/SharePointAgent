@@ -1,5 +1,7 @@
 **/bin/
 **/obj/
+.artifacts/
+**/__pycache__/
 .azure-cli-verify/
 .build-verify/
 .git/

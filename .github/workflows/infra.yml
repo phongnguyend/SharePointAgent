@@ -8,61 +8,54 @@ on:
         description: Target environment
         required: true
         type: choice
-        options:
-          - local
-          - dev
-          - test
-        default: local
-      deploy_container_apps:
-        description: Bootstrap Container App shells for dev/test (overwrites existing app images)
-        required: true
-        type: boolean
-        default: false
+        options: [local, dev, test]
+        default: dev
 
 permissions:
   contents: read
   id-token: write
 
 concurrency:
-  group: infra-${{ inputs.environment }}
+  group: deployment-${{ inputs.environment }}
   cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 120
     environment: ${{ inputs.environment }}
+    env:
+      DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      AZURE_RESOURCE_GROUP_LOCATION: ${{ vars.AZURE_RESOURCE_GROUP_LOCATION }}
+      SQL_ENTRA_ADMIN_OBJECT_ID: ${{ vars.SQL_ENTRA_ADMIN_OBJECT_ID }}
+      SQL_ENTRA_ADMINISTRATOR_PRINCIPAL_TYPE: ${{ vars.SQL_ENTRA_ADMINISTRATOR_PRINCIPAL_TYPE || 'Application' }}
     defaults:
       run:
         shell: pwsh
-    env:
-      DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
-      DEPLOY_CONTAINER_APPS: ${{ inputs.deploy_container_apps }}
-      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-      AZURE_RESOURCE_GROUP_LOCATION: ${{ vars.AZURE_RESOURCE_GROUP_LOCATION }}
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
-
       - name: Check deployment settings
         run: |
-          if ($env:DEPLOY_ENVIRONMENT -notin @('local', 'dev', 'test')) {
-            throw 'Unsupported environment.'
+          if ([string]::IsNullOrWhiteSpace($env:SQL_ENTRA_ADMIN_OBJECT_ID)) {
+            throw 'Set SQL_ENTRA_ADMIN_OBJECT_ID in the selected GitHub environment.'
           }
-          if ($env:DEPLOY_ENVIRONMENT -eq 'local' -and $env:DEPLOY_CONTAINER_APPS -eq 'true') {
-            throw 'Container App shells are only supported for dev/test deployments.'
+          [void][guid]::Parse($env:SQL_ENTRA_ADMIN_OBJECT_ID)
+          if ($env:SQL_ENTRA_ADMINISTRATOR_PRINCIPAL_TYPE -cnotin @('Application', 'Group', 'User')) {
+            throw 'SQL_ENTRA_ADMINISTRATOR_PRINCIPAL_TYPE must be Application, Group or User.'
+          }
+          if ([string]::IsNullOrWhiteSpace($env:AZURE_RESOURCE_GROUP_LOCATION)) {
+            throw 'Set AZURE_RESOURCE_GROUP_LOCATION in the selected GitHub environment.'
           }
           $parametersFile = "infra/parameters.$env:DEPLOY_ENVIRONMENT.json"
           $settings = (Get-Content $parametersFile -Raw | ConvertFrom-Json).parameters
-          if ([string]::IsNullOrWhiteSpace($settings.location.value)) {
-            throw "Set parameters.location.value in $parametersFile."
-          }
-          if ([string]::IsNullOrWhiteSpace($env:AZURE_RESOURCE_GROUP_LOCATION)) {
-            throw 'Set AZURE_RESOURCE_GROUP_LOCATION in the selected GitHub environment variables.'
-          }
           if ($settings.environmentName.value -ne $env:DEPLOY_ENVIRONMENT) {
-            throw 'The parameter file environment does not match the selected environment.'
+            throw 'Parameter environment does not match the selected environment.'
+          }
+          if ([string]::IsNullOrWhiteSpace($settings.location.value)) {
+            throw 'Set location in the environment parameter file.'
           }
           $resourceGroup = $env:AZURE_RESOURCE_GROUP
           if ([string]::IsNullOrWhiteSpace($resourceGroup)) {
@@ -70,80 +63,111 @@ jobs:
           }
           "RESOURCE_GROUP=$resourceGroup" >> $env:GITHUB_ENV
           "PARAMETERS_FILE=$parametersFile" >> $env:GITHUB_ENV
-
       - name: Log in to Azure
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
+      - name: Prepare runtime settings for configured application images
+        env:
+          API_IMAGE: ${{ vars.API_IMAGE }}
+          BACKGROUND_IMAGE: ${{ vars.BACKGROUND_IMAGE }}
+          MARKITDOWN_IMAGE: ${{ vars.MARKITDOWN_IMAGE }}
+          SHAREPOINT_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          SHAREPOINT_CLIENT_ID: ${{ vars.SHAREPOINT_CLIENT_ID }}
+          SHAREPOINT_CLIENT_SECRET: ${{ secrets.SHAREPOINT_CLIENT_SECRET }}
+          SHAREPOINT_CLIENT_STATE: ${{ secrets.SHAREPOINT_CLIENT_STATE }}
+          MARKITDOWN_API_KEY: ${{ secrets.MARKITDOWN_API_KEY }}
+          SHAREPOINT_SITE_HOSTNAME: ${{ vars.SHAREPOINT_SITE_HOSTNAME }}
+          SHAREPOINT_SITE_PATH: ${{ vars.SHAREPOINT_SITE_PATH }}
+          SHAREPOINT_DOCUMENT_LIBRARY_NAME: ${{ vars.SHAREPOINT_DOCUMENT_LIBRARY_NAME }}
+          FRONTEND_ORIGIN: ${{ vars.FRONTEND_ORIGIN }}
+          BOOTSTRAP_ADMIN_EMAIL: ${{ vars.BOOTSTRAP_ADMIN_EMAIL }}
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $parameters = @{}
+          $images = @{
+            apiImage = $env:API_IMAGE
+            backgroundImage = $env:BACKGROUND_IMAGE
+            markItDownImage = $env:MARKITDOWN_IMAGE
+          }
+          $configured = @($images.Values | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count
+          if ($configured -ne 0 -and $configured -ne 3) {
+            throw 'Set all three GitHub environment variables API_IMAGE, BACKGROUND_IMAGE and MARKITDOWN_IMAGE, or leave all three unset for hello images.'
+          }
+          $useApplicationImages = $configured -eq 3
+          $parameters.deployApplicationImages = @{ value = $useApplicationImages }
+          foreach ($image in $images.Keys) {
+            $reference = 'mcr.microsoft.com/k8se/quickstart:latest'
+            if ($useApplicationImages) {
+              $reference = $images[$image].Trim()
+              if ($reference -like 'mcr.microsoft.com/k8se/quickstart*') {
+                throw 'Image variables must reference application images. Leave all three unset to use hello images.'
+              }
+            }
+            $parameters[$image] = @{ value = $reference }
+          }
+          if ($useApplicationImages) {
+            $mapping = @{
+              sharePointTenantId = 'SHAREPOINT_TENANT_ID'
+              sharePointClientId = 'SHAREPOINT_CLIENT_ID'
+              sharePointClientSecret = 'SHAREPOINT_CLIENT_SECRET'
+              sharePointClientState = 'SHAREPOINT_CLIENT_STATE'
+              markItDownApiKey = 'MARKITDOWN_API_KEY'
+              sharePointSiteHostname = 'SHAREPOINT_SITE_HOSTNAME'
+              sharePointSitePath = 'SHAREPOINT_SITE_PATH'
+              sharePointDocumentLibraryName = 'SHAREPOINT_DOCUMENT_LIBRARY_NAME'
+              frontendOrigin = 'FRONTEND_ORIGIN'
+              bootstrapAdminEmail = 'BOOTSTRAP_ADMIN_EMAIL'
+            }
+            foreach ($key in $mapping.Keys) {
+              $value = [Environment]::GetEnvironmentVariable($mapping[$key])
+              if ([string]::IsNullOrWhiteSpace($value)) {
+                throw "Set $($mapping[$key]) in this GitHub environment."
+              }
+              $parameters[$key] = @{ value = $value }
+            }
+            if ($env:SHAREPOINT_CLIENT_STATE.Length -lt 16 -or $env:MARKITDOWN_API_KEY.Length -lt 32) {
+              throw 'SHAREPOINT_CLIENT_STATE requires 16+ characters; MARKITDOWN_API_KEY requires 32+ characters.'
+            }
+          }
+          $path = "$env:RUNNER_TEMP/runtime.parameters.json"
+          @{ parameters = $parameters } | ConvertTo-Json -Depth 5 | Set-Content $path
+          chmod 600 $path
       - name: Compile templates
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
           az bicep build --file infra/main.bicep --outfile "$env:RUNNER_TEMP/main.json"
-          az bicep build --file infra/container-apps.bicep --outfile "$env:RUNNER_TEMP/container-apps.json"
-
-      - name: Create resource group and deploy shared resources
+      - name: Deploy shared infrastructure
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          $settings = (Get-Content $env:PARAMETERS_FILE -Raw | ConvertFrom-Json).parameters
-          az group create --name $env:RESOURCE_GROUP --location $env:AZURE_RESOURCE_GROUP_LOCATION `
-            --tags "workload=$($settings.workloadName.value)" "environment=$env:DEPLOY_ENVIRONMENT" managedBy=Bicep application=SharePointAgent `
-            --output none
-
-          az deployment group validate `
-            --resource-group $env:RESOURCE_GROUP `
-            --template-file "$env:RUNNER_TEMP/main.json" `
-            --parameters $env:PARAMETERS_FILE `
-            --output none
-
-          az deployment group what-if `
-            --resource-group $env:RESOURCE_GROUP `
-            --template-file "$env:RUNNER_TEMP/main.json" `
-            --parameters $env:PARAMETERS_FILE
-
-          az deployment group create `
-            --name "infra-$env:DEPLOY_ENVIRONMENT-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT" `
-            --resource-group $env:RESOURCE_GROUP `
-            --mode Incremental `
-            --template-file "$env:RUNNER_TEMP/main.json" `
-            --parameters $env:PARAMETERS_FILE `
+          az group create --name $env:RESOURCE_GROUP --location $env:AZURE_RESOURCE_GROUP_LOCATION --output none
+          az deployment group validate --resource-group $env:RESOURCE_GROUP `
+            --template-file "$env:RUNNER_TEMP/main.json" --parameters $env:PARAMETERS_FILE "$env:RUNNER_TEMP/runtime.parameters.json" `
+            sqlEntraAdminObjectId=$env:SQL_ENTRA_ADMIN_OBJECT_ID sqlEntraAdministratorPrincipalType=$env:SQL_ENTRA_ADMINISTRATOR_PRINCIPAL_TYPE --output none
+          az deployment group what-if --resource-group $env:RESOURCE_GROUP `
+            --template-file "$env:RUNNER_TEMP/main.json" --parameters $env:PARAMETERS_FILE "$env:RUNNER_TEMP/runtime.parameters.json" `
+            sqlEntraAdminObjectId=$env:SQL_ENTRA_ADMIN_OBJECT_ID sqlEntraAdministratorPrincipalType=$env:SQL_ENTRA_ADMINISTRATOR_PRINCIPAL_TYPE
+          $result = az deployment group create --resource-group $env:RESOURCE_GROUP `
+            --name "infra-$env:DEPLOY_ENVIRONMENT" `
+            --mode Incremental --template-file "$env:RUNNER_TEMP/main.json" `
+            --parameters $env:PARAMETERS_FILE "$env:RUNNER_TEMP/runtime.parameters.json" sqlEntraAdminObjectId=$env:SQL_ENTRA_ADMIN_OBJECT_ID sqlEntraAdministratorPrincipalType=$env:SQL_ENTRA_ADMINISTRATOR_PRINCIPAL_TYPE `
             --query properties.outputs --output json
-
-      - name: Bootstrap Container App shells
-        if: inputs.deploy_container_apps && inputs.environment != 'local'
+          $result | Set-Content "$env:RUNNER_TEMP/shared-outputs.json"
+      - name: Provisioning summary
         run: |
-          $PSNativeCommandUseErrorActionPreference = $true
-          $document = Get-Content $env:PARAMETERS_FILE -Raw | ConvertFrom-Json -AsHashtable
-          $appParameters = @{}
-          foreach ($name in @('workloadName', 'environmentName', 'location', 'tags', 'deployDocumentIntelligence')) {
-            $appParameters[$name] = $document.parameters[$name]
+          "## Infrastructure provisioned" >> $env:GITHUB_STEP_SUMMARY
+          $outputs = Get-Content "$env:RUNNER_TEMP/shared-outputs.json" -Raw | ConvertFrom-Json
+          "- Static Web App: $($outputs.staticWebAppName.value)" >> $env:GITHUB_STEP_SUMMARY
+          "- Frontend origin: $($outputs.staticWebAppUrl.value)" >> $env:GITHUB_STEP_SUMMARY
+          "API, Background and MarkItDown use GitHub environment image variables, falling back to hello images when all three are unset. Run Release to build new images, apply migrations and publish AgentHost." >> $env:GITHUB_STEP_SUMMARY
+      - name: Remove temporary files
+        if: always()
+        run: |
+          foreach ($name in @('main.json', 'shared-outputs.json', 'runtime.parameters.json')) {
+            $path = Join-Path $env:RUNNER_TEMP $name
+            if (Test-Path -LiteralPath $path) {
+              Remove-Item -LiteralPath $path -Force
+            }
           }
-          $document.parameters = $appParameters
-          $appParametersFile = "$env:RUNNER_TEMP/container-apps.parameters.json"
-          $document | ConvertTo-Json -Depth 20 | Set-Content $appParametersFile
-
-          az deployment group what-if `
-            --resource-group $env:RESOURCE_GROUP `
-            --template-file "$env:RUNNER_TEMP/container-apps.json" `
-            --parameters $appParametersFile
-
-          az deployment group create `
-            --name "apps-$env:DEPLOY_ENVIRONMENT-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT" `
-            --resource-group $env:RESOURCE_GROUP `
-            --mode Incremental `
-            --template-file "$env:RUNNER_TEMP/container-apps.json" `
-            --parameters $appParametersFile `
-            --query properties.outputs --output json
-
-      - name: Deployment summary
-        run: |
-          $settings = (Get-Content $env:PARAMETERS_FILE -Raw | ConvertFrom-Json).parameters
-          "## Infrastructure deployed" >> $env:GITHUB_STEP_SUMMARY
-          "- Environment: $env:DEPLOY_ENVIRONMENT" >> $env:GITHUB_STEP_SUMMARY
-          "- Resource group: $env:RESOURCE_GROUP" >> $env:GITHUB_STEP_SUMMARY
-          "- Resource group location: $($env:AZURE_RESOURCE_GROUP_LOCATION)" >> $env:GITHUB_STEP_SUMMARY
-          "- Resource location: $($settings.location.value)" >> $env:GITHUB_STEP_SUMMARY
-          "- Parameter file: $env:PARAMETERS_FILE" >> $env:GITHUB_STEP_SUMMARY
-          "- Container App shells requested: $env:DEPLOY_CONTAINER_APPS" >> $env:GITHUB_STEP_SUMMARY

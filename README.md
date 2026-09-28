@@ -1,4 +1,4 @@
-# SharePointAgent
+﻿# SharePointAgent
 
 This .NET 10 solution keeps a permission-aware Azure AI Search vector index synchronized with a SharePoint document library.
 
@@ -39,126 +39,9 @@ Create these resources before deploying:
 
 Assign Azure RBAC appropriate to each process: Service Bus Data Sender, Storage Blob Data Contributor, Search Index Data Contributor, Search Service Contributor, and Cognitive Services OpenAI User to the API; Service Bus Data Receiver, Search Index Data Contributor, Search Service Contributor, and Cognitive Services OpenAI User to the worker. Add Cognitive Services User when Document Intelligence is enabled. The Bicep templates create these assignments. SQL Server permissions are granted inside the database rather than through RBAC: see [Worker state in SQL Server](#worker-state-in-sql-server).
 
-Neither the SQL Server nor the MarkItDown service is deployed by the Bicep templates. Provision the database separately and pass its connection string to the worker as a secret.
+The GitHub Actions infrastructure workflow provisions Azure resources and default hello images for the ACA apps. Run `release.yml` afterward to build and deploy API/Background/MarkItDown, apply SQL migrations and runtime grants, publish AgentHost to Foundry, and deploy the frontend to Azure Static Web Apps. Deployment uses PowerShell and Azure CLI.
 
-Environment parameter files for dev, test, and local Azure resources are available in [`infra/`](infra/README.md), with deployment commands and local setup notes.
-
-The manual [Deploy infrastructure workflow](.github/workflows/infra.yml) deploys these environments using Azure OIDC authentication. See the [infrastructure guide](infra/README.md) for GitHub environment secrets, variables, and optional Container App bootstrapping.
-
-Infrastructure is split into two deployments. `main.bicep` deploys the shared Azure services, Azure Container Registry, Log Analytics, and the Container Apps environment. It does not deploy the SQL Server:
-
-```powershell
-$resourceGroup = '<resource-group>'
-$location = '<azure-region>'
-$workloadName = 'sharepointagent'
-$environmentName = 'dev'
-$deployDocumentIntelligence = 'false'
-$imageTag = 'v1'
-
-$apiImageRepository = 'sharepoint-api'
-$workerImageRepository = 'sharepoint-worker'
-$serviceBusTopicName = 'sharepoint-changes'
-$serviceBusSubscriptionName = 'search-indexer'
-$sharePointIndexName = 'sharepoint-files'
-$vectorDimensions = 1536
-$embeddingDeploymentName = 'text-embedding-3-small'
-
-$apiTargetPort = 8080
-$apiCpu = 0.5
-$apiMemory = '1Gi'
-$apiMinReplicas = 1
-$apiMaxReplicas = 3
-$workerCpu = 1.0
-$workerMemory = '2Gi'
-$workerMinReplicas = 1
-$workerMaxReplicas = 1
-
-$deployment = az deployment group create `
-  --resource-group $resourceGroup `
-  --template-file infra/main.bicep `
-  --parameters `
-    workloadName=$workloadName `
-    environmentName=$environmentName `
-    location=$location `
-    deployDocumentIntelligence=$deployDocumentIntelligence `
-    serviceBusTopicName=$serviceBusTopicName `
-    serviceBusSubscriptionName=$serviceBusSubscriptionName `
-    embeddingDeploymentName=$embeddingDeploymentName | ConvertFrom-Json
-
-$registry = $deployment.properties.outputs.containerRegistryName.value
-```
-
-After that deployment succeeds, run `container-apps.bicep` once to create the Container App shells, managed identities, ACR pull access, and service role assignments against the existing resources:
-
-```powershell
-$appsDeployment = az deployment group create `
-  --resource-group $resourceGroup `
-  --template-file infra/container-apps.bicep `
-  --parameters `
-    workloadName=$workloadName `
-    environmentName=$environmentName `
-    location=$location `
-    deployDocumentIntelligence=$deployDocumentIntelligence | ConvertFrom-Json
-
-$apiApp = $appsDeployment.properties.outputs.apiContainerAppName.value
-$workerApp = $appsDeployment.properties.outputs.workerContainerAppName.value
-```
-
-Pass the same `deployDocumentIntelligence=true` value to both deployments when Document Intelligence is required. The Container Apps are created at zero scale with Microsoft's public quickstart placeholder. Do not routinely rerun `container-apps.bicep` after releasing application revisions because it declares the placeholder as its initial desired image. `main.bicep` can be rerun independently without changing the Container Apps.
-
-Bicep does not deploy this project's images, SharePoint settings, or application secrets. Build the application images separately:
-
-```powershell
-az acr build --registry $registry --image "${apiImageRepository}:$imageTag" `
-  --file backend/SharePointAgent.Api/Dockerfile .
-
-az acr build --registry $registry --image "${workerImageRepository}:$imageTag" `
-  --file backend/SharePointAgent.Background/Dockerfile .
-```
-
-Configure the application secrets and environment variables first, either in the same release pipeline or with `az containerapp secret set` and `az containerapp update --set-env-vars`. Then deploy the newly built images and activate the application replicas:
-
-```powershell
-$registryServer = $deployment.properties.outputs.containerRegistryLoginServer.value
-
-az containerapp update `
-  --resource-group $resourceGroup `
-  --name $apiApp `
-  --image "${registryServer}/${apiImageRepository}:$imageTag" `
-  --set-env-vars `
-    "ServiceBus__TopicName=$serviceBusTopicName" `
-    "ServiceBus__SubscriptionName=$serviceBusSubscriptionName" `
-  --cpu $apiCpu `
-  --memory $apiMemory `
-  --min-replicas $apiMinReplicas `
-  --max-replicas $apiMaxReplicas
-
-az containerapp ingress update `
-  --resource-group $resourceGroup `
-  --name $apiApp `
-  --target-port $apiTargetPort
-
-az containerapp update `
-  --resource-group $resourceGroup `
-  --name $workerApp `
-  --image "${registryServer}/${workerImageRepository}:$imageTag" `
-  --set-env-vars `
-    "ServiceBus__TopicName=$serviceBusTopicName" `
-    "ServiceBus__SubscriptionName=$serviceBusSubscriptionName" `
-    "AzureSearch__SharePointIndexName=$sharePointIndexName" `
-    "AzureSearch__VectorDimensions=$vectorDimensions" `
-    "AzureOpenAI__EmbeddingDeployment=$embeddingDeploymentName" `
-  --cpu $workerCpu `
-  --memory $workerMemory `
-  --min-replicas $workerMinReplicas `
-  --max-replicas $workerMaxReplicas
-```
-
-`container-apps.bicep` configures `UsedManagedIdentity=true` and discoverable Azure service endpoints. The release pipeline supplies topic, subscription, index, vector-dimension, and model-deployment settings alongside the SharePoint settings, the `SqlServer__ConnectionString` secret, and the other application secrets.
-
-The API and worker receive separate system-assigned identities. Bicep grants the API Service Bus Data Sender and grants the worker Service Bus Data Receiver, Search Index Data Contributor, Search Service Contributor, and Cognitive Services OpenAI User. SQL Server access is not an RBAC grant; the worker's identity is added inside the database instead. A separate user-assigned identity has only `AcrPull` and is attached to both Container Apps for private image retrieval. Set `deployDocumentIntelligence=true` to include Document Intelligence and its worker role assignment.
-
-Local/key authentication is enabled by default so services can still use their `UsedManagedIdentity: false` fallback. Disable the corresponding `allow*LocalAuth` or `allow*ApiKeyAuth` parameters for managed-identity-only deployments. The templates output endpoints, app URLs, registry details, and identity object IDs, but deliberately do not output connection strings or keys.
+See [the infrastructure deployment guide](infra/README.md) for settings and the application deployment sequence. The frontend is hosted separately.
 
 ## Configure and run
 
@@ -268,7 +151,7 @@ Rows are saved immediately after generation, before search/index writes, and ret
 
 ### Azure Content Safety
 
-Set `ContentSafety:Enabled` to `true` and `ContentSafety:Endpoint` to your Azure Content Safety resource's HTTPS endpoint. The feature defaults to disabled until configured. For managed identity, keep `UseManagedIdentity: true`, optionally set `ManagedIdentityClientId`, and grant that identity **Cognitive Services User** on the Content Safety resource. For local development, set `UseManagedIdentity: false` and supply `ContentSafety:ApiKey` through user secrets or `ContentSafety__ApiKey`; do not commit keys. Apply `AddContentSafetyUsage` (or restart with automatic migrations enabled) before using the report. Configure API and AgentHost consistently.
+The infrastructure templates now provision Content Safety by default (`deployContentSafety=true`), expose `contentSafetyEndpoint` and `contentSafetyResourceId`, and configure managed-identity access for API and AgentHost. See [Content Safety deployment](infra/README.md#content-safety) for existing apps and separate AgentHost setup. Set `ContentSafety:Enabled` to `true` and `ContentSafety:Endpoint` to your Azure Content Safety resource's HTTPS endpoint. The feature defaults to disabled until configured. For managed identity, keep `UseManagedIdentity: true`, optionally set `ManagedIdentityClientId`, and grant that identity **Cognitive Services User** on the Content Safety resource. For local development, set `UseManagedIdentity: false` and supply `ContentSafety:ApiKey` through user secrets or `ContentSafety__ApiKey`; do not commit keys. Apply `AddContentSafetyUsage` (or restart with automatic migrations enabled) before using the report. Configure API and AgentHost consistently.
 
 The [text analysis API](https://learn.microsoft.com/en-us/rest/api/contentsafety/text-operations/analyze-text?view=rest-contentsafety-2024-09-01) checks user messages before they enter chat history, assistant responses before display/storage, and extracted attachment text before embeddings/indexing on upload or reindex. Assistant output and model-generated status messages are withheld until the answer passes; live answer streaming is disabled while safety is enabled. Blocked answers still incur chat model usage, which remains recorded. Reindex existing attachments to assess content uploaded before enabling this feature. This integration checks extracted text, not images, and does not implement Prompt Shields or groundedness detection.
 

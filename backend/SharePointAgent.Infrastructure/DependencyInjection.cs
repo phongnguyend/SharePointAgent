@@ -279,8 +279,13 @@ public static class DependencyInjection
         return services;
     }
 
-    internal static TokenCredential CreateManagedIdentityCredential() =>
-        new ManagedIdentityCredential(ManagedIdentityId.SystemAssigned);
+    internal static TokenCredential CreateManagedIdentityCredential()
+    {
+        var clientId = Environment.GetEnvironmentVariable("AZURE_CLIENT_ID");
+        return new ManagedIdentityCredential(string.IsNullOrWhiteSpace(clientId)
+            ? ManagedIdentityId.SystemAssigned
+            : ManagedIdentityId.FromUserAssignedClientId(clientId));
+    }
 
     private static void AddSharePointOptions(IServiceCollection services, IConfiguration configuration)
     {

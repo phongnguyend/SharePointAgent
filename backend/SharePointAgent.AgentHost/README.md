@@ -26,6 +26,8 @@ No Foundry configuration or host process is needed. The API needs its existing m
 
 ## Run in Foundry
 
+The repository's [deployment workflow](../../.github/workflows/infra.yml) now provisions Azure SQL and a Foundry project, builds this image, registers a hosted agent version, grants its SQL/resource access, and connects the API endpoint. See the [deployment guide](../../infra/README.md) for environment variables and instructions. The manual steps below remain useful for an existing Foundry project.
+
 Apply `AddFoundrySessionBinding` through the existing API migration flow or your database deployment pipeline before enabling this mode. The host defaults to `SqlServer:AutoMigrate=false`; provisioning a sandbox should not run schema migrations.
 
 Configure the API:
@@ -56,6 +58,8 @@ Configure the hosted container with environment variables or a secret-backed con
 | `AzureSearch__Endpoint`, `AzureSearch__SharePointIndexName`, `AzureSearch__UploadIndexName`, `AzureSearch__VectorDimensions` | The same indexes and embedding dimensions as the API. |
 | `Uploads__ServiceUri`, `Uploads__ContainerName` | Existing attachment blob storage. |
 | `MarkItDown__Endpoint` | Existing attachment service dependency, reachable from the sandbox. |
+| `MarkItDown__ApiKey` | Converter authentication key; the deployment resolves this from its Foundry secret connection. |
+| `ContentSafety__Enabled`, `ContentSafety__Endpoint`, `ContentSafety__UseManagedIdentity` | Content Safety configuration; the hosted agent identity needs Cognitive Services User on that resource. |
 | `OfficeCli__Enabled`, `OfficeCli__Command` | Enable after installing officecli in the agent image. The base Dockerfile does not include officecli, matching the existing API image's dependency requirements. |
 
 The host defaults Azure OpenAI, Search, and Blob Storage to managed identity. Grant the hosted identity access to those resources and SQL, or use the existing `UsedManagedIdentity=false` and API-key/connection-string options. Graph continues to use application credentials. `Downloads:Directory` defaults to `$HOME/sharepoint-downloads` in this host so Foundry can persist edited files; leave it unset unless using another persistent session path.

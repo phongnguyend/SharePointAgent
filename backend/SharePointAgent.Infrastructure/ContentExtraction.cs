@@ -179,7 +179,12 @@ public sealed class MarkItDownClient(
         form.Add(fileContent, "file", fileName);
         form.Add(new StringContent(fileName), "name");
 
-        using var response = await httpClient.PostAsync(BuildUrl(_options.ConvertPath), form, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Post, BuildUrl(_options.ConvertPath)) { Content = form };
+        if (!string.IsNullOrWhiteSpace(_options.ApiKey))
+        {
+            request.Headers.Add("X-Api-Key", _options.ApiKey);
+        }
+        using var response = await httpClient.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             var detail = await response.Content.ReadAsStringAsync(cancellationToken);

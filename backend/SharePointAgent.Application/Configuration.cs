@@ -153,6 +153,8 @@ public sealed class DocumentIntelligenceOptions
 
 public sealed class MarkItDownOptions
 {
+    public string? ApiKey { get; set; }
+
     public const string SectionName = "MarkItDown";
 
     /// <summary>

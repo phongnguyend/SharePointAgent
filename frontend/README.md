@@ -68,6 +68,8 @@ Copy `.env.example` to `.env` to change either of:
 
 ### Other scripts
 
+Deploy with [release.yml](../.github/workflows/release.yml), which builds the frontend with the deployed API URL and uploads `dist/` to Azure Static Web Apps. Configure the environment's deployment token, frontend origin and Entra SPA redirect URI as described in the [release setup](../infra/README.md#github-actions-deployment). The build includes SPA navigation fallback configuration and `auth-redirect.html`.
+
 ```bash
 npm run build      # typecheck, then build to dist/
 npm run preview    # serve the built output
