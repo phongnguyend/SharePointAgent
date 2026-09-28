@@ -34,7 +34,10 @@ public sealed class ScheduledSyncBackgroundService(
             {
                 await changeProcessor.ProcessAsync(stoppingToken);
             }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                return;
+            }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Startup SharePoint delta synchronization failed. Retrying at the next interval.");
@@ -53,13 +56,18 @@ public sealed class ScheduledSyncBackgroundService(
                 {
                     await changeProcessor.ProcessAsync(stoppingToken);
                 }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    return;
+                }
                 catch (Exception ex)
                 {
                     logger.LogError(ex, "Scheduled SharePoint delta synchronization failed. Retrying at the next interval.");
                 }
             }
         }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+        }
     }
 }

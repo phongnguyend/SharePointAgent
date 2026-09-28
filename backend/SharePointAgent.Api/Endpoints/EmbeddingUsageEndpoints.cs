@@ -57,26 +57,40 @@ public static class EmbeddingUsageEndpoints
 
         var summary = await query.GroupBy(x => 1).Select(g => new
         {
-            Calls = g.Count(), Tokens = g.Sum(x => x.TotalTokens ?? 0), InputTokens = g.Sum(x => x.InputTokens ?? 0),
+            Calls = g.Count(),
+            Tokens = g.Sum(x => x.TotalTokens ?? 0),
+            InputTokens = g.Sum(x => x.InputTokens ?? 0),
             UnknownCalls = g.Count(x => x.TotalTokens == null),
             Models = g.Select(x => x.EmbeddingModelId).Distinct().Count(),
             Users = g.Where(x => x.UserId != null).Select(x => x.UserId).Distinct().Count()
         }).SingleOrDefaultAsync(ct);
         var daily = await query.GroupBy(x => x.CreatedAtUtc.Date).Select(g => new
         {
-            Day = g.Key, Calls = g.Count(), Tokens = g.Sum(x => x.TotalTokens ?? 0), UnknownCalls = g.Count(x => x.TotalTokens == null)
+            Day = g.Key,
+            Calls = g.Count(),
+            Tokens = g.Sum(x => x.TotalTokens ?? 0),
+            UnknownCalls = g.Count(x => x.TotalTokens == null)
         }).OrderBy(x => x.Day).ToListAsync(ct);
         var models = await query.GroupBy(x => x.EmbeddingModelId).Select(g => new
         {
-            Name = g.Key, Calls = g.Count(), Tokens = g.Sum(x => x.TotalTokens ?? 0), UnknownCalls = g.Count(x => x.TotalTokens == null)
+            Name = g.Key,
+            Calls = g.Count(),
+            Tokens = g.Sum(x => x.TotalTokens ?? 0),
+            UnknownCalls = g.Count(x => x.TotalTokens == null)
         }).OrderByDescending(x => x.Tokens).ThenBy(x => x.Name).ToListAsync(ct);
         var operations = await query.GroupBy(x => x.Operation).Select(g => new
         {
-            Name = g.Key, Calls = g.Count(), Tokens = g.Sum(x => x.TotalTokens ?? 0), UnknownCalls = g.Count(x => x.TotalTokens == null)
+            Name = g.Key,
+            Calls = g.Count(),
+            Tokens = g.Sum(x => x.TotalTokens ?? 0),
+            UnknownCalls = g.Count(x => x.TotalTokens == null)
         }).OrderByDescending(x => x.Tokens).ThenBy(x => x.Name).ToListAsync(ct);
         var users = await query.GroupBy(x => x.UserId).Select(g => new
         {
-            UserId = g.Key, Calls = g.Count(), Tokens = g.Sum(x => x.TotalTokens ?? 0), UnknownCalls = g.Count(x => x.TotalTokens == null)
+            UserId = g.Key,
+            Calls = g.Count(),
+            Tokens = g.Sum(x => x.TotalTokens ?? 0),
+            UnknownCalls = g.Count(x => x.TotalTokens == null)
         }).OrderByDescending(x => x.Tokens).ThenBy(x => x.UserId).Take(100).ToListAsync(ct);
         var rows = await query.OrderByDescending(x => x.CreatedAtUtc).ThenByDescending(x => x.Id)
             .Skip(skip).Take(top).ToListAsync(ct);
@@ -85,9 +99,12 @@ public static class EmbeddingUsageEndpoints
             .Select(x => new { x.Id, x.DisplayName, x.Email }).ToDictionaryAsync(x => x.Id, ct);
         return Results.Ok(new
         {
-            From = start, To = end,
+            From = start,
+            To = end,
             Summary = summary ?? new { Calls = 0, Tokens = 0L, InputTokens = 0L, UnknownCalls = 0, Models = 0, Users = 0 },
-            Daily = daily, Models = models, Operations = operations,
+            Daily = daily,
+            Models = models,
+            Operations = operations,
             Users = users.Select(x => new { x.UserId, Name = x.UserId is { } id && names.TryGetValue(id, out var u) ? u.DisplayName : x.UserId?.ToString() ?? "Unattributed / background", x.Calls, x.Tokens, x.UnknownCalls }),
             Items = rows.Select(x => new { Usage = x, UserName = x.UserId is { } id && names.TryGetValue(id, out var u) ? u.DisplayName : null }),
             ModelOptions = await period.Select(x => x.EmbeddingModelId).Distinct().OrderBy(x => x).ToListAsync(ct),

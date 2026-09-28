@@ -32,7 +32,11 @@ public sealed class ProtectedDownloadTests : IDisposable
         var path = CreateCachedFile();
         var service = Substitute.For<IProtectedFileService>();
         service.EnsureReadableAsync(path, "document.docx", Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(async call => { await File.WriteAllTextAsync(path, "readable"); return new FileSensitivity(null, null, false, false, DateTimeOffset.UtcNow); });
+            .Returns(async call =>
+{
+    await File.WriteAllTextAsync(path, "readable");
+    return new FileSensitivity(null, null, false, false, DateTimeOffset.UtcNow);
+});
         using var cache = CreateCache(service);
 
         var result = await cache.DownloadAsync("item", "document.docx", default);

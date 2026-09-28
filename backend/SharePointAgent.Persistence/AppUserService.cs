@@ -27,7 +27,11 @@ public sealed class AppUserService(SharePointIndexDbContext db, UserManager<Appl
 
             return transaction;
         }
-        catch { await transaction.DisposeAsync(); throw; }
+        catch
+        {
+            await transaction.DisposeAsync();
+            throw;
+        }
     }
 
     public async Task<AppUserView> RecordSignInAsync(AppUserView user, CancellationToken ct)
@@ -253,7 +257,9 @@ public sealed class AppUserService(SharePointIndexDbContext db, UserManager<Appl
 
     private static ApplicationUser NewUser(string email, string name) => new()
     {
-        Id = Guid.NewGuid(), UserName = email.Trim(), Email = email.Trim(),
+        Id = Guid.NewGuid(),
+        UserName = email.Trim(),
+        Email = email.Trim(),
         DisplayName = string.IsNullOrWhiteSpace(name) ? email.Trim() : name.Trim()[..Math.Min(name.Trim().Length, 200)]
     };
     private static void EnsureActive(ApplicationUser user)

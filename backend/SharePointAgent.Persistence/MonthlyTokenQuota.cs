@@ -79,10 +79,14 @@ public sealed class MonthlyTokenQuota(IDbContextFactory<SharePointIndexDbContext
 
         db.UserTokenUsage.Add(new UserTokenUsageEntity
         {
-            QuestionId = questionId, UserId = userId, Month = MonthKey(startedAt), Day = DayKey(startedAt),
+            QuestionId = questionId,
+            UserId = userId,
+            Month = MonthKey(startedAt),
+            Day = DayKey(startedAt),
             ModelId = modelId,
             CreatedAtUtc = DateTimeOffset.UtcNow,
-            InputTokens = Math.Max(0, usage.InputTokens), OutputTokens = Math.Max(0, usage.OutputTokens),
+            InputTokens = Math.Max(0, usage.InputTokens),
+            OutputTokens = Math.Max(0, usage.OutputTokens),
             TotalTokens = Math.Max(0, usage.TotalTokens)
         });
         await db.SaveChangesAsync(ct);
@@ -103,7 +107,10 @@ public sealed class MonthlyTokenQuota(IDbContextFactory<SharePointIndexDbContext
                 AddResource(command, resource);
                 await command.ExecuteNonQueryAsync(CancellationToken.None);
             }
-            finally { await db.DisposeAsync(); }
+            finally
+            {
+                await db.DisposeAsync();
+            }
         }
     }
 }

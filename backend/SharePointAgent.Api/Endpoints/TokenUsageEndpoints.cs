@@ -48,24 +48,36 @@ public static class TokenUsageEndpoints
         }
         var summary = await query.GroupBy(x => 1).Select(g => new
         {
-            Turns = g.Count(), InputTokens = g.Sum(x => x.InputTokens), OutputTokens = g.Sum(x => x.OutputTokens),
-            TotalTokens = g.Sum(x => x.TotalTokens), Users = g.Select(x => x.UserId).Distinct().Count(),
+            Turns = g.Count(),
+            InputTokens = g.Sum(x => x.InputTokens),
+            OutputTokens = g.Sum(x => x.OutputTokens),
+            TotalTokens = g.Sum(x => x.TotalTokens),
+            Users = g.Select(x => x.UserId).Distinct().Count(),
             UnknownModelTurns = g.Count(x => x.ModelId == null)
         }).SingleOrDefaultAsync(ct);
         var daily = await query.GroupBy(x => x.Day).Select(g => new
         {
-            Day = g.Key, Turns = g.Count(), InputTokens = g.Sum(x => x.InputTokens),
-            OutputTokens = g.Sum(x => x.OutputTokens), TotalTokens = g.Sum(x => x.TotalTokens)
+            Day = g.Key,
+            Turns = g.Count(),
+            InputTokens = g.Sum(x => x.InputTokens),
+            OutputTokens = g.Sum(x => x.OutputTokens),
+            TotalTokens = g.Sum(x => x.TotalTokens)
         }).OrderBy(x => x.Day).ToListAsync(ct);
         var models = await query.GroupBy(x => x.ModelId).Select(g => new
         {
-            ModelId = g.Key, Turns = g.Count(), InputTokens = g.Sum(x => x.InputTokens),
-            OutputTokens = g.Sum(x => x.OutputTokens), TotalTokens = g.Sum(x => x.TotalTokens)
+            ModelId = g.Key,
+            Turns = g.Count(),
+            InputTokens = g.Sum(x => x.InputTokens),
+            OutputTokens = g.Sum(x => x.OutputTokens),
+            TotalTokens = g.Sum(x => x.TotalTokens)
         }).OrderByDescending(x => x.TotalTokens).ThenBy(x => x.ModelId).ToListAsync(ct);
         var users = await query.GroupBy(x => x.UserId).Select(g => new
         {
-            UserId = g.Key, Turns = g.Count(), InputTokens = g.Sum(x => x.InputTokens),
-            OutputTokens = g.Sum(x => x.OutputTokens), TotalTokens = g.Sum(x => x.TotalTokens)
+            UserId = g.Key,
+            Turns = g.Count(),
+            InputTokens = g.Sum(x => x.InputTokens),
+            OutputTokens = g.Sum(x => x.OutputTokens),
+            TotalTokens = g.Sum(x => x.TotalTokens)
         }).OrderByDescending(x => x.TotalTokens).ThenBy(x => x.UserId).Take(100).ToListAsync(ct);
         var rows = await query.OrderByDescending(x => x.Day).ThenByDescending(x => x.CreatedAtUtc)
             .ThenByDescending(x => x.QuestionId).Skip(skip).Take(top).ToListAsync(ct);
@@ -74,9 +86,11 @@ public static class TokenUsageEndpoints
             .ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
         return Results.Ok(new
         {
-            From = start, To = end,
+            From = start,
+            To = end,
             Summary = summary ?? new { Turns = 0, InputTokens = 0L, OutputTokens = 0L, TotalTokens = 0L, Users = 0, UnknownModelTurns = 0 },
-            Daily = daily, Models = models,
+            Daily = daily,
+            Models = models,
             Users = users.Select(x => new { x.UserId, Name = names.GetValueOrDefault(x.UserId, x.UserId.ToString()), x.Turns, x.InputTokens, x.OutputTokens, x.TotalTokens }),
             Items = rows.Select(x => new { Usage = x, UserName = names.GetValueOrDefault(x.UserId, x.UserId.ToString()) }),
             ModelOptions = await period.Select(x => x.ModelId).Distinct().OrderBy(x => x).ToListAsync(ct)

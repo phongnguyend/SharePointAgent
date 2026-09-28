@@ -13,7 +13,8 @@ public static class AttachmentFilesEndpoints
             Results.Ok(new
             {
                 allowedFileExtensions = options.Value.GetAllowedFileExtensions(),
-                textFileExtensions = options.Value.GetTextFileExtensions()
+                textFileExtensions = options.Value.GetTextFileExtensions(),
+                imageFileExtensions = options.Value.GetImageFileExtensions()
             }));
 
         app.MapPost("/api/attachment-files", async (

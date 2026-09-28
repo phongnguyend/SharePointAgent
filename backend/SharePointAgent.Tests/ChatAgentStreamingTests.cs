@@ -47,14 +47,26 @@ public sealed class ChatAgentStreamingTests
         }));
         var textReceived = new StringBuilder();
         var running = proxy.RunStreamingAsync(request,
-            (text, ct) => { textReceived.Append(text); return ValueTask.CompletedTask; },
-            (status, ct) => { Assert.Equal("Searching documents…", status); observed.SetResult(); return ValueTask.CompletedTask; }, default);
+            (text, ct) =>
+{
+    textReceived.Append(text);
+    return ValueTask.CompletedTask;
+},
+            (status, ct) =>
+{
+    Assert.Equal("Searching documents…", status);
+    observed.SetResult();
+    return ValueTask.CompletedTask;
+}, default);
         try
         {
             await observed.Task.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.False(running.IsCompleted);
         }
-        finally { release.TrySetResult(); }
+        finally
+        {
+            release.TrySetResult();
+        }
         var result = await running.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Equal(Turn.Text, result.Text);
         Assert.Equal(Turn.Citations, result.Citations);
@@ -121,7 +133,11 @@ public sealed class ChatAgentStreamingTests
                 await Task.Delay(Timeout.Infinite, ct);
                 return Turn;
             }
-            catch (OperationCanceledException) { cancelled.SetResult(); throw; }
+            catch (OperationCanceledException)
+            {
+                cancelled.SetResult();
+                throw;
+            }
         }));
         using var http = server.GetTestClient();
         using var cts = new CancellationTokenSource();

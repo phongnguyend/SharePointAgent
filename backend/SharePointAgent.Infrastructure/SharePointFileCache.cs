@@ -42,8 +42,15 @@ public sealed class SharePointFileCache(
     public async Task<DownloadedFile> DownloadAsync(string itemId, string fileName, CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken);
-        try { return await DownloadCoreAsync(itemId, fileName, cancellationToken); }
-        finally { _gate.Release(); }
+        try
+
+        {
+            return await DownloadCoreAsync(itemId, fileName, cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     private async Task<DownloadedFile> DownloadCoreAsync(string itemId, string fileName, CancellationToken cancellationToken)
@@ -71,8 +78,15 @@ public sealed class SharePointFileCache(
     public async Task<DownloadedFile> RefreshAsync(string itemId, string fileName, CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken);
-        try { return await RefreshCoreAsync(itemId, fileName, cancellationToken); }
-        finally { _gate.Release(); }
+        try
+
+        {
+            return await RefreshCoreAsync(itemId, fileName, cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     private async Task<DownloadedFile> RefreshCoreAsync(string itemId, string fileName, CancellationToken cancellationToken)
@@ -139,8 +153,15 @@ public sealed class SharePointFileCache(
     public async Task<UploadedFileVersion> UploadAsync(string itemId, string fileName, CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken);
-        try { return await UploadCoreAsync(itemId, fileName, cancellationToken); }
-        finally { _gate.Release(); }
+        try
+
+        {
+            return await UploadCoreAsync(itemId, fileName, cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     private async Task<UploadedFileVersion> UploadCoreAsync(string itemId, string fileName, CancellationToken cancellationToken)

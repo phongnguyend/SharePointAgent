@@ -314,6 +314,12 @@ export interface ChatUsageFilter {
   questionId: string
   unknownModel: boolean
 }
+
+export interface ContentSafetyUsageReport {
+  summary: { requests: number; allowed: number; blocked: number; failed: number; characters: number; estimatedTextRecords: number }
+  daily: { day: string; requests: number; blocked: number; characters: number }[]
+  items: { id: string; createdAtUtc: string; operation: string; status: string; characterCount: number; estimatedTextRecords: number; userId: string | null; [key: string]: string | number | null }[]
+}
 export interface ChatUsageTotals {
   turns: number
   inputTokens: number

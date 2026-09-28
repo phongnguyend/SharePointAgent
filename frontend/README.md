@@ -6,6 +6,8 @@ against the search index, side by side.
 
 ## Pages
 
+The **Token usage** page also includes a **Content Safety** tab for requests, outcomes, daily totals, estimated text records, and per-request scores/attribution. Configure the backend's `ContentSafety` section to enable checks of user messages, assistant responses, and extracted attachment text. Enabled checks buffer assistant output until approved.
+
 | Page | What it shows |
 | --- | --- |
 | **Token usage** | Two report tabs: **Token Usage** for chat input/output/total tokens, turns, per-turn averages, daily trends, model/user breakdowns and a paginated turn log; **Embedding Usage** for indexing/search tokens, activities and attribution. Both support filters and detail popups. Available to Global Admin and Global Reader Admin. |

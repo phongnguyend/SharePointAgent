@@ -140,7 +140,10 @@ public sealed class ProtectedFileService(IOptions<SharePointOptions> options, IL
         {
             throw new InvalidOperationException("Microsoft Information Protection native libraries could not be loaded. Install the MIP runtime for this host before downloading protected documents.", ex);
         }
-        finally { _gate.Release(); }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     private FileSensitivity ReadSensitivity(IFileHandler handler, FileSensitivity sensitivity)

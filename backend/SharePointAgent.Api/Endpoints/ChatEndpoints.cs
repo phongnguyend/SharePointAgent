@@ -93,6 +93,7 @@ public static class ChatEndpoints
             Guid id,
             ChatTurnRequest body,
             MonthlyTokenQuota tokenQuota,
+            ContentSafetyService contentSafety,
             IChatRepository store,
             IAgentRepository agentRepository,
             IChatAgentExecutor agent,
@@ -149,6 +150,15 @@ public static class ChatEndpoints
             }
 
             await using var tokenLease = await tokenQuota.BeginAsync(context.AppUser().Id, cancellationToken);
+            Guid? safetyAssessment;
+            try
+            {
+                safetyAssessment = await contentSafety.CheckAsync(content, context.AppUser().Id, id, cancellationToken);
+            }
+            catch (ContentSafetyRejectedException ex)
+            {
+                return Results.Json(new { error = ex.Message, code = ex.Code }, statusCode: ex.StatusCode);
+            }
 
             // The question is stored before the model runs, so a failed or cancelled turn still leaves the
             // conversation showing what was asked.
@@ -162,6 +172,8 @@ public static class ChatEndpoints
             {
                 return Results.BadRequest(new { error = ex.Message });
             }
+
+            await contentSafety.LinkQuestionAsync(safetyAssessment, question.Id, cancellationToken);
 
             // A conversation created from the sidebar has no title until its first question supplies one.
             var renamed = conversation.Title;
@@ -182,8 +194,8 @@ public static class ChatEndpoints
             {
                 turn = await agent.RunStreamingAsync(
                     new ChatAgentRequest(id, question.Id, context.AppUser().Id),
-                    (text, token) => WriteEventAsync(new ChatStreamEvent("delta", Text: text), token),
-                    (status, token) => WriteEventAsync(new ChatStreamEvent("status", Message: status), token),
+                    (text, token) => contentSafety.Enabled ? ValueTask.CompletedTask : WriteEventAsync(new ChatStreamEvent("delta", Text: text), token),
+                    (status, token) => contentSafety.Enabled ? ValueTask.CompletedTask : WriteEventAsync(new ChatStreamEvent("status", Message: status), token),
                     cancellationToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -199,6 +211,17 @@ public static class ChatEndpoints
             using (var accountingTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
             {
                 await tokenLease.RecordAsync(question.Id, turn.Usage, turn.ModelId, accountingTimeout.Token);
+            }
+
+            try
+            {
+                await contentSafety.CheckAsync(turn.Text, context.AppUser().Id, id, cancellationToken,
+                    "AssistantResponse", question.Id);
+            }
+            catch (ContentSafetyRejectedException ex)
+            {
+                await WriteEventAsync(new ChatStreamEvent("error", Message: ex.Message), cancellationToken);
+                return Results.Empty;
             }
 
             var answer = await store.AppendMessageAsync(

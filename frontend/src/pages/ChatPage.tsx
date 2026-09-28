@@ -82,6 +82,7 @@ export default function ChatPage() {
   const [agentMenuOpen, setAgentMenuOpen] = useState(false)
   const [attachments, setAttachments] = useState<ChatMessageAttachment[]>([])
   const [uploading, setUploading] = useState(false)
+  const uploadInProgress = useRef(false)
   const threadRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const wasSendingRef = useRef(false)
@@ -259,19 +260,28 @@ export default function ChatPage() {
     }
   }
 
-  const addFiles = async (files: FileList | null) => {
-    if (!files?.length) return
+  const addFiles = async (files: FileList | File[] | null) => {
+    if (!files?.length || readOnly || sending || uploadInProgress.current) {
+      return
+    }
+    if (files.length + attachments.length > 10) {
+      setError('You can attach up to 10 files per message. Remove an attachment before adding more.')
+      return
+    }
     const allowed = attachmentOptions.data?.allowedFileExtensions ?? []
     const invalid = Array.from(files).find((file) => !allowed.includes(file.name.slice(file.name.lastIndexOf('.')).toLowerCase()))
     if (invalid) {
       setError(`${invalid.name}: file type is not allowed. Allowed extensions: ${allowed.join(', ')}.`)
-      if (fileInputRef.current) fileInputRef.current.value = ''
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
       return
     }
+    uploadInProgress.current = true
     setUploading(true)
     setError(null)
     try {
-      for (const file of Array.from(files).slice(0, Math.max(0, 10 - attachments.length))) {
+      for (const file of Array.from(files)) {
         const uploaded = await uploadAttachmentFile(file)
         if (uploaded.status !== 'Indexed') {
           throw new Error(uploaded.errorMessage ?? `${uploaded.fileName} could not be indexed.`)
@@ -286,8 +296,11 @@ export default function ChatPage() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
+      uploadInProgress.current = false
       setUploading(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
     }
   }
 
@@ -297,7 +310,9 @@ export default function ChatPage() {
    */
   const send = async () => {
     const content = draft.trim()
-    if (!content || sending) return
+    if (!content || sending || uploadInProgress.current || readOnly) {
+      return
+    }
 
     let conversationId = activeId
     setError(null)
@@ -545,6 +560,21 @@ export default function ChatPage() {
                 value={draft}
                 disabled={readOnly || sending}
                 onChange={(event) => setDraft(event.target.value)}
+                onPaste={(event) => {
+                  const images = Array.from(event.clipboardData.files).filter(file => file.type.startsWith('image/'))
+                  if (images.length === 0) {
+                    return
+                  }
+                  event.preventDefault()
+                  const files = images.map(file => {
+                    if (/\.[a-z0-9]+$/i.test(file.name)) {
+                      return file
+                    }
+                    const extension = file.type === 'image/jpeg' ? 'jpg' : file.type.slice('image/'.length)
+                    return new File([file], `pasted-image-${crypto.randomUUID()}.${extension}`, { type: file.type })
+                  })
+                  void addFiles(files)
+                }}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' && !event.shiftKey) {
                     event.preventDefault()

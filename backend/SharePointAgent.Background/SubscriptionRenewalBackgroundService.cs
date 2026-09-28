@@ -31,7 +31,10 @@ public sealed class SubscriptionRenewalBackgroundService(
             {
                 await EnsureSubscriptionAsync(stoppingToken);
             }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                return;
+            }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unable to create or renew the Microsoft Graph webhook subscription. Retrying later.");

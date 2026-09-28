@@ -40,7 +40,8 @@ public sealed class EntraAuthenticationTests
         builder.WebHost.UseTestServer();
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["SharePoint:TenantId"] = Tenant, ["SharePoint:ClientId"] = Client
+            ["SharePoint:TenantId"] = Tenant,
+            ["SharePoint:ClientId"] = Client
         });
         builder.Services.AddEntraAuthentication(builder.Configuration);
         builder.Services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>

@@ -22,7 +22,10 @@ public sealed class AgentTextFilesTests
             await Assert.ThrowsAsync<ArgumentException>(() => new AgentTextFiles().ReadAsync(path));
             await Assert.ThrowsAsync<ArgumentException>(() => files.ReadAsync(path, 0));
         }
-        finally { File.Delete(path); }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 
     [Fact]
@@ -36,6 +39,9 @@ public sealed class AgentTextFilesTests
             files.Register(path);
             await Assert.ThrowsAsync<ArgumentException>(() => files.ReadAsync(path));
         }
-        finally { File.Delete(path); }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 }

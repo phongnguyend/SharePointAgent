@@ -16,6 +16,11 @@ public sealed class AttachmentUploadValidationTests
     [InlineData("data.csv")]
     [InlineData("data.CSV")]
     [InlineData("readme.md")]
+    [InlineData("clipboard.png")]
+    [InlineData("photo.JPG")]
+    [InlineData("photo.jpeg")]
+    [InlineData("animation.gif")]
+    [InlineData("image.webp")]
     public void DefaultTypesAreAllowed(string name) => new UploadOptions().ValidateFileName(name);
 
     [Fact]

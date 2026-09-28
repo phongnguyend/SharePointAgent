@@ -70,7 +70,12 @@ public sealed class AppIdentityMiddleware(RequestDelegate next)
             await next(context);
             return;
         }
-        if (context.User.Identity?.IsAuthenticated != true) { context.Response.StatusCode = 401; return; }
+        if (context.User.Identity?.IsAuthenticated != true)
+
+        {
+            context.Response.StatusCode = 401;
+            return;
+        }
         try
         {
             var ct = context.RequestAborted;

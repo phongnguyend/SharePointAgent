@@ -25,11 +25,13 @@ public sealed class ChatMessageAttachmentFileService(
     IEmbeddingGenerator<string, Embedding<float>> embeddings,
     IOptions<UploadOptions> uploadOptions,
     IOptions<SearchOptions> searchOptions,
-    ILogger<ChatMessageAttachmentFileService> logger)
+    ILogger<ChatMessageAttachmentFileService> logger,
+    ContentSafetyService? contentSafety = null)
 {
     private readonly UploadOptions _uploads = uploadOptions.Value;
     private readonly SearchOptions _search = searchOptions.Value;
     public IReadOnlyList<string> TextFileExtensions => _uploads.GetTextFileExtensions();
+    public IReadOnlyList<string> ImageFileExtensions => _uploads.GetImageFileExtensions();
     private readonly SemaphoreSlim _initializationLock = new(1, 1);
     private bool _initialized;
 
@@ -360,7 +362,28 @@ public sealed class ChatMessageAttachmentFileService(
         try
         {
             await EnsureInfrastructureAsync(cancellationToken);
+            if (_uploads.IsImageFile(row.FileName))
+            {
+                // Images remain original binary attachments; remove any previously derived content.
+                await DeleteIndexDocumentsAsync(id, cancellationToken);
+                await contentCache.DeleteAsync(id, cancellationToken);
+                await SetOutcomeAsync(id, UploadIndexStatus.Indexed, 0, 0, null, cancellationToken);
+                await using var imageContext = await contextFactory.CreateDbContextAsync(cancellationToken);
+                return (await ListByIdAsync(imageContext, id, cancellationToken))!;
+            }
             var markdown = await contentCache.ConvertForIndexAsync(row, cancellationToken);
+            if (string.IsNullOrWhiteSpace(markdown))
+            {
+                throw new InvalidOperationException(
+                    $"No readable text was extracted from '{row.FileName}'. " +
+                    "For images or scanned documents, configure image text extraction (OCR) in the conversion service, then reindex the attachment.");
+            }
+            if (contentSafety is not null)
+            {
+                await contentSafety.CheckAsync(markdown, EmbeddingUsageScope.Current.UserId ?? row.CreatedById,
+                    EmbeddingUsageScope.Current.ConversationId, cancellationToken, "AttachmentText",
+                    EmbeddingUsageScope.Current.QuestionId, id);
+            }
             var texts = TextChunker.Split(markdown, _uploads.ChunkSizeCharacters, _uploads.ChunkOverlapCharacters);
             var documents = new List<UploadChunkDocument>(texts.Count);
             long? embeddingTokenCount = 0;

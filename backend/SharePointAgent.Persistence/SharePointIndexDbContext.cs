@@ -19,6 +19,7 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
 
     public DbSet<AgentDefinitionEntity> AgentDefinitions => Set<AgentDefinitionEntity>();
     public DbSet<UserTokenUsageEntity> UserTokenUsage => Set<UserTokenUsageEntity>();
+    public DbSet<ContentSafetyUsageEntity> ContentSafetyUsage => Set<ContentSafetyUsageEntity>();
     public DbSet<EmbeddingTokenUsageEntity> EmbeddingTokenUsage => Set<EmbeddingTokenUsageEntity>();
     public DbSet<WebhookSubscriptionEntity> WebhookSubscriptions => Set<WebhookSubscriptionEntity>();
     public DbSet<DeltaStateEntity> DeltaState => Set<DeltaStateEntity>();
@@ -31,6 +32,21 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<ContentSafetyUsageEntity>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).ValueGeneratedNever();
+            entity.Property(x => x.Operation).HasMaxLength(50);
+            entity.Property(x => x.ApiVersion).HasMaxLength(20);
+            entity.Property(x => x.Status).HasMaxLength(20);
+            entity.Property(x => x.ErrorCode).HasMaxLength(100);
+            entity.Property(x => x.TraceId).HasMaxLength(32);
+            entity.HasIndex(x => new { x.UserId, x.CreatedAtUtc });
+            entity.HasIndex(x => new { x.Status, x.CreatedAtUtc });
+            entity.HasIndex(x => x.QuestionId);
+            entity.HasIndex(x => x.AssessmentId);
+            entity.HasIndex(x => x.AttachmentId);
+        });
         modelBuilder.Entity<EmbeddingTokenUsageEntity>(entity =>
         {
             entity.HasKey(x => x.Id);
@@ -69,7 +85,9 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
         modelBuilder.Entity<IdentityRole<Guid>>().HasData(AppRoles.All.Select((name, index) => new IdentityRole<Guid>
         {
             Id = Guid.Parse($"00000000-0000-0000-0000-{index + 1:000000000000}"),
-            Name = name, NormalizedName = name.ToUpperInvariant(), ConcurrencyStamp = $"app-role-{index + 1}"
+            Name = name,
+            NormalizedName = name.ToUpperInvariant(),
+            ConcurrencyStamp = $"app-role-{index + 1}"
         }));
         modelBuilder.Entity<ChatConversationEntity>().HasIndex(x => x.CreatedById);
         modelBuilder.Entity<ChatMessageAttachmentFileEntity>().HasIndex(x => x.CreatedById);

@@ -60,9 +60,13 @@ public sealed class SearchOptions
 
 public sealed class UploadOptions
 {
-    public string[] AllowedFileExtensions { get; set; } = [".docx", ".pptx", ".xlsx", ".txt", ".md", ".json", ".csv"];
+    public string[] AllowedFileExtensions { get; set; } = [".docx", ".pptx", ".xlsx", ".txt", ".md", ".json", ".csv", ".png", ".jpg", ".jpeg", ".gif", ".webp"];
 
     public string[] TextFileExtensions { get; set; } = [".txt", ".md", ".json", ".csv"];
+    public string[] ImageFileExtensions { get; set; } = [".png", ".jpg", ".jpeg", ".gif", ".webp"];
+    public string[] GetImageFileExtensions() => NormalizeExtensions(ImageFileExtensions);
+    public bool IsImageFile(string fileName) => GetImageFileExtensions()
+        .Contains(Path.GetExtension(fileName), StringComparer.OrdinalIgnoreCase);
 
     public string[] GetAllowedFileExtensions() => NormalizeExtensions(AllowedFileExtensions);
     public string[] GetTextFileExtensions() => NormalizeExtensions(TextFileExtensions);

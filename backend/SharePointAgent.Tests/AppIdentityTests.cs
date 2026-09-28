@@ -185,7 +185,11 @@ public sealed class AppIdentityTests
         context.SetEndpoint(new Endpoint(_ => Task.CompletedTask, new EndpointMetadataCollection(), "attachment"));
         context.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("tid", "tenant"), new Claim("oid", "object"), new Claim("roles", AppRoles.GlobalAdmin)], "test"));
         var reachedEndpoint = false;
-        var middleware = new AppIdentityMiddleware(_ => { reachedEndpoint = true; return Task.CompletedTask; });
+        var middleware = new AppIdentityMiddleware(_ =>
+{
+    reachedEndpoint = true;
+    return Task.CompletedTask;
+});
         // Already bound accounts do not need directory or SharePoint calls for attachment access.
         await middleware.InvokeAsync(context, fixture.Service, null!, fixture.Db, null!);
         Assert.Equal(expectedStatus, context.Response.StatusCode);
@@ -205,7 +209,11 @@ public sealed class AppIdentityTests
         fixture.Db.ChatMessageAttachmentFiles.Add(retained);
         await fixture.Db.SaveChangesAsync();
         var wrote = false;
-        await AttachmentStorageQuota.StoreAsync(fixture.Db, Attachment(user.Id, 60), _ => { wrote = true; return Task.CompletedTask; }, default);
+        await AttachmentStorageQuota.StoreAsync(fixture.Db, Attachment(user.Id, 60), _ =>
+{
+    wrote = true;
+    return Task.CompletedTask;
+}, default);
         Assert.True(wrote);
         var error = await Assert.ThrowsAsync<UserManagementException>(() => AttachmentStorageQuota.StoreAsync(fixture.Db,
             Attachment(user.Id, 1), _ => throw new InvalidOperationException("Must reject before writing content"), default));
@@ -382,7 +390,11 @@ public sealed class AppIdentityTests
 
     private static ChatMessageAttachmentFileEntity Attachment(Guid creator, long size) => new()
     {
-        Id = Guid.NewGuid(), CreatedById = creator, FileName = "file.txt", BlobName = Guid.NewGuid().ToString(), SizeBytes = size
+        Id = Guid.NewGuid(),
+        CreatedById = creator,
+        FileName = "file.txt",
+        BlobName = Guid.NewGuid().ToString(),
+        SizeBytes = size
     };
 
     private sealed class Fixture(SqliteConnection connection, ServiceProvider provider, IServiceScope scope) : IAsyncDisposable

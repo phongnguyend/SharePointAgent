@@ -1,5 +1,6 @@
 import { authorizedFetch, API_BASE } from '../auth'
 import type {
+  ContentSafetyUsageReport,
   ChatUsageFilter,
   ChatUsageReport,
   EmbeddingUsageReport,
@@ -32,6 +33,9 @@ import type {
 
 /** Empty by default, so requests go to the dev server's /api proxy on this same origin. */
 const BASE_URL = API_BASE
+
+export const getContentSafetyUsage = (filters: { from: string; to: string; status: string; operation: string }, skip: number, signal?: AbortSignal) =>
+  request<ContentSafetyUsageReport>(`/api/usage/content-safety${query({ ...filters, skip, top: 25 })}`, { signal })
 
 export const getChatTokenUsage = (filters: ChatUsageFilter, skip: number, signal?: AbortSignal) =>
   request<ChatUsageReport>(`/api/usage/tokens${query({ ...filters, questionId: filters.questionId || undefined, skip, top: 25 })}`, { signal })
@@ -308,7 +312,7 @@ export async function uploadAttachmentFile(file: File, signal?: AbortSignal): Pr
   return request<AttachmentFileRecord>('/api/attachment-files', { method: 'POST', body, signal })
 }
 
-export function getAttachmentOptions(signal?: AbortSignal): Promise<{ allowedFileExtensions: string[]; textFileExtensions: string[] }> {
+export function getAttachmentOptions(signal?: AbortSignal): Promise<{ allowedFileExtensions: string[]; textFileExtensions: string[]; imageFileExtensions: string[] }> {
   return request('/api/attachment-files/options', { signal })
 }
 

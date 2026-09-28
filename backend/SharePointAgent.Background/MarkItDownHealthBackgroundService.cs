@@ -36,7 +36,9 @@ public sealed class MarkItDownHealthBackgroundService(
             }
             while (await timer.WaitForNextTickAsync(stoppingToken));
         }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+        }
     }
 
     private async Task<bool> ProbeAsync(bool? wasHealthy, CancellationToken stoppingToken)
@@ -51,7 +53,10 @@ public sealed class MarkItDownHealthBackgroundService(
 
             return true;
         }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { throw; }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             if (wasHealthy != false)

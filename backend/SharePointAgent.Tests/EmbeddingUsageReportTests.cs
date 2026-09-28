@@ -17,6 +17,7 @@ public sealed class EmbeddingUsageReportTests
     {
         Assert.Equal(allowed, AppAccess.Allows([role], "GET", "/api/usage/embeddings"));
         Assert.Equal(allowed, AppAccess.Allows([role], "GET", "/api/usage/tokens"));
+        Assert.Equal(allowed, AppAccess.Allows([role], "GET", "/api/usage/content-safety"));
     }
 
     [Theory]
@@ -34,5 +35,7 @@ public sealed class EmbeddingUsageReportTests
         Assert.Equal(400, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
         var tokens = await TokenUsageEndpoints.ReadAsync(db, default, from, from.AddDays(days), skip: skip, top: top);
         Assert.Equal(400, Assert.IsAssignableFrom<IStatusCodeHttpResult>(tokens).StatusCode);
+        var safety = await ContentSafetyUsageEndpoints.ReadAsync(db, default, from, from.AddDays(days), skip: skip, top: top);
+        Assert.Equal(400, Assert.IsAssignableFrom<IStatusCodeHttpResult>(safety).StatusCode);
     }
 }

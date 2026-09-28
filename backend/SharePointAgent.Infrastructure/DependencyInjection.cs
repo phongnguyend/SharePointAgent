@@ -23,6 +23,25 @@ namespace SharePointAgent.Infrastructure;
 
 public static class DependencyInjection
 {
+    public static IServiceCollection AddContentSafety(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<ContentSafetyOptions>().Bind(configuration.GetSection(ContentSafetyOptions.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(o => !o.Enabled || (Uri.TryCreate(o.Endpoint, UriKind.Absolute, out var uri) && uri.Scheme == "https"), "ContentSafety:Endpoint must be an HTTPS URL when enabled.")
+            .Validate(o => !o.Enabled || o.UseManagedIdentity || !string.IsNullOrWhiteSpace(o.ApiKey), "ContentSafety:ApiKey is required when managed identity is disabled.")
+            .ValidateOnStart();
+        services.AddHttpClient("ContentSafety", (sp, client) =>
+            client.Timeout = TimeSpan.FromSeconds(sp.GetRequiredService<IOptions<ContentSafetyOptions>>().Value.TimeoutSeconds));
+        services.TryAddSingleton(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<ContentSafetyOptions>>();
+            var credential = new ManagedIdentityCredential(string.IsNullOrWhiteSpace(options.Value.ManagedIdentityClientId)
+                ? ManagedIdentityId.SystemAssigned : ManagedIdentityId.FromUserAssignedClientId(options.Value.ManagedIdentityClientId));
+            return new ContentSafetyService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("ContentSafety"),
+                credential, sp.GetRequiredService<IDbContextFactory<SharePointIndexDbContext>>(), options);
+        });
+        return services;
+    }
     public static IServiceCollection AddWebhookServices(this IServiceCollection services, IConfiguration configuration)
     {
         AddGraphClient(services);
@@ -137,6 +156,7 @@ public static class DependencyInjection
 
     public static IServiceCollection AddAttachmentFileServices(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddContentSafety(configuration);
         services.AddPersistence(configuration);
         AddSearchOptions(services, configuration);
         AddOpenAiOptions(services, configuration);

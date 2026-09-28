@@ -31,6 +31,7 @@ app.UseMiddleware<AppIdentityMiddleware>();
 app.MapAppUsers();
 app.MapEmbeddingUsage();
 app.MapTokenUsage();
+app.MapContentSafetyUsage();
 app.MapSystemEndpoints();
 app.MapSharePointWebhookEndpoints();
 app.MapSearchEndpoints();

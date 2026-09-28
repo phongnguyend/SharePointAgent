@@ -40,7 +40,7 @@ export default function ChatTokenUsageReport() {
   const userPeak = Math.max(1, ...(data?.users.map(row => row.totalTokens) ?? []))
   return <div className="stack embedding-page">
     <div className="row spread"><span className="muted">Chat model tokens, including tool-call rounds. Embeddings are excluded.</span><button onClick={report.reload} disabled={report.loading}><RefreshCw size={14} />Refresh</button></div>
-    <form className="card embedding-filters" onSubmit={event => {
+    <form className="card embedding-filters chat-token-filters" onSubmit={event => {
       event.preventDefault()
       apply({ ...draft })
     }}>

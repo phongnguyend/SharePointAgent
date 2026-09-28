@@ -177,7 +177,7 @@ export default function AttachmentFilesPage() {
                           {isPreviewableOfficeFile(file.fileName) ? (
                             <button onClick={() => setPreview({ id: file.id, name: file.fileName })}><Eye size={13} />Preview</button>
                           ) : null}
-                          {attachmentOptions.data && !attachmentOptions.data.textFileExtensions.includes(file.fileName.slice(file.fileName.lastIndexOf('.')).toLowerCase()) ? (
+                          {attachmentOptions.data && ![...attachmentOptions.data.textFileExtensions, ...attachmentOptions.data.imageFileExtensions].includes(file.fileName.slice(file.fileName.lastIndexOf('.')).toLowerCase()) ? (
                             <button onClick={() => setMarkdownFile({ id: file.id, name: file.fileName })}>
                               <FileText size={13} />View Markdown
                             </button>

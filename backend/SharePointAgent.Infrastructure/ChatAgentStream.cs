@@ -29,7 +29,10 @@ public sealed class ChatStreamWriter<T>(HttpResponse response) : IDisposable
             await response.WriteAsync("\n", cancellationToken);
             await response.Body.FlushAsync(cancellationToken);
         }
-        finally { _gate.Release(); }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     public void Dispose() => _gate.Dispose();

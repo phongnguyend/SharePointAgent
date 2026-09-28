@@ -13,6 +13,19 @@ namespace SharePointAgent.Tests;
 
 public sealed class AttachmentContentTests
 {
+    [Theory]
+    [InlineData("screenshot.PNG")]
+    [InlineData("photo.jpeg")]
+    [InlineData("image.webp")]
+    public async Task ImagesCannotBeConvertedOrReadAsMarkdown(string fileName)
+    {
+        using var cache = new AttachmentContentCache(null!, null!, Options.Create(new UploadOptions()));
+        var file = new ChatMessageAttachmentFileEntity { FileName = fileName, Status = UploadIndexStatus.Indexed };
+
+        await Assert.ThrowsAsync<ArgumentException>(() => cache.ConvertForIndexAsync(file, default));
+        await Assert.ThrowsAsync<ArgumentException>(() => cache.GetMarkdownAsync(file, default));
+    }
+
     [Fact]
     public async Task OriginalDownloadNeverReturnsMarkdownEvenWhenMarkdownIsCached()
     {
@@ -47,7 +60,9 @@ public sealed class AttachmentContentTests
             Assert.True((await cache.GetMarkdownAsync(file, default)).MarkdownCacheHit);
             Assert.Equal(originalBytes, await File.ReadAllBytesAsync(original.LocalPath));
         }
-        finally { if (Directory.Exists(root))
+        finally
+        {
+            if (Directory.Exists(root))
             {
                 Directory.Delete(root, recursive: true);
             }
@@ -81,7 +96,10 @@ public sealed class AttachmentContentTests
             Assert.Equal(text, await cache.ConvertForIndexAsync(file, default));
             Assert.Equal(text, await cache.ConvertForIndexAsync(file, default));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     [Fact]
@@ -125,7 +143,10 @@ public sealed class AttachmentContentTests
                 new ChatMessageAttachmentFileEntity { Id = id, SizeBytes = 6, Status = UploadIndexStatus.Indexed }, default));
             Assert.Contains("Reindex", error.Message);
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     [Fact]

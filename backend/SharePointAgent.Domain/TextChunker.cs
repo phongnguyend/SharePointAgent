@@ -12,7 +12,7 @@ public static class TextChunker
         text = string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
         if (text.Length == 0)
         {
-            return [""];
+            return [];
         }
 
         var chunks = new List<string>();

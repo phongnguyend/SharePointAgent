@@ -20,9 +20,12 @@ public static class IndexedFilesEndpoints
             }
             catch (Microsoft.Kiota.Abstractions.ApiException ex)
             {
-                return Results.Json(new { error = ex.ResponseStatusCode is 401 or 403
+                return Results.Json(new
+                {
+                    error = ex.ResponseStatusCode is 401 or 403
                     ? "Cannot read sensitivity label names. Grant the client application Microsoft Graph SensitivityLabels.Read.All application permission with admin consent."
-                    : "Microsoft Graph could not return the sensitivity label catalog. Retry to refresh label names." },
+                    : "Microsoft Graph could not return the sensitivity label catalog. Retry to refresh label names."
+                },
                     statusCode: StatusCodes.Status502BadGateway);
             }
         });

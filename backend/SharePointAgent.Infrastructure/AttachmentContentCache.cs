@@ -24,8 +24,15 @@ public sealed class AttachmentContentCache(BlobServiceClient blobs, MarkItDownCl
     public async Task<CachedAttachmentDownload> DownloadAsync(ChatMessageAttachmentFileEntity file, CancellationToken ct)
     {
         await gate.WaitAsync(ct);
-        try { return await DownloadCoreAsync(file, ct); }
-        finally { gate.Release(); }
+        try
+
+        {
+            return await DownloadCoreAsync(file, ct);
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     private async Task<CachedAttachmentDownload> DownloadCoreAsync(ChatMessageAttachmentFileEntity file, CancellationToken ct)
@@ -62,6 +69,7 @@ public sealed class AttachmentContentCache(BlobServiceClient blobs, MarkItDownCl
 
     public async Task<string> ConvertForIndexAsync(ChatMessageAttachmentFileEntity file, CancellationToken ct)
     {
+        RejectImageMarkdown(file);
         var source = await DownloadAsync(file, ct);
         if (settings.IsTextFile(file.FileName))
         {
@@ -80,6 +88,7 @@ public sealed class AttachmentContentCache(BlobServiceClient blobs, MarkItDownCl
 
     public async Task<CachedAttachmentMarkdown> GetMarkdownAsync(ChatMessageAttachmentFileEntity file, CancellationToken ct)
     {
+        RejectImageMarkdown(file);
         if (file.Status != UploadIndexStatus.Indexed)
         {
             throw new AttachmentMarkdownUnavailableException("Markdown is available after successful indexing. Reindex the attachment or wait for indexing to finish.");
@@ -112,7 +121,18 @@ public sealed class AttachmentContentCache(BlobServiceClient blobs, MarkItDownCl
                 }
             }
         }
-        finally { gate.Release(); }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private void RejectImageMarkdown(ChatMessageAttachmentFileEntity file)
+    {
+        if (settings.IsImageFile(file.FileName))
+        {
+            throw new ArgumentException("Image attachments do not have Markdown. Use download_attachment to download the original image.");
+        }
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct)
@@ -127,7 +147,10 @@ public sealed class AttachmentContentCache(BlobServiceClient blobs, MarkItDownCl
                 Directory.Delete(directory, recursive: true);
             }
         }
-        finally { gate.Release(); }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     private string MarkdownPath(Guid id, ETag etag) => Path.Combine(DirectoryFor(id),
@@ -141,7 +164,9 @@ public sealed class AttachmentContentCache(BlobServiceClient blobs, MarkItDownCl
             await File.WriteAllBytesAsync(temporary, bytes, ct);
             File.Move(temporary, path, overwrite: true);
         }
-        finally { if (File.Exists(temporary))
+        finally
+        {
+            if (File.Exists(temporary))
             {
                 File.Delete(temporary);
             }

@@ -37,8 +37,10 @@ public sealed class SensitivityMetadataTests
         var other = Guid.NewGuid().ToString();
         var properties = new Dictionary<string, string>
         {
-            [$"MSIP_Label_{LabelId}_Enabled"] = "true", [$"MSIP_Label_{LabelId}_SiteId"] = "tenant",
-            [$"MSIP_Label_{other}_Enabled"] = "true", [$"MSIP_Label_{other}_SiteId"] = "other"
+            [$"MSIP_Label_{LabelId}_Enabled"] = "true",
+            [$"MSIP_Label_{LabelId}_SiteId"] = "tenant",
+            [$"MSIP_Label_{other}_Enabled"] = "true",
+            [$"MSIP_Label_{other}_SiteId"] = "other"
         };
         Assert.Equal(LabelId, SensitivityMetadata.Read(properties, "tenant", Status).LabelId);
         var ambiguous = SensitivityMetadata.Read(properties, "unknown", Status);
