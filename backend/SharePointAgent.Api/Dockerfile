@@ -16,7 +16,9 @@ RUN dotnet publish "backend/SharePointAgent.Api/SharePointAgent.Api.csproj" \
     /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble AS final
-RUN apt-get update && apt-get install -y --no-install-recommends libgsf-1-114 libgmime-3.0-0t64 libcurl4t64 libssl3t64 libsecret-1-0 && rm -rf /var/lib/apt/lists/*
+COPY --from=build /usr/share/powershell /usr/share/powershell
+RUN apt-get update && apt-get install -y --no-install-recommends python3 dnsutils libatomic1 libgsf-1-114 libgmime-3.0-0t64 libcurl4t64 libssl3t64 libsecret-1-0 && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/share/powershell/pwsh /usr/bin/pwsh
 WORKDIR /app
 ENV ASPNETCORE_HTTP_PORTS=8080
 EXPOSE 8080

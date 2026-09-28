@@ -132,13 +132,20 @@ public sealed class ChatAgentService(
         var agent = chatClient.AsAIAgent(new ChatClientAgentOptions
         {
             Name = "SharePointSearchAgent",
+            AIContextProviders = [ChatAgentSkills.CreateProvider()],
             ChatOptions = new ChatOptions
             {
                 ModelId = modelId,
                 Instructions = instructions,
                 Tools = tools,
             },
-        });
+        })
+            .AsBuilder()
+            .UseToolApproval(new ToolApprovalAgentOptions
+            {
+                AutoApprovalRules = [AgentSkillsProvider.AllToolsAutoApprovalRule],
+            })
+            .Build();
 
         var recentHistory = history;
         var availableAttachments = await attachmentFiles.ListConversationAttachmentsAsync(conversationId, cancellationToken);
