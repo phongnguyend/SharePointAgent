@@ -1,4 +1,40 @@
 /** Mirrors the records the API returns. Property names match its camelCase JSON. */
+export interface ImageDescriptionUsageFilter {
+  from: string
+  to: string
+  model: string
+  userId: string
+  attachmentId: string
+}
+export interface ImageDescriptionUsageTotals {
+  calls: number
+  unknownUsage: number
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+}
+export interface ImageDescriptionUsageReport {
+  summary: ImageDescriptionUsageTotals
+  daily: (ImageDescriptionUsageTotals & { day: string })[]
+  models: (ImageDescriptionUsageTotals & { modelId: string })[]
+  items: {
+    id: string
+    createdAtUtc: string
+    userId: string | null
+    userName: string | null
+    conversationId: string
+    questionId: string
+    attachmentId: string
+    fileName: string | null
+    modelId: string
+    systemPrompt: string | null
+    prompt: string | null
+    description: string | null
+    inputTokens: number | null
+    outputTokens: number | null
+    totalTokens: number | null
+  }[]
+}
 export type AppRole = 'Global Admin' | 'Global Reader Admin' | 'User'
 export interface SystemAttachmentStorage {
   fileCount: number

@@ -1,5 +1,7 @@
 import { authorizedFetch, API_BASE } from '../auth'
 import type {
+  ImageDescriptionUsageReport,
+  ImageDescriptionUsageFilter,
   ContentSafetyUsageReport,
   ChatUsageFilter,
   ChatUsageReport,
@@ -33,6 +35,9 @@ import type {
 
 /** Empty by default, so requests go to the dev server's /api proxy on this same origin. */
 const BASE_URL = API_BASE
+
+export const getImageDescriptionUsage = (filters: ImageDescriptionUsageFilter, skip: number, signal?: AbortSignal) =>
+  request<ImageDescriptionUsageReport>(`/api/usage/image-descriptions${query({ ...filters, userId: filters.userId || undefined, attachmentId: filters.attachmentId || undefined, skip, top: 25 })}`, { signal })
 
 export const getContentSafetyUsage = (filters: { from: string; to: string; status: string; operation: string }, skip: number, signal?: AbortSignal) =>
   request<ContentSafetyUsageReport>(`/api/usage/content-safety${query({ ...filters, skip, top: 25 })}`, { signal })

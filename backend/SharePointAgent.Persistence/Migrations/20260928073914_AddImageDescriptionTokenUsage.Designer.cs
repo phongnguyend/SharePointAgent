@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SharePointAgent.Persistence;
 
@@ -11,9 +12,11 @@ using SharePointAgent.Persistence;
 namespace SharePointAgent.Persistence.Migrations
 {
     [DbContext(typeof(SharePointIndexDbContext))]
-    partial class SharePointIndexDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260928073914_AddImageDescriptionTokenUsage")]
+    partial class AddImageDescriptionTokenUsage
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -733,9 +736,7 @@ namespace SharePointAgent.Persistence.Migrations
             modelBuilder.Entity("SharePointAgent.Persistence.ImageDescriptionTokenUsageEntity", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
-                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("AttachmentId")
                         .HasColumnType("uniqueidentifier");
@@ -745,9 +746,6 @@ namespace SharePointAgent.Persistence.Migrations
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<long?>("InputTokens")
                         .HasColumnType("bigint");
@@ -760,14 +758,8 @@ namespace SharePointAgent.Persistence.Migrations
                     b.Property<long?>("OutputTokens")
                         .HasColumnType("bigint");
 
-                    b.Property<string>("Prompt")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<Guid>("QuestionId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("SystemPrompt")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<long?>("TotalTokens")
                         .HasColumnType("bigint");

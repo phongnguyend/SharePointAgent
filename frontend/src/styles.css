@@ -1998,12 +1998,19 @@ button.ghost:hover:not(:disabled) {
 
 .modal {
   width: min(600px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
   padding: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-1);
   color: var(--text-primary);
   box-shadow: 0 12px 44px rgb(0 0 0 / 0.22);
+}
+
+.modal[open] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
 .modal::backdrop {
@@ -2032,6 +2039,9 @@ button.ghost:hover:not(:disabled) {
 
 .modal-body {
   padding: 16px;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
 }
 
 .modal-foot {

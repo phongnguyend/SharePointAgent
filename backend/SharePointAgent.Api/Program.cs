@@ -32,6 +32,7 @@ app.MapAppUsers();
 app.MapEmbeddingUsage();
 app.MapTokenUsage();
 app.MapContentSafetyUsage();
+app.MapImageDescriptionUsage();
 app.MapSystemEndpoints();
 app.MapSharePointWebhookEndpoints();
 app.MapSearchEndpoints();

@@ -18,6 +18,9 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
     private const int IdentifierLength = 200;
 
     public DbSet<AgentDefinitionEntity> AgentDefinitions => Set<AgentDefinitionEntity>();
+
+    public DbSet<ImageDescriptionTokenUsageEntity> ImageDescriptionTokenUsage => Set<ImageDescriptionTokenUsageEntity>();
+
     public DbSet<UserTokenUsageEntity> UserTokenUsage => Set<UserTokenUsageEntity>();
     public DbSet<ContentSafetyUsageEntity> ContentSafetyUsage => Set<ContentSafetyUsageEntity>();
     public DbSet<EmbeddingTokenUsageEntity> EmbeddingTokenUsage => Set<EmbeddingTokenUsageEntity>();
@@ -32,6 +35,17 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<ImageDescriptionTokenUsageEntity>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedOnAdd();
+            entity.Property(x => x.ModelId).HasMaxLength(200);
+            entity.HasIndex(x => new { x.UserId, x.CreatedAtUtc });
+            entity.HasIndex(x => new { x.ModelId, x.CreatedAtUtc });
+            entity.HasIndex(x => x.QuestionId);
+            entity.HasIndex(x => x.ConversationId);
+            entity.HasIndex(x => x.AttachmentId);
+        });
         modelBuilder.Entity<ContentSafetyUsageEntity>(entity =>
         {
             entity.HasKey(x => x.Id);
