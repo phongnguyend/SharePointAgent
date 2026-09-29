@@ -14,6 +14,9 @@ import {
   Folder,
   FolderPlus,
   GitBranch,
+  ArrowUp,
+  ChevronRight,
+  FolderOpen,
   HardDrive,
   MessageSquare,
   Pencil,
@@ -45,6 +48,8 @@ import {
   downloadAttachmentFile,
   listWorkspaces,
   getConversationSession,
+  listConversationFiles,
+  downloadConversationFile,
   createWorkspace,
   updateWorkspace,
   deleteWorkspace,
@@ -56,15 +61,19 @@ import type {
   ChatMessageAttachment,
   ChatSandboxSession,
   ChatWorkspace,
+  FileSystemEntry,
 } from '../api/types'
 import { Empty, ErrorBanner, Field, LoadingBar, Modal } from '../components/ui'
 import { FileTypeIcon } from '../components/FileTypeIcon'
 import { AttachmentDownload } from '../components/AttachmentDownload'
 import { MonthlyTokenUsage } from '../components/MonthlyTokenUsage'
 import { OfficePreview } from '../components/OfficePreview'
+import { ImagePreview } from '../components/ImagePreview'
+import { MarkdownPreview } from '../components/MarkdownPreview'
 import { isPreviewableOfficeFile } from '../lib/officeFiles'
 import {
   folderLabel,
+  formatBytes,
   formatDateTime,
   formatMessageTime,
   formatRelative,
@@ -112,6 +121,9 @@ export default function ChatPage() {
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false)
   const workspaceMenuRef = useRef<HTMLDivElement>(null)
   const [copiedSession, setCopiedSession] = useState(false)
+  const [filesPath, setFilesPath] = useState<string | null>(null)
+  const [fileSort, setFileSort] = useState<{ key: FileSortKey; desc: boolean }>({ key: 'name', desc: false })
+  const [previewFile, setPreviewFile] = useState<string | null>(null)
   const [attachments, setAttachments] = useState<ChatMessageAttachment[]>([])
   const [uploading, setUploading] = useState(false)
   const uploadInProgress = useRef(false)
@@ -199,6 +211,13 @@ export default function ChatPage() {
   const session = useAsync(
     async (signal) => (activeId && workspaceMenuOpen ? getConversationSession(activeId, signal) : null),
     [activeId, workspaceMenuOpen],
+  )
+
+  const sandboxFiles = useAsync(
+    async (signal) => (activeId && filesPath !== null
+      ? listConversationFiles(activeId, filesPath === '.' ? null : filesPath, false, signal)
+      : null),
+    [activeId, filesPath],
   )
 
   // Switching conversations empties the thread at once rather than leaving the previous one on
@@ -740,6 +759,10 @@ export default function ChatPage() {
                         error={session.error}
                         copied={copiedSession}
                         onCopy={async (value) => setCopiedSession(await copyText(value))}
+                        onBrowse={() => {
+                          setWorkspaceMenuOpen(false)
+                          setFilesPath('.')
+                        }}
                       />
                     </div>
                   ) : null}
@@ -862,6 +885,57 @@ export default function ChatPage() {
       </div>
 
       <Modal
+        open={filesPath !== null}
+        className="sandbox-files-modal"
+        title="Files in the sandbox"
+        icon={<FolderOpen size={18} aria-hidden="true" />}
+        onClose={() => setFilesPath(null)}
+        footer={
+          <>
+            <span className="hint" style={{ marginRight: 'auto' }}>
+              {sandboxFiles.data?.sandboxStarted === false
+                ? 'No sandbox yet.'
+                : `${sandboxFiles.data?.entries.length ?? 0} item${sandboxFiles.data?.entries.length === 1 ? '' : 's'}`}
+              {' · '}Read without running the agent, so it costs nothing.
+            </span>
+            <button onClick={sandboxFiles.reload} disabled={sandboxFiles.loading}>
+              <RefreshCw size={14} aria-hidden="true" />
+              Refresh
+            </button>
+            <button onClick={() => setFilesPath(null)}>Close</button>
+          </>
+        }
+      >
+        <SandboxFiles
+          path={filesPath ?? '.'}
+          listing={sandboxFiles.data ?? null}
+          loading={sandboxFiles.loading}
+          error={sandboxFiles.error}
+          sort={fileSort}
+          onSort={setFileSort}
+          onOpen={setFilesPath}
+          onPreview={setPreviewFile}
+          onDownload={async (entryPath) => {
+            if (!activeId) return
+            setError(null)
+            try {
+              await saveBlob(await downloadConversationFile(activeId, entryPath, true), entryPath)
+            } catch (cause) {
+              setError(cause instanceof Error ? cause.message : String(cause))
+            }
+          }}
+        />
+      </Modal>
+
+      {previewFile && activeId ? (
+        <SandboxPreview
+          conversationId={activeId}
+          path={previewFile}
+          onClose={() => setPreviewFile(null)}
+        />
+      ) : null}
+
+      <Modal
         open={workspaceDraft !== null}
         title={workspaceDraft?.id === null ? 'New workspace' : 'Edit workspace'}
         icon={<Folder size={18} aria-hidden="true" />}
@@ -926,6 +1000,265 @@ export default function ChatPage() {
   )
 }
 
+type FileSortKey = 'name' | 'size' | 'modified'
+
+const PREVIEWABLE_TEXT = /\.(md|markdown|txt|csv|json|log|ya?ml|xml|html?|ts|tsx|js|jsx|css|py|cs|sql|sh|ps1)$/i
+const PREVIEWABLE_IMAGE = /\.(png|jpe?g|gif|webp|bmp|avif)$/i
+
+/** Whether one of the viewers the app already has can show this file. */
+function isSandboxPreviewable(name: string): boolean {
+  return isPreviewableOfficeFile(name) || PREVIEWABLE_TEXT.test(name) || PREVIEWABLE_IMAGE.test(name)
+}
+
+/** Hands a fetched blob to the browser as a file to save. */
+async function saveBlob(blob: Blob, path: string) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = path.slice(path.lastIndexOf('/') + 1)
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+/**
+ * Shows a sandbox file in whichever of the app's existing viewers suits it. They all take the same
+ * shape — a name, a cache key, and a loader — so the only decision here is which one.
+ */
+function SandboxPreview({
+  conversationId,
+  path,
+  onClose,
+}: {
+  conversationId: string
+  path: string
+  onClose: () => void
+}) {
+  const name = fileName(path)
+  const sourceKey = `${conversationId}:${path}`
+  const load = (signal: AbortSignal) => downloadConversationFile(conversationId, path, false, signal)
+
+  if (isPreviewableOfficeFile(name)) {
+    return <OfficePreview name={name} sourceKey={sourceKey} load={load} onClose={onClose} />
+  }
+
+  if (PREVIEWABLE_IMAGE.test(name)) {
+    return <ImagePreview name={name} sourceKey={sourceKey} load={load} onClose={onClose} />
+  }
+
+  // Everything else previewable here is text. The Markdown viewer renders it and offers the raw text,
+  // which is the right treatment for a .md file and a serviceable one for .csv or .json.
+  return (
+    <MarkdownPreview
+      name={name}
+      sourceKey={sourceKey}
+      load={async (signal) => ({ markdown: await (await load(signal)).text() })}
+      onClose={onClose}
+    />
+  )
+}
+
+/** The last segment of a path, which is the name a reader recognises. */
+function fileName(path: string): string {
+  return path.slice(path.lastIndexOf('/') + 1)
+}
+
+/**
+ * The path split into the crumbs that lead to it, each with the path it navigates to.
+ */
+function breadcrumbs(path: string): { name: string; path: string }[] {
+  if (path === '.') {
+    return []
+  }
+
+  const parts = path.split('/')
+  return parts.map((name, index) => ({ name, path: parts.slice(0, index + 1).join('/') }))
+}
+
+/**
+ * The sandbox as a file explorer: a breadcrumb trail to where you are, a way back up, and a sortable
+ * table of what is here. Directories sort above files whichever column is chosen, because a listing
+ * that interleaves them is harder to scan than one that does not.
+ */
+function SandboxFiles({
+  path,
+  listing,
+  loading,
+  error,
+  sort,
+  onSort,
+  onOpen,
+  onPreview,
+  onDownload,
+}: {
+  path: string
+  listing: { entries: FileSystemEntry[]; truncated: boolean; sandboxStarted: boolean } | null
+  loading: boolean
+  error: string | null
+  sort: { key: FileSortKey; desc: boolean }
+  onSort: (sort: { key: FileSortKey; desc: boolean }) => void
+  onOpen: (path: string) => void
+  onPreview: (path: string) => void
+  onDownload: (path: string) => void
+}) {
+  const parent = path === '.' ? null : path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '.'
+
+  if (listing && !listing.sandboxStarted) {
+    return (
+      <Empty
+        title="No sandbox yet"
+        icon={<HardDrive size={24} strokeWidth={1.5} />}
+        detail="This conversation gets one on its first question. Nothing has been downloaded or written."
+      />
+    )
+  }
+
+  const entries = [...(listing?.entries ?? [])].sort((left, right) => {
+    if (left.isDirectory !== right.isDirectory) {
+      return left.isDirectory ? -1 : 1
+    }
+
+    const order =
+      sort.key === 'size'
+        ? (left.sizeBytes ?? -1) - (right.sizeBytes ?? -1)
+        : sort.key === 'modified'
+          ? Date.parse(left.modifiedUtc) - Date.parse(right.modifiedUtc)
+          : fileName(left.path).localeCompare(fileName(right.path), undefined, { sensitivity: 'base' })
+    return sort.desc ? -order : order
+  })
+
+  const header = (key: FileSortKey, label: string) => (
+    <button
+      type="button"
+      className={sort.key === key ? 'sandbox-column active' : 'sandbox-column'}
+      aria-sort={sort.key === key ? (sort.desc ? 'descending' : 'ascending') : 'none'}
+      onClick={() => onSort({ key, desc: sort.key === key ? !sort.desc : false })}
+    >
+      {label}
+      {sort.key === key ? <ChevronDown size={12} className={sort.desc ? '' : 'flipped'} aria-hidden="true" /> : null}
+    </button>
+  )
+
+  return (
+    <div className="sandbox-explorer">
+      <div className="sandbox-crumbs">
+        <button
+          type="button"
+          className="ghost icon-only"
+          disabled={parent === null}
+          title="Up one level"
+          aria-label="Up one level"
+          onClick={() => parent !== null && onOpen(parent)}
+        >
+          <ArrowUp size={14} />
+        </button>
+        <button type="button" className="sandbox-crumb" onClick={() => onOpen('.')}>
+          <HardDrive size={13} aria-hidden="true" />
+          Working directory
+        </button>
+        {breadcrumbs(path).map((crumb, index, all) => (
+          <span className="sandbox-crumb-step" key={crumb.path}>
+            <ChevronRight size={12} aria-hidden="true" />
+            <button
+              type="button"
+              className="sandbox-crumb"
+              disabled={index === all.length - 1}
+              onClick={() => onOpen(crumb.path)}
+            >
+              {crumb.name}
+            </button>
+          </span>
+        ))}
+      </div>
+
+      <LoadingBar active={loading} />
+      {error ? <ErrorBanner message={error} /> : null}
+
+      {!error && (entries.length > 0 || !loading) ? (
+        <div className="sandbox-table" role="table">
+          <div className="sandbox-row sandbox-head" role="row">
+            {header('name', 'Name')}
+            {header('size', 'Size')}
+            {header('modified', 'Modified')}
+            <span />
+          </div>
+          {entries.length === 0 ? (
+            <Empty
+              title="Nothing here"
+              icon={<Folder size={24} strokeWidth={1.5} />}
+              detail={path === '.'
+                ? 'Downloads and anything the agent writes will show up here.'
+                : 'This folder is empty.'}
+            />
+          ) : (
+            entries.map((entry) => {
+              const name = fileName(entry.path)
+              const cells = (
+                <>
+                  <span className="sandbox-name" title={entry.path}>
+                    {entry.isDirectory
+                      ? <FolderOpen size={14} aria-hidden="true" />
+                      : <FileTypeIcon name={name} mimeType={null} size={14} />}
+                    {name}
+                  </span>
+                  <span className="sandbox-size">{entry.isDirectory ? '—' : formatBytes(entry.sizeBytes)}</span>
+                  <span className="sandbox-modified" title={formatDateTime(entry.modifiedUtc)}>
+                    {formatRelative(entry.modifiedUtc)}
+                  </span>
+                </>
+              )
+              if (entry.isDirectory) {
+                return (
+                  <button
+                    type="button"
+                    className="sandbox-row"
+                    role="row"
+                    key={entry.path}
+                    onClick={() => onOpen(entry.path)}
+                  >
+                    {cells}
+                    <span />
+                  </button>
+                )
+              }
+
+              return (
+                <div className="sandbox-row" role="row" key={entry.path}>
+                  {isSandboxPreviewable(name) ? (
+                    <button
+                      type="button"
+                      className="sandbox-open"
+                      title={`Preview ${name}`}
+                      onClick={() => onPreview(entry.path)}
+                    >
+                      {cells}
+                    </button>
+                  ) : (
+                    cells
+                  )}
+                  <button
+                    className="ghost icon-only"
+                    title={`Download ${name}`}
+                    aria-label={`Download ${name}`}
+                    onClick={() => onDownload(entry.path)}
+                  >
+                    <Download size={14} />
+                  </button>
+                </div>
+              )
+            })
+          )}
+        </div>
+      ) : null}
+
+      {listing?.truncated ? (
+        <span className="hint">Only the first 500 entries are shown. Open a folder to narrow it.</span>
+      ) : null}
+    </div>
+  )
+}
+
 /**
  * What the next turn will actually run against. It answers the two questions a shared sandbox raises —
  * which one am I in, and who else is in it — and shows plainly when a recorded binding is stale, since
@@ -937,12 +1270,14 @@ function SandboxDetails({
   error,
   copied,
   onCopy,
+  onBrowse,
 }: {
   session: ChatSandboxSession | null
   loading: boolean
   error: string | null
   copied: boolean
   onCopy: (value: string) => void
+  onBrowse: () => void
 }) {
   return (
     <div className="chat-sandbox">
@@ -992,6 +1327,10 @@ function SandboxDetails({
               Configured: {session.configuredEndpoint}
             </span>
           ) : null}
+          <button type="button" onClick={onBrowse}>
+            <FolderOpen size={14} aria-hidden="true" />
+            Browse files
+          </button>
         </>
       ) : null}
     </div>

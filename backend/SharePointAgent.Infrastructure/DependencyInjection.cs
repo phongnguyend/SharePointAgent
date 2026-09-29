@@ -96,6 +96,14 @@ public static class DependencyInjection
                     sp.GetRequiredService<IHttpClientFactory>().CreateClient("FoundryChatAgent"),
                     sp.GetRequiredService<TokenCredential>(), sp.GetRequiredService<IFoundrySessionRepository>(), options);
             });
+
+            // The working directory is in the sandbox, so browsing it is a request to the host rather
+            // than a disk read. Nothing in this process has that directory to read.
+            services.AddTransient<IAgentFileBrowser>(sp => new FoundryAgentFileBrowser(
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient("FoundryChatAgent"),
+                sp.GetRequiredService<TokenCredential>(),
+                sp.GetRequiredService<IFoundrySessionRepository>(),
+                sp.GetRequiredService<IOptions<ChatAgentHostingOptions>>()));
         }
         else
         {
@@ -142,6 +150,7 @@ public static class DependencyInjection
 
         services.AddSingleton<SharePointFileCache>();
         services.AddSingleton<AgentFileSystem>();
+        services.AddSingleton<IAgentFileBrowser, LocalAgentFileBrowser>();
         services.AddSingleton<ChatAgentContextLoader>();
         services.AddSingleton<ChatAgentService>();
         services.AddSingleton<IChatAgentExecutor>(sp => sp.GetRequiredService<ChatAgentService>());

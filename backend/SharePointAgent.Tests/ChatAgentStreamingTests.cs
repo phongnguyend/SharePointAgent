@@ -163,6 +163,152 @@ public sealed class ChatAgentStreamingTests
     }
 
     [Fact]
+    public async Task TheHostListsItsWorkingDirectoryWithoutRunningATurn()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "invocation-listing-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "Downloads", "SharePoint", "item-1"));
+        await File.WriteAllTextAsync(Path.Combine(root, "Downloads", "SharePoint", "item-1", "report.txt"), "content");
+        await File.WriteAllTextAsync(Path.Combine(root, "summary.md"), "notes");
+
+        // An executor that fails if it is reached: a listing must never become a model turn.
+        var executor = new StubExecutor((_, _, _, _) => throw new InvalidOperationException("the model was called"));
+        await using var server = await CreateServer(executor, root);
+        using var http = server.GetTestClient();
+        var sessions = Substitute.For<IFoundrySessionRepository>();
+        sessions.GetAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns("sandbox-1");
+        var browser = new FoundryAgentFileBrowser(http, new TestCredential(), sessions,
+            Options.Create(new ChatAgentHostingOptions
+            {
+                Mode = ChatAgentExecutionMode.Foundry,
+                Foundry = new() { Endpoint = "http://localhost/invocations" },
+            }));
+
+        var listing = await browser.ListAsync(Guid.NewGuid(), null, recursive: false, default);
+
+        Assert.True(listing.SandboxStarted);
+        Assert.Equal(["Downloads", "summary.md"], listing.Entries.Select(e => e.Path));
+
+        var nested = await browser.ListAsync(Guid.NewGuid(), "Downloads/SharePoint/item-1", recursive: false, default);
+        Assert.Equal(["Downloads/SharePoint/item-1/report.txt"], nested.Entries.Select(e => e.Path));
+
+        // A path outside the sandbox comes back as a refusal the caller can show, not a crash.
+        await Assert.ThrowsAsync<ArgumentException>(() => browser.ListAsync(Guid.NewGuid(), "../..", false, default));
+        Directory.Delete(root, recursive: true);
+    }
+
+    [Fact]
+    public async Task TheOperationHeaderIsWhatIdentifiesAListing()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "invocation-header-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        await File.WriteAllTextAsync(Path.Combine(root, "summary.md"), "notes");
+        var executor = new StubExecutor((_, _, _, _) => throw new InvalidOperationException("the model was called"));
+        await using var server = await CreateServer(executor, root);
+        using var http = server.GetTestClient();
+
+        using var message = new HttpRequestMessage(HttpMethod.Post, "http://localhost/invocations")
+        {
+            Content = JsonContent.Create(new { conversationId = Guid.NewGuid(), recursive = false }),
+        };
+        message.Headers.Add(AgentInvocation.OperationHeader, AgentInvocation.ListFilesOperation);
+
+        using var response = await http.SendAsync(message);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var listing = await response.Content.ReadFromJsonAsync<FileSystemListing>(ChatStreamWriter<FileSystemListing>.Json);
+        Assert.Equal(["summary.md"], listing!.Entries.Select(e => e.Path));
+
+        // Without the header the same body is a turn, and an incomplete one, so it is refused rather
+        // than listed. That is the failure a gateway stripping the header would produce.
+        using var unmarked = new HttpRequestMessage(HttpMethod.Post, "http://localhost/invocations")
+        {
+            Content = JsonContent.Create(new { conversationId = Guid.NewGuid(), recursive = false }),
+        };
+        using var refused = await http.SendAsync(unmarked);
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+
+        Directory.Delete(root, recursive: true);
+    }
+
+    [Fact]
+    public async Task TheHostSendsOneFileBackWithoutRunningATurn()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "invocation-read-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "Downloads", "SharePoint", "item-1"));
+        await File.WriteAllTextAsync(Path.Combine(root, "Downloads", "SharePoint", "item-1", "report.md"), "# Report");
+
+        var executor = new StubExecutor((_, _, _, _) => throw new InvalidOperationException("the model was called"));
+        await using var server = await CreateServer(executor, root);
+        using var http = server.GetTestClient();
+        var sessions = Substitute.For<IFoundrySessionRepository>();
+        sessions.GetAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns("sandbox-1");
+        var browser = new FoundryAgentFileBrowser(http, new TestCredential(), sessions,
+            Options.Create(new ChatAgentHostingOptions
+            {
+                Mode = ChatAgentExecutionMode.Foundry,
+                Foundry = new() { Endpoint = "http://localhost/invocations" },
+            }));
+
+        var file = await browser.ReadAsync(Guid.NewGuid(), "Downloads/SharePoint/item-1/report.md", default);
+
+        Assert.Equal("report.md", file.Name);
+        Assert.Equal("text/markdown", file.ContentType);
+        Assert.Equal("# Report", Encoding.UTF8.GetString(file.Content));
+
+        // The same refusals a listing gives, so a reader never receives someone else's file.
+        await Assert.ThrowsAsync<ArgumentException>(() => browser.ReadAsync(Guid.NewGuid(), "../escaped.txt", default));
+        await Assert.ThrowsAsync<ArgumentException>(() => browser.ReadAsync(Guid.NewGuid(), "Downloads", default));
+        await Assert.ThrowsAsync<ArgumentException>(() => browser.ReadAsync(Guid.NewGuid(), "missing.txt", default));
+        Directory.Delete(root, recursive: true);
+    }
+
+    [Fact]
+    public async Task ReadingBeforeTheFirstTurnSaysThereIsNoSandbox()
+    {
+        var handler = new ThrowingHandler();
+        using var http = new HttpClient(handler);
+        var browser = new FoundryAgentFileBrowser(http, new TestCredential(), EmptySessions(),
+            Options.Create(new ChatAgentHostingOptions
+            {
+                Mode = ChatAgentExecutionMode.Foundry,
+                Foundry = new() { Endpoint = "https://example.com/invocations" },
+            }));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => browser.ReadAsync(Guid.NewGuid(), "notes.md", default));
+        Assert.False(handler.Called);
+    }
+
+    [Fact]
+    public async Task ListingBeforeTheFirstTurnDoesNotStartASandbox()
+    {
+        var handler = new ThrowingHandler();
+        using var http = new HttpClient(handler);
+        var browser = new FoundryAgentFileBrowser(http, new TestCredential(), EmptySessions(),
+            Options.Create(new ChatAgentHostingOptions
+            {
+                Mode = ChatAgentExecutionMode.Foundry,
+                Foundry = new() { Endpoint = "https://example.com/invocations" },
+            }));
+
+        var listing = await browser.ListAsync(Guid.NewGuid(), null, false, default);
+
+        Assert.False(listing.SandboxStarted);
+        Assert.Empty(listing.Entries);
+        Assert.False(handler.Called);
+    }
+
+    private sealed class ThrowingHandler : HttpMessageHandler
+    {
+        public bool Called { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Called = true;
+            throw new InvalidOperationException("No request should be sent without a session.");
+        }
+    }
+
+    [Fact]
     public async Task ConcurrentCallbacksProduceWholeJsonRecords()
     {
         var context = new DefaultHttpContext();
@@ -176,12 +322,19 @@ public sealed class ChatAgentStreamingTests
         Assert.Equal(100, lines.Select(l => JsonSerializer.Deserialize<ChatAgentEvent>(l, ChatStreamWriter<ChatAgentEvent>.Json)!.Message).Distinct().Count());
     }
 
-    private static async Task<WebApplication> CreateServer(IChatAgentExecutor executor)
+    private static async Task<WebApplication> CreateServer(IChatAgentExecutor executor, string? workingDirectory = null)
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
         builder.Services.AddInvocationsServer();
         builder.Services.AddSingleton(executor);
+
+        // The handler answers directory listings itself, so it needs the working directory even in
+        // the cases here that only run turns.
+        builder.Services.AddSingleton(new AgentFileSystem(Options.Create(new LocalWorkingDirectoryOptions
+        {
+            Directory = workingDirectory ?? Path.Combine(Path.GetTempPath(), "invocation-tests-" + Guid.NewGuid().ToString("N")),
+        })));
         builder.Services.AddScoped<InvocationHandler, ChatAgentInvocation>();
         var app = builder.Build();
         app.MapInvocationsServer();

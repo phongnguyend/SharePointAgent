@@ -1,11 +1,9 @@
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Options;
 using SharePointAgent.Application;
+using SharePointAgent.Domain;
 
 namespace SharePointAgent.Infrastructure;
-
-public sealed record FileSystemEntry(string Path, bool IsDirectory, long? SizeBytes, DateTimeOffset ModifiedUtc);
-
-public sealed record FileSystemListing(string Path, int Count, bool Truncated, IReadOnlyList<FileSystemEntry> Entries);
 
 /// <summary>
 /// The agent's view of the local disk: the download directory and nothing else. Every tool path is
@@ -26,7 +24,15 @@ public sealed class AgentFileSystem(IOptions<LocalWorkingDirectoryOptions> optio
     /// <summary>The largest text a single write may create. Binary files come from the download tools.</summary>
     public const int MaxWriteBytes = 5 * 1024 * 1024;
 
+    private static readonly FileExtensionContentTypeProvider ContentTypes = new();
+
     private readonly string _root = options.Value.ResolvedDirectory;
+
+    /// <summary>
+    /// The largest file that can be read back out, which is the same limit downloads move under: a
+    /// reader should be able to fetch anything the agent was able to fetch.
+    /// </summary>
+    private readonly int _maxReadBytes = options.Value.Downloads.MaxFileBytes;
 
     public string Root => _root;
 
@@ -110,6 +116,32 @@ public sealed class AgentFileSystem(IOptions<LocalWorkingDirectoryOptions> optio
             .OrderBy(entry => entry.Path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
         return new(Relative(directory), entries.Length, truncated, entries);
+    }
+
+    /// <summary>
+    /// A file's bytes, for showing or saving it outside the agent. Directories and files past the
+    /// size limit are refused rather than partially returned.
+    /// </summary>
+    public async Task<FileContent> ReadAsync(string path, CancellationToken cancellationToken)
+    {
+        var full = Resolve(path, mustExist: true);
+        if (Directory.Exists(full))
+        {
+            throw new ArgumentException($"'{Relative(full)}' is a directory, not a file.");
+        }
+
+        var file = new FileInfo(full);
+        if (file.Length > _maxReadBytes)
+        {
+            throw new ArgumentException(
+                $"'{Relative(full)}' is {file.Length / (1024 * 1024)} MB, over the {_maxReadBytes / (1024 * 1024)} MB read limit.");
+        }
+
+        return new(
+            Relative(full),
+            file.Name,
+            ContentTypes.TryGetContentType(file.Name, out var contentType) ? contentType : "application/octet-stream",
+            await File.ReadAllBytesAsync(full, cancellationToken));
     }
 
     public async Task<FileSystemEntry> WriteTextAsync(string path, string content, bool overwrite, CancellationToken cancellationToken)

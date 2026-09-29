@@ -17,6 +17,55 @@ public sealed record ChatAgentRequest(
     Guid? UserId = null,
     DateTimeOffset? StartedAtUtc = null);
 
+/// <summary>
+/// Reads the agent's working directory from outside a turn, so a person can see what is in the
+/// sandbox without asking the model for it. Implemented by reading the disk in <c>Local</c> mode and
+/// by asking the sandbox in <c>Foundry</c> mode, where that disk belongs to another process.
+/// </summary>
+public interface IAgentFileBrowser
+{
+    Task<FileSystemListing> ListAsync(
+        Guid conversationId,
+        string? path,
+        bool recursive,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// One file's bytes, for previewing or saving it. Throws <see cref="ArgumentException"/> when the
+    /// path is outside the directory, missing, a directory, or over the size limit, and
+    /// <see cref="InvalidOperationException"/> when there is no sandbox to read from yet.
+    /// </summary>
+    Task<FileContent> ReadAsync(Guid conversationId, string path, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// What a hosted invocation is asking the sandbox for. Everything arrives at the one Invocations
+/// endpoint, so the operation is named in a header, which lets the host decide what a request is
+/// before reading its body and keeps each operation's payload to its own shape.
+/// </summary>
+public static class AgentInvocation
+{
+    /// <summary>Absent means a chat turn, which is what every earlier caller sends.</summary>
+    public const string OperationHeader = "x-agent-operation";
+
+    public const string ListFilesOperation = "listFiles";
+
+    public const string ReadFileOperation = "readFile";
+}
+
+/// <summary>
+/// A hosted invocation that lists the sandbox's working directory instead of running a turn, named as
+/// such by <see cref="AgentInvocation.OperationHeader"/>. The host answers it straight from disk, so
+/// there is no model request, no token usage, and no conversation history involved.
+/// </summary>
+public sealed record AgentFileListingRequest(Guid ConversationId, string? Path, bool Recursive);
+
+/// <summary>
+/// A hosted invocation that returns one file out of the sandbox, named by
+/// <see cref="AgentInvocation.ReadFileOperation"/>. Like a listing it never reaches the model.
+/// </summary>
+public sealed record AgentFileReadRequest(Guid ConversationId, string Path);
+
 public interface IChatAgentExecutor
 {
     Task<ChatTurn> RunStreamingAsync(

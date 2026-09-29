@@ -195,6 +195,27 @@ export interface ChatSandboxSession {
   reusedOnNextTurn: boolean
 }
 
+export interface FileSystemEntry {
+  /** Relative to the top of the working directory, with forward slashes. */
+  path: string
+  isDirectory: boolean
+  sizeBytes: number | null
+  modifiedUtc: string
+}
+
+/**
+ * One directory of the agent's working directory. `sandboxStarted` is false when the conversation has
+ * no sandbox yet — in Foundry mode, before its first turn — so the empty list means "nothing to show
+ * yet" rather than "the directory is empty".
+ */
+export interface FileSystemListing {
+  path: string
+  count: number
+  truncated: boolean
+  entries: FileSystemEntry[]
+  sandboxStarted: boolean
+}
+
 export interface ChatConversation {
   id: string
   title: string

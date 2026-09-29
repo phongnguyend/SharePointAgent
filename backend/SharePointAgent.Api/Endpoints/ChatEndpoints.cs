@@ -79,6 +79,84 @@ public static class ChatEndpoints
                 ? Results.Ok(new { deleted = id })
                 : Results.NotFound());
 
+        // What is in the sandbox right now, read without running a turn: in Local mode straight off
+        // this process's disk, in Foundry mode by asking the host, which answers from disk without
+        // calling the model. Either way no tokens are spent and the conversation is unchanged.
+        app.MapGet("/api/chat/conversations/{id:guid}/files", async (
+            Guid id,
+            IChatRepository store,
+            IAgentFileBrowser browser,
+            CancellationToken cancellationToken,
+            string? path = null,
+            bool recursive = false) =>
+        {
+            if (await store.GetConversationAsync(id, cancellationToken) is null)
+            {
+                return Results.NotFound();
+            }
+
+            try
+            {
+                return Results.Ok(await browser.ListAsync(id, path, recursive, cancellationToken));
+            }
+            catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+            catch (Exception ex) when (ex is TimeoutException or InvalidDataException or HttpRequestException)
+            {
+                return Results.Problem(
+                    $"The sandbox could not be read: {ex.Message}", statusCode: StatusCodes.Status502BadGateway);
+            }
+        });
+
+        // One file out of the sandbox, to show or to save. Same no-model path as the listing.
+        app.MapGet("/api/chat/conversations/{id:guid}/files/content", async (
+            Guid id,
+            string path,
+            IChatRepository store,
+            IAgentFileBrowser browser,
+            HttpResponse response,
+            CancellationToken cancellationToken,
+            bool download = false) =>
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return Results.BadRequest(new { error = "A 'path' is required." });
+            }
+
+            if (await store.GetConversationAsync(id, cancellationToken) is null)
+            {
+                return Results.NotFound();
+            }
+
+            FileContent file;
+            try
+            {
+                file = await browser.ReadAsync(id, path, cancellationToken);
+            }
+            catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.NotFound(new { error = ex.Message });
+            }
+            catch (Exception ex) when (ex is TimeoutException or InvalidDataException or HttpRequestException)
+            {
+                return Results.Problem(
+                    $"The sandbox could not be read: {ex.Message}", statusCode: StatusCodes.Status502BadGateway);
+            }
+
+            // These bytes are whatever the agent or a document author put there, served from the API's
+            // own origin. Never let the browser decide the type, and only render inline the kinds that
+            // cannot carry script; everything else is handed over as a download instead.
+            response.Headers.XContentTypeOptions = "nosniff";
+            var inline = !download && RendersSafelyInline(file.ContentType);
+            return Results.File(file.Content, file.ContentType, inline ? null : file.Name);
+        });
+
         // Which sandbox the next turn will reach, and whether anything else reaches it too. Reading
         // this runs no turn and changes no binding. The configured endpoint is a deployment detail, so
         // only an administration reader is shown it; the session ID belongs to the conversation.
@@ -312,6 +390,15 @@ public static class ChatEndpoints
                 ? Results.Ok(new { id, feedback = body?.Feedback })
                 : Results.NotFound());
     }
+
+    /// <summary>
+    /// Whether a type can be shown in the page without the risk an HTML, SVG, or XML document carries:
+    /// those run script in the API's origin if a browser renders them, so they are downloaded instead.
+    /// </summary>
+    private static bool RendersSafelyInline(string contentType) =>
+        contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
+            ? !contentType.Contains("svg", StringComparison.OrdinalIgnoreCase)
+            : contentType is "application/pdf" or "text/plain" or "text/markdown" or "text/csv" or "application/json";
 
     private static Task<AgentDefinition?> ResolveAgentAsync(
         Guid? agentId,

@@ -15,6 +15,7 @@ import type {
   ChatConversation,
   ChatSandboxSession,
   ChatWorkspace,
+  FileSystemListing,
   ChatFeedback,
   ChatStreamEvent,
   ChatThread,
@@ -179,6 +180,42 @@ export function createConversation(options?: {
       workspaceId: options?.workspaceId || null,
     }),
   })
+}
+
+/**
+ * Lists the agent's working directory for this conversation. It runs no turn and spends no tokens,
+ * in either execution mode.
+ */
+export function listConversationFiles(
+  id: string,
+  path: string | null,
+  recursive: boolean,
+  signal?: AbortSignal,
+): Promise<FileSystemListing> {
+  const query = new URLSearchParams()
+  if (path) query.set('path', path)
+  if (recursive) query.set('recursive', 'true')
+  const suffix = query.toString()
+  return request<FileSystemListing>(
+    `/api/chat/conversations/${encodeURIComponent(id)}/files${suffix ? `?${suffix}` : ''}`,
+    { signal },
+  )
+}
+
+/**
+ * One file out of the sandbox, as a blob. `download` asks for it as an attachment; without it the
+ * API serves inline only the types that cannot carry script, and hands the rest over as a download
+ * regardless. Runs no turn either way.
+ */
+export function downloadConversationFile(
+  id: string,
+  path: string,
+  download: boolean,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  const query = new URLSearchParams({ path })
+  if (download) query.set('download', 'true')
+  return downloadBlob(`/api/chat/conversations/${encodeURIComponent(id)}/files/content?${query}`, signal)
 }
 
 /** Reads the sandbox binding for inspection. It runs no turn and changes nothing. */
