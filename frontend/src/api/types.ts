@@ -357,18 +357,33 @@ export interface ContentSafetyUsageReport {
   items: { id: string; createdAtUtc: string; operation: string; status: string; characterCount: number; estimatedTextRecords: number; userId: string | null; [key: string]: string | number | null }[]
 }
 export interface ChatUsageTotals {
+  /** Distinct questions. A turn is several model requests, so this is not the row count. */
   turns: number
+  /** Model requests: one ledger row each. */
+  requests: number
   inputTokens: number
   outputTokens: number
   totalTokens: number
 }
-export interface ChatUsageRecord extends Omit<ChatUsageTotals, 'turns'> {
+export interface ChatUsageRecord {
+  id: string
   questionId: string
-  userId: string
+  conversationId: string
+  /** Position in the turn's tool-calling loop, or -1 for a whole-turn row. */
+  sequence: number
+  userId: string | null
   modelId: string | null
   day: number
   month: number
-  createdAtUtc: string | null
+  createdAtUtc: string
+  /** Tools this response asked for, comma-separated; null when it answered instead. */
+  toolNames: string | null
+  skillNames: string | null
+  scriptNames: string | null
+  /** Null when the provider reported no usage for the request. */
+  inputTokens: number | null
+  outputTokens: number | null
+  totalTokens: number | null
 }
 export interface ChatUsageReport {
   from: string

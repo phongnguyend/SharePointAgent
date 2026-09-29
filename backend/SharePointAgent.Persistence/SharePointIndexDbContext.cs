@@ -17,11 +17,18 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
     /// <summary>Identifier columns that carry a Microsoft Graph drive or item ID.</summary>
     private const int IdentifierLength = 200;
 
+    /// <summary>
+    /// Columns holding a comma-separated list of tool, skill, or script names from one model response.
+    /// Long enough for the several calls a response can ask for at once; the writer truncates past it.
+    /// </summary>
+    public const int ToolListLength = 1000;
+
     public DbSet<AgentDefinitionEntity> AgentDefinitions => Set<AgentDefinitionEntity>();
 
     public DbSet<ImageDescriptionTokenUsageEntity> ImageDescriptionTokenUsage => Set<ImageDescriptionTokenUsageEntity>();
 
-    public DbSet<UserTokenUsageEntity> UserTokenUsage => Set<UserTokenUsageEntity>();
+    public DbSet<ChatTokenUsageEntity> ChatTokenUsage => Set<ChatTokenUsageEntity>();
+
     public DbSet<ContentSafetyUsageEntity> ContentSafetyUsage => Set<ContentSafetyUsageEntity>();
     public DbSet<EmbeddingTokenUsageEntity> EmbeddingTokenUsage => Set<EmbeddingTokenUsageEntity>();
     public DbSet<WebhookSubscriptionEntity> WebhookSubscriptions => Set<WebhookSubscriptionEntity>();
@@ -47,6 +54,24 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
             entity.HasIndex(x => x.QuestionId);
             entity.HasIndex(x => x.ConversationId);
             entity.HasIndex(x => x.AttachmentId);
+        });
+        modelBuilder.Entity<ChatTokenUsageEntity>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedOnAdd();
+            entity.Property(x => x.ModelId).HasMaxLength(200);
+            entity.Property(x => x.ToolNames).HasMaxLength(ToolListLength);
+            entity.Property(x => x.SkillNames).HasMaxLength(ToolListLength);
+            entity.Property(x => x.ScriptNames).HasMaxLength(ToolListLength);
+            entity.HasIndex(x => new { x.UserId, x.CreatedAtUtc });
+            entity.HasIndex(x => new { x.UserId, x.Month });
+            entity.HasIndex(x => new { x.ModelId, x.Month });
+            entity.HasIndex(x => new { x.QuestionId, x.Sequence });
+            entity.HasIndex(x => x.ConversationId);
+
+            // Billed usage outlives its user: a user with recorded usage cannot be deleted out from
+            // under the ledger, matching the restriction the per-turn table carried.
+            entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<ContentSafetyUsageEntity>(entity =>
         {
@@ -79,15 +104,6 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
             entity.HasIndex(x => x.QuestionId);
             entity.HasIndex(x => new { x.DriveId, x.FileId });
             entity.HasIndex(x => x.AttachmentId);
-        });
-        modelBuilder.Entity<UserTokenUsageEntity>(entity =>
-        {
-            entity.HasKey(x => x.QuestionId);
-            entity.Property(x => x.QuestionId).ValueGeneratedNever();
-            entity.Property(x => x.ModelId).HasMaxLength(200);
-            entity.HasIndex(x => new { x.ModelId, x.Month });
-            entity.HasIndex(x => new { x.UserId, x.Month });
-            entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<ApplicationUser>(entity =>
         {

@@ -60,10 +60,16 @@ public sealed class MonthlyTokenQuota(IDbContextFactory<SharePointIndexDbContext
 
     public static async Task<long> UsedAsync(SharePointIndexDbContext db, Guid userId, int month, CancellationToken ct = default)
     {
-        var chat = await db.UserTokenUsage.Where(x => x.UserId == userId && x.Month == month).SumAsync(x => (long?)x.TotalTokens, ct) ?? 0;
+        // Several rows per turn, one per model request. They carry the turn's start day and month, not
+        // each request's, so a turn that runs across midnight UTC stays in the month its quota was
+        // checked against.
+        var chat = await ChatUsage(db, userId, month).SumAsync(x => x.TotalTokens, ct) ?? 0;
         var images = await ImageUsage(db, userId, month).SumAsync(x => x.TotalTokens, ct) ?? 0;
         return chat + images;
     }
+
+    private static IQueryable<ChatTokenUsageEntity> ChatUsage(SharePointIndexDbContext db, Guid userId, int month) =>
+        db.ChatTokenUsage.Where(x => x.UserId == userId && x.Month == month);
 
     private static IQueryable<ImageDescriptionTokenUsageEntity> ImageUsage(SharePointIndexDbContext db, Guid userId, int month) =>
         db.ImageDescriptionTokenUsage.Where(x => x.UserId == userId && x.Month == month);
@@ -71,9 +77,9 @@ public sealed class MonthlyTokenQuota(IDbContextFactory<SharePointIndexDbContext
     public static async Task<IReadOnlyList<DailyModelTokenUsage>> DailyUsageAsync(
         SharePointIndexDbContext db, Guid userId, int month, CancellationToken ct = default)
     {
-        var chat = await db.UserTokenUsage.Where(x => x.UserId == userId && x.Month == month)
+        var chat = await ChatUsage(db, userId, month)
             .GroupBy(x => new { x.Day, x.ModelId })
-            .Select(x => new DailyModelTokenUsage(x.Key.Day, x.Key.ModelId, x.Sum(t => t.InputTokens), x.Sum(t => t.OutputTokens), x.Sum(t => t.TotalTokens)))
+            .Select(x => new DailyModelTokenUsage(x.Key.Day, x.Key.ModelId, x.Sum(t => t.InputTokens ?? 0), x.Sum(t => t.OutputTokens ?? 0), x.Sum(t => t.TotalTokens ?? 0)))
             .ToListAsync(ct);
         var images = await ImageUsage(db, userId, month).GroupBy(x => new { x.Day, x.ModelId })
             .Select(x => new DailyModelTokenUsage(x.Key.Day, x.Key.ModelId, x.Sum(t => t.InputTokens ?? 0), x.Sum(t => t.OutputTokens ?? 0), x.Sum(t => t.TotalTokens ?? 0)))
@@ -91,17 +97,30 @@ public sealed class MonthlyTokenQuota(IDbContextFactory<SharePointIndexDbContext
         command.Parameters.Add(parameter);
     }
 
-    public static async Task RecordUsageAsync(SharePointIndexDbContext db, Guid userId, Guid questionId,
-        DateTimeOffset startedAt, ChatTokenUsage usage, string? modelId, CancellationToken ct)
+    /// <summary>
+    /// Records the turn's reported total as a single fallback row, but only when the turn left no
+    /// per-request row of its own. The agent writes one row per model request as that response
+    /// completes; this covers the case where none of those writes reached the database — a Foundry
+    /// sandbox that could not reach SQL, or a failed write — so a turn is never billed as free.
+    /// <para>
+    /// Doing nothing when rows already exist is also what keeps repeat accounting for the same question
+    /// from double-counting. A turn where only <em>some</em> per-request writes failed keeps its partial
+    /// rows and is under-billed by the difference; that loss is logged where it happens.
+    /// </para>
+    /// </summary>
+    public static async Task RecordUsageAsync(SharePointIndexDbContext db, Guid userId, Guid conversationId,
+        Guid questionId, DateTimeOffset startedAt, ChatTokenUsage usage, string? modelId, CancellationToken ct)
     {
-        if (await db.UserTokenUsage.AnyAsync(x => x.QuestionId == questionId, ct))
+        if (await db.ChatTokenUsage.AnyAsync(x => x.QuestionId == questionId, ct))
         {
             return;
         }
 
-        db.UserTokenUsage.Add(new UserTokenUsageEntity
+        db.ChatTokenUsage.Add(new ChatTokenUsageEntity
         {
+            ConversationId = conversationId,
             QuestionId = questionId,
+            Sequence = ChatTokenUsageEntity.TurnTotalSequence,
             UserId = userId,
             Month = MonthKey(startedAt),
             Day = DayKey(startedAt),
@@ -117,8 +136,15 @@ public sealed class MonthlyTokenQuota(IDbContextFactory<SharePointIndexDbContext
     public sealed class TurnLease(SharePointIndexDbContext db, string resource, Guid userId, DateTimeOffset startedAt) : IAsyncDisposable
     {
         public int Month { get; } = MonthKey(startedAt);
-        public Task RecordAsync(Guid questionId, ChatTokenUsage usage, string? modelId, CancellationToken ct) =>
-            RecordUsageAsync(db, userId, questionId, startedAt, usage, modelId, ct);
+
+        /// <summary>
+        /// When the turn started. The agent stamps every row of the turn with this, so all of a turn's
+        /// requests land in the day and month whose allowance was checked at the start.
+        /// </summary>
+        public DateTimeOffset StartedAt { get; } = startedAt;
+
+        public Task RecordAsync(Guid conversationId, Guid questionId, ChatTokenUsage usage, string? modelId, CancellationToken ct) =>
+            RecordUsageAsync(db, userId, conversationId, questionId, StartedAt, usage, modelId, ct);
 
         public async ValueTask DisposeAsync()
         {

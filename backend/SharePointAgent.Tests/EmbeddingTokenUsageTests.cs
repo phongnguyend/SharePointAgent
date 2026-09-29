@@ -60,7 +60,7 @@ public sealed class EmbeddingTokenUsageTests
         Assert.Equal("file", file.FileId);
         Assert.Equal("drive", file.DriveId);
         Assert.Null(file.AttachmentId);
-        Assert.Empty(await db.UserTokenUsage.ToListAsync());
+        Assert.Empty(await db.ChatTokenUsage.ToListAsync());
         Assert.Null(EmbeddingUsageScope.Current.UserId);
     }
 

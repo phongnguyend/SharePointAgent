@@ -2,8 +2,20 @@ using SharePointAgent.Domain;
 
 namespace SharePointAgent.Application;
 
-/// <summary>Only persisted identifiers cross the hosting boundary; SQL owns the conversation.</summary>
-public sealed record ChatAgentRequest(Guid ConversationId, Guid QuestionId, Guid? UserId = null);
+/// <summary>
+/// Only persisted identifiers cross the hosting boundary; SQL owns the conversation.
+/// <para>
+/// <paramref name="StartedAtUtc"/> is when the turn's quota lease began. Usage rows are stamped with it
+/// rather than with the time each request finished, so every request of a turn is billed to the day and
+/// month whose allowance was checked at the start — including a turn that runs across midnight UTC. A
+/// request that arrives without it falls back to the time the agent starts.
+/// </para>
+/// </summary>
+public sealed record ChatAgentRequest(
+    Guid ConversationId,
+    Guid QuestionId,
+    Guid? UserId = null,
+    DateTimeOffset? StartedAtUtc = null);
 
 public interface IChatAgentExecutor
 {

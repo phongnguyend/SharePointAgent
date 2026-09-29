@@ -79,7 +79,7 @@ public sealed class ChatAgentStreamingTests
     [Fact]
     public async Task SendsOnlyIdentifiersAndReusesSavedSandboxWithBearerAuthentication()
     {
-        var request = new ChatAgentRequest(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var request = new ChatAgentRequest(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow);
         var sessions = Substitute.For<IFoundrySessionRepository>();
         const string endpoint = "https://example.com/invocations?api-version=v1";
         sessions.GetAsync(request.ConversationId, endpoint, Arg.Any<CancellationToken>()).Returns("saved-session");
@@ -88,9 +88,12 @@ public sealed class ChatAgentStreamingTests
             Assert.Contains("api-version=v1&agent_session_id=saved-session", message.RequestUri!.Query);
             Assert.Equal("Bearer test-token", message.Headers.Authorization!.ToString());
             using var json = JsonDocument.Parse(await message.Content!.ReadAsStringAsync(ct));
-            Assert.Equal(3, json.RootElement.EnumerateObject().Count());
+            // Identifiers plus the turn's start time, which the sandbox needs so the usage rows it
+            // writes land in the day and month the API checked the quota against. Nothing else.
+            Assert.Equal(4, json.RootElement.EnumerateObject().Count());
             Assert.Equal(request.QuestionId, json.RootElement.GetProperty("questionId").GetGuid());
             Assert.Equal(request.UserId, json.RootElement.GetProperty("userId").GetGuid());
+            Assert.Equal(request.StartedAtUtc, json.RootElement.GetProperty("startedAtUtc").GetDateTimeOffset());
             return Response(new("completed", Turn: Turn), "saved-session");
         }));
         var credential = new TestCredential();

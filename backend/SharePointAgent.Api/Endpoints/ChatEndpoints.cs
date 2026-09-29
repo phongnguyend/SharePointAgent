@@ -193,7 +193,7 @@ public static class ChatEndpoints
             try
             {
                 turn = await agent.RunStreamingAsync(
-                    new ChatAgentRequest(id, question.Id, context.AppUser().Id),
+                    new ChatAgentRequest(id, question.Id, context.AppUser().Id, tokenLease.StartedAt),
                     (text, token) => contentSafety.Enabled ? ValueTask.CompletedTask : WriteEventAsync(new ChatStreamEvent("delta", Text: text), token),
                     (status, token) => contentSafety.Enabled ? ValueTask.CompletedTask : WriteEventAsync(new ChatStreamEvent("status", Message: status), token),
                     cancellationToken);
@@ -207,10 +207,11 @@ public static class ChatEndpoints
                 return Results.Empty;
             }
 
-            // Persist provider-reported usage even if the caller disconnects before the answer is saved.
+            // The agent records each model request as it completes. This is the safety net for a turn
+            // that left no row at all, so usage is never lost entirely; it does nothing otherwise.
             using (var accountingTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
             {
-                await tokenLease.RecordAsync(question.Id, turn.Usage, turn.ModelId, accountingTimeout.Token);
+                await tokenLease.RecordAsync(id, question.Id, turn.Usage, turn.ModelId, accountingTimeout.Token);
             }
 
             try

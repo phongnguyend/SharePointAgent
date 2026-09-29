@@ -7,6 +7,12 @@ import { useAsync } from '../lib/useAsync'
 
 const number = (value: number) => value.toLocaleString()
 const dateKey = (value: number) => String(value).replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3')
+/**
+ * A request's comma-separated tool, skill, or script names. The column is capped at 1000 characters
+ * server side and a response may ask for several calls at once, so the full value goes in the title.
+ */
+const nameList = (value: string | null, empty = '—') =>
+  value ? <span title={value}>{value}</span> : <span className="muted">{empty}</span>
 function initialFilters(): ChatUsageFilter {
   const today = new Date().toISOString().slice(0, 10)
   return { from: `${today.slice(0, 7)}-01`, to: today, model: '', user: '', questionId: '', unknownModel: false }
@@ -58,10 +64,10 @@ export default function ChatTokenUsageReport() {
         <StatTile label="Total chat tokens" value={number(data.summary.totalTokens)} icon={<Cpu size={15} />} hint="Embeddings excluded" />
         <StatTile label="Input tokens" value={number(data.summary.inputTokens)} icon={<ArrowDownLeft size={15} />} hint="Prompt and tool context" />
         <StatTile label="Output tokens" value={number(data.summary.outputTokens)} icon={<ArrowUpRight size={15} />} hint="Model output across rounds" />
-        <StatTile label="Recorded turns" value={number(data.summary.turns)} icon={<Activity size={15} />} hint={`${number(data.summary.turns ? Math.round(data.summary.totalTokens / data.summary.turns) : 0)} tokens / turn`} />
+        <StatTile label="Recorded turns" value={number(data.summary.turns)} icon={<Activity size={15} />} hint={`${number(data.summary.turns ? Math.round(data.summary.totalTokens / data.summary.turns) : 0)} tokens / turn · ${number(data.summary.requests)} model requests`} />
         <StatTile label="Active users" value={number(data.summary.users)} icon={<Users size={15} />} hint={`${number(data.models.length)} model groups`} />
       </div>
-      <p className="embedding-period muted">{data.from} – {data.to} UTC · Assigned to the day each turn started, matching monthly quotas. {number(data.summary.unknownModelTurns)} turns have no recorded model. Totals include all matching records, not just this page.</p>
+      <p className="embedding-period muted">{data.from} – {data.to} UTC · Assigned to the day each turn started, matching monthly quotas. One row is one model request, so a turn calling tools spans several. {number(data.summary.unknownModelTurns)} turns have no recorded model. Totals include all matching records, not just this page.</p>
       {data.summary.turns === 0 ? <div className="card"><Empty title="No chat token usage in this range" detail="Clear the filters or choose a wider date range. Historical conversations are not backfilled into the usage ledger." /></div> : <>
         <section className="card"><div className="card-head"><h2>Daily chat consumption</h2><span className="hint">Select a day to filter · Input and output shown in the tooltip</span></div><div className="card-body">
           <div className="embedding-chart" role="group" aria-label="Daily chat token usage">
@@ -89,10 +95,10 @@ export default function ChatTokenUsageReport() {
             event.preventDefault()
             setTab(tabs[next])
             document.getElementById(`chat-report-${tabs[next]}`)?.focus()
-          }}>{({ turns: 'Turn log', daily: 'Daily totals', models: 'Models', users: 'Users' })[value]}</button>)}</div>
+          }}>{({ turns: 'Request log', daily: 'Daily totals', models: 'Models', users: 'Users' })[value]}</button>)}</div>
           <div role="tabpanel" id="chat-report-panel" aria-labelledby={`chat-report-${tab}`} tabIndex={0}><div className="table-scroll">
-            {tab === 'turns' ? <table><thead><tr><th>Usage day (UTC)</th><th>User</th><th>Model</th><th>Input</th><th>Output</th><th>Total</th><th /></tr></thead><tbody>{data.items.map(({ usage, userName }) => <tr key={usage.questionId}><td className="nowrap">{dateKey(usage.day)}</td><td>{userName}</td><td>{usage.modelId ?? 'Unknown / historical'}</td><td>{number(usage.inputTokens)}</td><td>{number(usage.outputTokens)}</td><td><strong>{number(usage.totalTokens)}</strong></td><td><button onClick={() => setSelected(usage)}><Eye size={14} />Details</button></td></tr>)}</tbody></table> : <table><thead><tr><th>{tab === 'daily' ? 'Day (UTC)' : tab === 'models' ? 'Model' : 'User (top 100)'}</th><th>Turns</th><th>Input</th><th>Output</th><th>Total</th><th>Tokens / turn</th></tr></thead><tbody>{(tab === 'daily' ? data.daily.map(row => ({ ...row, key: String(row.day), name: dateKey(row.day) })) : tab === 'models' ? data.models.map(row => ({ ...row, key: row.modelId ?? '__unknown__', name: row.modelId ?? 'Unknown / historical' })) : data.users.map(row => ({ ...row, key: row.userId }))).map(row => <tr key={row.key}><td>{row.name}</td><td>{number(row.turns)}</td><td>{number(row.inputTokens)}</td><td>{number(row.outputTokens)}</td><td>{number(row.totalTokens)}</td><td>{number(Math.round(row.totalTokens / row.turns))}</td></tr>)}</tbody></table>}
-          </div>{tab === 'turns' && <Pagination skip={skip} top={25} total={data.summary.turns} onSkip={setSkip} />}</div>
+            {tab === 'turns' ? <table><thead><tr><th>Usage day (UTC)</th><th>User</th><th>Model</th><th>Tools</th><th>Skills</th><th>Scripts</th><th>Input</th><th>Output</th><th>Total</th><th /></tr></thead><tbody>{data.items.map(({ usage, userName }) => <tr key={usage.id}><td className="nowrap">{dateKey(usage.day)}</td><td>{userName}</td><td>{usage.modelId ?? 'Unknown / historical'}</td><td>{nameList(usage.toolNames, usage.sequence < 0 ? 'Whole turn' : 'Answered')}</td><td>{nameList(usage.skillNames)}</td><td>{nameList(usage.scriptNames)}</td><td>{number(usage.inputTokens ?? 0)}</td><td>{number(usage.outputTokens ?? 0)}</td><td><strong>{number(usage.totalTokens ?? 0)}</strong></td><td><button onClick={() => setSelected(usage)}><Eye size={14} />Details</button></td></tr>)}</tbody></table> : <table><thead><tr><th>{tab === 'daily' ? 'Day (UTC)' : tab === 'models' ? 'Model' : 'User (top 100)'}</th><th>Turns</th><th>Input</th><th>Output</th><th>Total</th><th>Tokens / turn</th></tr></thead><tbody>{(tab === 'daily' ? data.daily.map(row => ({ ...row, key: String(row.day), name: dateKey(row.day) })) : tab === 'models' ? data.models.map(row => ({ ...row, key: row.modelId ?? '__unknown__', name: row.modelId ?? 'Unknown / historical' })) : data.users.map(row => ({ ...row, key: row.userId }))).map(row => <tr key={row.key}><td>{row.name}</td><td>{number(row.turns)}</td><td>{number(row.inputTokens)}</td><td>{number(row.outputTokens)}</td><td>{number(row.totalTokens)}</td><td>{number(Math.round(row.totalTokens / row.turns))}</td></tr>)}</tbody></table>}
+          </div>{tab === 'turns' && <Pagination skip={skip} top={25} total={data.summary.requests} onSkip={setSkip} />}</div>
         </section>
       </>}
     </div>}

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SharePointAgent.Persistence;
 
@@ -11,9 +12,11 @@ using SharePointAgent.Persistence;
 namespace SharePointAgent.Persistence.Migrations
 {
     [DbContext(typeof(SharePointIndexDbContext))]
-    partial class SharePointIndexDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260929084255_ReplaceTurnUsageWithChatTokenUsage")]
+    partial class ReplaceTurnUsageWithChatTokenUsage
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -564,7 +567,7 @@ namespace SharePointAgent.Persistence.Migrations
                     b.Property<Guid>("QuestionId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("ScriptNames")
+                    b.Property<string>("ScriptPaths")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 

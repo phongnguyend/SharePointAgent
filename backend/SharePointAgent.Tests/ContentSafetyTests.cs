@@ -71,7 +71,7 @@ public sealed class ContentSafetyTests
         Assert.Equal(5, row.CharacterCount);
         Assert.Equal(1, row.EstimatedTextRecords);
         Assert.Equal(status, row.HttpStatusCode);
-        Assert.Empty(await db.UserTokenUsage.ToListAsync());
+        Assert.Empty(await db.ChatTokenUsage.ToListAsync());
     }
 
     [Fact]

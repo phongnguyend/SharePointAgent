@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
@@ -324,21 +324,25 @@ public sealed class AppIdentityTests
         Assert.Null(user.MonthlyTokenLimit);
         var now = DateTimeOffset.UtcNow;
         var first = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero);
+        var conversation = Guid.NewGuid();
         var question = Guid.NewGuid();
         var beforeRecording = DateTimeOffset.UtcNow;
-        await MonthlyTokenQuota.RecordUsageAsync(fixture.Db, user.Id, question, first, new(20, 10, 30, 999), "model-a", default);
-        var createdAt = (await fixture.Db.UserTokenUsage.AsNoTracking().SingleAsync(x => x.QuestionId == question)).CreatedAtUtc;
-        Assert.NotNull(createdAt);
-        Assert.InRange(createdAt.Value, beforeRecording, DateTimeOffset.UtcNow);
-        Assert.Equal(TimeSpan.Zero, createdAt.Value.Offset);
-        await MonthlyTokenQuota.RecordUsageAsync(fixture.Db, user.Id, question, first, new(20, 10, 30), "model-b", default);
-        Assert.Equal("model-a", (await fixture.Db.UserTokenUsage.AsNoTracking().SingleAsync(x => x.QuestionId == question)).ModelId);
-        Assert.Equal(createdAt, (await fixture.Db.UserTokenUsage.AsNoTracking().SingleAsync(x => x.QuestionId == question)).CreatedAtUtc);
-        await MonthlyTokenQuota.RecordUsageAsync(fixture.Db, user.Id, Guid.NewGuid(), first.AddHours(1), new(5, 5, 10), "model-b", default);
-        await MonthlyTokenQuota.RecordUsageAsync(fixture.Db, user.Id, Guid.NewGuid(), first.AddDays(1), new(10, 10, 20), "model-a", default);
-        await MonthlyTokenQuota.RecordUsageAsync(fixture.Db, user.Id, Guid.NewGuid(), first.AddMonths(-1), new(900, 100, 1000), null, default);
-        var modelTotals = await fixture.Db.UserTokenUsage.Where(x => x.Month == MonthlyTokenQuota.MonthKey(first))
-            .GroupBy(x => x.ModelId).Select(x => new { Model = x.Key, Tokens = x.Sum(t => t.TotalTokens) }).ToListAsync();
+        await MonthlyTokenQuota.RecordUsageAsync(fixture.Db, user.Id, conversation, question, first, new(20, 10, 30, 999), "model-a", default);
+        var createdAt = (await fixture.Db.ChatTokenUsage.AsNoTracking().SingleAsync(x => x.QuestionId == question)).CreatedAtUtc;
+        Assert.InRange(createdAt, beforeRecording, DateTimeOffset.UtcNow);
+        Assert.Equal(TimeSpan.Zero, createdAt.Offset);
+
+        // A whole-turn fallback row is marked as such rather than posing as the turn's first request.
+        Assert.Equal(ChatTokenUsageEntity.TurnTotalSequence,
+            (await fixture.Db.ChatTokenUsage.AsNoTracking().SingleAsync(x => x.QuestionId == question)).Sequence);
+        await MonthlyTokenQuota.RecordUsageAsync(fixture.Db, user.Id, conversation, question, first, new(20, 10, 30), "model-b", default);
+        Assert.Equal("model-a", (await fixture.Db.ChatTokenUsage.AsNoTracking().SingleAsync(x => x.QuestionId == question)).ModelId);
+        Assert.Equal(createdAt, (await fixture.Db.ChatTokenUsage.AsNoTracking().SingleAsync(x => x.QuestionId == question)).CreatedAtUtc);
+        await MonthlyTokenQuota.RecordUsageAsync(fixture.Db, user.Id, conversation, Guid.NewGuid(), first.AddHours(1), new(5, 5, 10), "model-b", default);
+        await MonthlyTokenQuota.RecordUsageAsync(fixture.Db, user.Id, conversation, Guid.NewGuid(), first.AddDays(1), new(10, 10, 20), "model-a", default);
+        await MonthlyTokenQuota.RecordUsageAsync(fixture.Db, user.Id, conversation, Guid.NewGuid(), first.AddMonths(-1), new(900, 100, 1000), null, default);
+        var modelTotals = await fixture.Db.ChatTokenUsage.Where(x => x.Month == MonthlyTokenQuota.MonthKey(first))
+            .GroupBy(x => x.ModelId).Select(x => new { Model = x.Key, Tokens = x.Sum(t => t.TotalTokens ?? 0) }).ToListAsync();
         Assert.Equal(50, modelTotals.Single(x => x.Model == "model-a").Tokens);
         Assert.Equal(10, modelTotals.Single(x => x.Model == "model-b").Tokens);
         var limited = await fixture.Service.SaveTokenLimitAsync(user.Id, new(50, user.ConcurrencyStamp), default);
@@ -374,8 +378,9 @@ public sealed class AppIdentityTests
         var user = await fixture.Service.SaveAsync(null, new("vision-quota@example.com", "Vision", [AppRoles.User]), default);
         var now = DateTimeOffset.UtcNow;
         var month = MonthlyTokenQuota.MonthKey(now);
+        var conversation = Guid.NewGuid();
         var question = Guid.NewGuid();
-        await MonthlyTokenQuota.RecordUsageAsync(fixture.Db, user.Id, question, now, new(80, 20, 100), "chat", default);
+        await MonthlyTokenQuota.RecordUsageAsync(fixture.Db, user.Id, conversation, question, now, new(80, 20, 100), "chat", default);
         fixture.Db.ImageDescriptionTokenUsage.AddRange(
             new ImageDescriptionTokenUsageEntity { UserId = user.Id, QuestionId = question, Day = MonthlyTokenQuota.DayKey(now), Month = month, ModelId = "vision", InputTokens = 15, OutputTokens = 5, TotalTokens = 20 },
             new ImageDescriptionTokenUsageEntity { UserId = user.Id, QuestionId = question, Day = MonthlyTokenQuota.DayKey(now), Month = month, ModelId = "vision", InputTokens = 20, OutputTokens = 10, TotalTokens = 30 },
@@ -387,7 +392,7 @@ public sealed class AppIdentityTests
         var daily = await MonthlyTokenQuota.DailyUsageAsync(fixture.Db, user.Id, month);
         Assert.Equal(190, daily.Sum(x => x.TotalTokens));
         Assert.Equal(90, daily.Single(x => x.ModelId == "vision").TotalTokens);
-        Assert.Equal(100, (await fixture.Db.UserTokenUsage.SingleAsync()).TotalTokens);
+        Assert.Equal(100, (await fixture.Db.ChatTokenUsage.SingleAsync()).TotalTokens ?? 0);
         var profile = await fixture.Service.SaveTokenLimitAsync(user.Id, new(190, user.ConcurrencyStamp), default);
         Assert.Equal(190, profile.MonthlyTokensUsed);
         Assert.Throws<UserManagementException>(() => MonthlyTokenQuota.EnsureAvailable(profile.MonthlyTokenLimit, profile.MonthlyTokensUsed));

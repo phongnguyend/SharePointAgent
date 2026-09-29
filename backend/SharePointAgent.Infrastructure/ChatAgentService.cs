@@ -47,7 +47,8 @@ public sealed class ChatAgentService(
             UserId: request.UserId, ConversationId: context.Conversation.Id, QuestionId: context.Question.Id));
         return await RunStreamingCoreAsync(
             context.Conversation.Id, context.History, context.Question, context.Conversation.UserId,
-            context.Agent.ModelId, context.Agent.Instructions, onText, onStatus, cancellationToken);
+            context.Agent.ModelId, context.Agent.Instructions, request.StartedAtUtc ?? DateTimeOffset.UtcNow,
+            onText, onStatus, cancellationToken);
     }
 
     private async Task<ChatTurn> RunStreamingCoreAsync(
@@ -57,6 +58,7 @@ public sealed class ChatAgentService(
         string? userId,
         string modelId,
         string instructions,
+        DateTimeOffset startedAt,
         Func<string, CancellationToken, ValueTask> onText,
         Func<string, CancellationToken, ValueTask> onStatus,
         CancellationToken cancellationToken)
@@ -137,7 +139,13 @@ public sealed class ChatAgentService(
                 Instructions = instructions,
                 Tools = tools,
             },
-        })
+        },
+        // clientFactory places this under the agent's function-invocation loop, so it sees each request
+        // of the turn rather than the turn's total, and each row is written as that response completes.
+        clientFactory: inner => new TrackedChatClient(
+            inner,
+            (usage, token) => RecordRequestUsageAsync(conversationId, question.Id, modelId, startedAt, usage, token),
+            logger))
             .AsBuilder()
             .UseToolApproval(new ToolApprovalAgentOptions
             {
@@ -244,6 +252,68 @@ public sealed class ChatAgentService(
             turnTools.Citations,
             new ChatTokenUsage(inputTokens, outputTokens, totalTokens, embeddingUsage.TotalTokens),
             modelId);
+    }
+
+    /// <summary>
+    /// Stores one model request's usage on its own, in its own context, as the response completes. These
+    /// rows are what quotas and the Chat Usage report sum, so the day and month come from the turn's
+    /// start — the period whose allowance was checked — rather than from the moment this row is written.
+    /// <para>
+    /// A failure here loses that request's tokens and is logged by the caller. It must not fail the turn:
+    /// the request has already been answered and billed by the provider either way, and the API records
+    /// the turn's total as a single row if none of these arrived.
+    /// </para>
+    /// </summary>
+    private async ValueTask RecordRequestUsageAsync(
+        Guid conversationId,
+        Guid questionId,
+        string modelId,
+        DateTimeOffset startedAt,
+        ChatRequestUsage usage,
+        CancellationToken cancellationToken)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        // The authenticated sender of the turn, which the request carries, is who gets billed — an
+        // administrator chatting in someone else's conversation pays for it. Only a request that arrived
+        // without a user falls back to whoever created the conversation.
+        var appUserId = EmbeddingUsageScope.Current.UserId
+            ?? await db.ChatConversations.Where(x => x.Id == conversationId).Select(x => x.CreatedById).SingleOrDefaultAsync(cancellationToken);
+        db.ChatTokenUsage.Add(new ChatTokenUsageEntity
+        {
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            Day = MonthlyTokenQuota.DayKey(startedAt),
+            Month = MonthlyTokenQuota.MonthKey(startedAt),
+            UserId = appUserId,
+            ConversationId = conversationId,
+            QuestionId = questionId,
+            Sequence = usage.Sequence,
+            ModelId = modelId,
+            ToolNames = NameList(usage.ToolNames),
+            SkillNames = NameList(usage.SkillNames),
+            ScriptNames = NameList(usage.ScriptNames),
+            InputTokens = usage.Usage?.InputTokenCount,
+            OutputTokens = usage.Usage?.OutputTokenCount,
+            TotalTokens = usage.Usage?.TotalTokenCount
+        });
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Names for one of the list columns: null when there are none, and truncated rather than rejected
+    /// when a response asked for more calls than the column holds.
+    /// </summary>
+    private static string? NameList(IReadOnlyList<string> names)
+    {
+        if (names.Count == 0)
+        {
+            return null;
+        }
+
+        var joined = string.Join(", ", names.Distinct(StringComparer.Ordinal));
+        return joined.Length <= SharePointIndexDbContext.ToolListLength
+            ? joined
+            : joined[..SharePointIndexDbContext.ToolListLength];
     }
 
     private static string StatusForTool(string? name) => name switch
