@@ -1,3 +1,4 @@
+using Azure;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Indexes.Models;
@@ -16,8 +17,41 @@ public sealed class AzureSearchIndexStore(
     IOptions<SearchOptions> options) : ISearchIndexStore
 {
     private readonly SearchOptions _options = options.Value;
+    private readonly SemaphoreSlim _initializationLock = new(1, 1);
+    private bool _initialized;
 
     public async Task EnsureIndexAsync(CancellationToken cancellationToken)
+    {
+        await _initializationLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_initialized)
+            {
+                return;
+            }
+
+            for (var attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    await EnsureIndexCoreAsync(cancellationToken);
+                    _initialized = true;
+                    return;
+                }
+                catch (RequestFailedException exception) when (exception.Status == 409 && attempt < 5)
+                {
+                    // Another process/revision may still be creating or updating the same index.
+                    await Task.Delay(TimeSpan.FromSeconds(Math.Min(1 << attempt, 16)), cancellationToken);
+                }
+            }
+        }
+        finally
+        {
+            _initializationLock.Release();
+        }
+    }
+
+    private async Task EnsureIndexCoreAsync(CancellationToken cancellationToken)
     {
         var fields = new List<SearchField>
         {
