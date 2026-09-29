@@ -17,6 +17,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 nodejs 
 WORKDIR /app
 ENV ASPNETCORE_HTTP_PORTS=8088
 EXPOSE 8088
-USER $APP_UID
+# Stay on the base image's default (root) user rather than $APP_UID: Foundry mounts the session
+# sandbox at $HOME (for example /home/session) owned for root, and a non-root user gets
+# "Access to the path ... is denied" the first time a tool tries to create a directory under it.
 COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet", "SharePointAgent.AgentHost.dll"]
