@@ -92,7 +92,6 @@ public sealed class UploadOptions
     public string? ConnectionString { get; set; }
     public string? ServiceUri { get; set; }
     [Required] public string ContainerName { get; set; } = "chat-uploads";
-    public string CacheDirectory { get; set; } = Path.Combine(Path.GetTempPath(), "SharePointAgent", "attachments");
     [Range(1024, 209_715_200)] public int MaxFileBytes { get; set; } = 20 * 1024 * 1024;
     [Range(100, 8000)] public int ChunkSizeCharacters { get; set; } = 4000;
     [Range(0, 2000)] public int ChunkOverlapCharacters { get; set; } = 400;
@@ -182,27 +181,60 @@ public sealed class MarkItDownOptions
 }
 
 /// <summary>
-/// Where the chat assistant's download tool puts the SharePoint files it fetches, and how large a file it
-/// will fetch. The directory is a cache: a file already on disk is handed back as it is rather than
-/// downloaded again.
+/// The one directory on this host the chat assistant works in. SharePoint downloads and conversation
+/// attachments are cached here, and the agent's file tools can read, write, and organise inside it and
+/// nowhere else. The directory is also a cache: a file already on disk is handed back as it is rather
+/// than downloaded again.
 /// </summary>
-public sealed class DownloadOptions
+public sealed class LocalWorkingDirectoryOptions
 {
-    public const string SectionName = "Downloads";
+    public const string SectionName = "LocalWorkingDirectory";
 
     /// <summary>
-    /// Root directory for downloaded files. A relative path resolves against the process working
-    /// directory. Empty — the default — puts them in <c>sharepoint-downloads</c> under the system
-    /// temporary directory.
+    /// Root of the working directory. A relative path resolves against the process working directory.
+    /// Empty — the default — puts it in <c>sharepoint-agent</c> under the system temporary
+    /// directory. In a Foundry sandbox this should be a path the session keeps between turns.
     /// </summary>
     public string Directory { get; set; } = "";
 
-    [Range(1024, 209_715_200)] public int MaxFileBytes { get; set; } = 20 * 1024 * 1024;
+    /// <summary>Limits on what the SharePoint download and upload tools move through the directory.</summary>
+    public DownloadOptions Downloads { get; set; } = new();
 
     /// <summary>The absolute root directory, whatever form <see cref="Directory"/> was configured in.</summary>
     public string ResolvedDirectory => Path.GetFullPath(string.IsNullOrWhiteSpace(Directory)
-        ? Path.Combine(Path.GetTempPath(), "sharepoint-downloads")
+        ? Path.Combine(Path.GetTempPath(), "sharepoint-agent")
         : Directory);
+
+    /// <summary>
+    /// Everything fetched from elsewhere, under one folder of the working directory rather than at the
+    /// top of it. That leaves the top level for what the agent writes itself, so a listing tells its
+    /// own work from copies of other people's documents. These are derived rather than configured, so
+    /// the parts cannot be pointed at different disks and the agent's file tools always reach them.
+    /// </summary>
+    public string ResolvedDownloadsDirectory => Path.Combine(ResolvedDirectory, DownloadsFolderName);
+
+    /// <summary>Library documents, one folder per drive item.</summary>
+    public string ResolvedSharePointDirectory => Path.Combine(ResolvedDownloadsDirectory, SharePointFolderName);
+
+    /// <summary>Conversation attachments and the Markdown they were converted to, one folder each.</summary>
+    public string ResolvedAttachmentsDirectory => Path.Combine(ResolvedDownloadsDirectory, AttachmentsFolderName);
+
+    /// <summary>The folder names the agent sees in a listing and uses in a path.</summary>
+    public const string DownloadsFolderName = "Downloads";
+
+    public const string SharePointFolderName = "SharePoint";
+
+    public const string AttachmentsFolderName = "Attachments";
+}
+
+/// <summary>
+/// How large a file the download and upload tools will move. Nested under
+/// <see cref="LocalWorkingDirectoryOptions"/>, because it is a limit on what passes through that
+/// directory rather than a place of its own.
+/// </summary>
+public sealed class DownloadOptions
+{
+    [Range(1024, 209_715_200)] public int MaxFileBytes { get; set; } = 20 * 1024 * 1024;
 }
 
 public sealed class ProcessorOptions

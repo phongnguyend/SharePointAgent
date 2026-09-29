@@ -126,7 +126,7 @@ public static class IndexedFilesEndpoints
             HttpContext context,
             IIndexStateRepository reader,
             SharePointClient sharePointClient,
-            IOptions<DownloadOptions> downloadOptions,
+            IOptions<LocalWorkingDirectoryOptions> workingDirectoryOptions,
             CancellationToken cancellationToken) =>
         {
             context.Response.Headers.CacheControl = "no-store";
@@ -156,7 +156,7 @@ public static class IndexedFilesEndpoints
                     return Results.NotFound(new { error = "File is outside the configured SharePoint library." });
                 }
 
-                var bytes = await sharePointClient.DownloadReadableContentAsync(itemId, file.Name, downloadOptions.Value.MaxFileBytes, cancellationToken);
+                var bytes = await sharePointClient.DownloadReadableContentAsync(itemId, file.Name, workingDirectoryOptions.Value.Downloads.MaxFileBytes, cancellationToken);
                 return Results.File(bytes, contentType);
             }
             catch (ProtectedDocumentAccessDeniedException ex)
@@ -186,7 +186,7 @@ public static class IndexedFilesEndpoints
             IIndexStateRepository reader,
             SharePointClient sharePointClient,
             MarkItDownClient markItDown,
-            IOptions<DownloadOptions> downloadOptions,
+            IOptions<LocalWorkingDirectoryOptions> workingDirectoryOptions,
             CancellationToken cancellationToken) =>
         {
             context.Response.Headers.CacheControl = "no-store";
@@ -203,7 +203,7 @@ public static class IndexedFilesEndpoints
                     return Results.NotFound(new { error = "File is outside the configured SharePoint library." });
                 }
 
-                var bytes = await sharePointClient.DownloadReadableContentAsync(itemId, file.Name, downloadOptions.Value.MaxFileBytes, cancellationToken);
+                var bytes = await sharePointClient.DownloadReadableContentAsync(itemId, file.Name, workingDirectoryOptions.Value.Downloads.MaxFileBytes, cancellationToken);
                 var markdown = await markItDown.ConvertAsync(file.Name, bytes, file.MimeType, cancellationToken);
                 return Results.Ok(new { markdown });
             }

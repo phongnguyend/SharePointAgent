@@ -15,16 +15,19 @@ public sealed class ProtectedDownloadTests : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "protected-download-tests", Guid.NewGuid().ToString("N"));
 
+    private LocalWorkingDirectoryOptions WorkingDirectory => new() { Directory = _directory };
+
     private string CreateCachedFile()
     {
-        var path = Path.Combine(_directory, "item", "document.docx");
+        // Where the cache puts a drive item: Downloads/SharePoint inside the working directory.
+        var path = Path.Combine(WorkingDirectory.ResolvedSharePointDirectory, "item", "document.docx");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, "encrypted input");
         return path;
     }
 
     private SharePointFileCache CreateCache(IProtectedFileService service) => new(null!, service,
-        Options.Create(new DownloadOptions { Directory = _directory }), NullLogger<SharePointFileCache>.Instance);
+        Options.Create(WorkingDirectory), NullLogger<SharePointFileCache>.Instance);
 
     [Fact]
     public async Task CachedDownloadChecksProtectionAndReturnsDecryptedSize()
@@ -89,7 +92,7 @@ public sealed class ProtectedDownloadTests : IDisposable
         using var graph = new GraphServiceClient(http);
         memory.Set("SharePointDrive___", new Drive { Id = "drive" });
         var client = new SharePointClient(graph, memory, Options.Create(new SharePointOptions()), service);
-        using var cache = new SharePointFileCache(client, service, Options.Create(new DownloadOptions { Directory = _directory }), NullLogger<SharePointFileCache>.Instance);
+        using var cache = new SharePointFileCache(client, service, Options.Create(WorkingDirectory), NullLogger<SharePointFileCache>.Instance);
 
         var result = await cache.DownloadAsync("item", "document.docx", default);
 
@@ -112,7 +115,7 @@ public sealed class ProtectedDownloadTests : IDisposable
         using var graph = new GraphServiceClient(http);
         memory.Set("SharePointDrive___", new Drive { Id = "drive" });
         var client = new SharePointClient(graph, memory, Options.Create(new SharePointOptions()), service);
-        using var cache = new SharePointFileCache(client, service, Options.Create(new DownloadOptions { Directory = _directory }), NullLogger<SharePointFileCache>.Instance);
+        using var cache = new SharePointFileCache(client, service, Options.Create(WorkingDirectory), NullLogger<SharePointFileCache>.Instance);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => cache.RefreshAsync("item", "document.docx", default));
 

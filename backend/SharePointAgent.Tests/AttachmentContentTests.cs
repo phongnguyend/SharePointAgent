@@ -13,13 +13,20 @@ namespace SharePointAgent.Tests;
 
 public sealed class AttachmentContentTests
 {
+    /// <summary>
+    /// The cache no longer takes a directory of its own: it derives one from the agent's working
+    /// directory, so a test points that at a temporary root and reads the folder back.
+    /// </summary>
+    private static IOptions<LocalWorkingDirectoryOptions> WorkingDirectory(string root) =>
+        Options.Create(new LocalWorkingDirectoryOptions { Directory = root });
+
     [Theory]
     [InlineData("screenshot.PNG")]
     [InlineData("photo.jpeg")]
     [InlineData("image.webp")]
     public async Task ImagesCannotBeConvertedOrReadAsMarkdown(string fileName)
     {
-        using var cache = new AttachmentContentCache(null!, null!, Options.Create(new UploadOptions()));
+        using var cache = new AttachmentContentCache(null!, null!, Options.Create(new UploadOptions()), WorkingDirectory(Path.GetTempPath()));
         var file = new ChatMessageAttachmentFileEntity { FileName = fileName, Status = UploadIndexStatus.Indexed };
 
         await Assert.ThrowsAsync<ArgumentException>(() => cache.ConvertForIndexAsync(file, default));
@@ -30,6 +37,7 @@ public sealed class AttachmentContentTests
     public async Task OriginalDownloadNeverReturnsMarkdownEvenWhenMarkdownIsCached()
     {
         var root = Path.Combine(Path.GetTempPath(), "attachment-distinct-tests-" + Guid.NewGuid().ToString("N"));
+        var workingDirectory = WorkingDirectory(root);
         try
         {
             var id = Guid.NewGuid();
@@ -48,7 +56,7 @@ public sealed class AttachmentContentTests
                 BlobsModelFactory.BlobProperties(eTag: etag), Substitute.For<Response>()));
             markdownBlob.DownloadContentAsync(Arg.Any<CancellationToken>()).Returns(Response.FromValue(
                 BlobsModelFactory.BlobDownloadResult(BinaryData.FromString("# Converted text"), BlobsModelFactory.BlobDownloadDetails(eTag: etag)), Substitute.For<Response>()));
-            using var cache = new AttachmentContentCache(service, null!, Options.Create(new UploadOptions { CacheDirectory = root }));
+            using var cache = new AttachmentContentCache(service, null!, Options.Create(new UploadOptions()), workingDirectory);
             var file = new ChatMessageAttachmentFileEntity { Id = id, FileName = "report.docx", BlobName = "original.docx", SizeBytes = originalBytes.Length, Status = UploadIndexStatus.Indexed };
             var markdown = await cache.GetMarkdownAsync(file, default);
             var original = await cache.DownloadAsync(file, default);
@@ -78,8 +86,9 @@ public sealed class AttachmentContentTests
     public async Task TextAttachmentsPreserveContentWithoutCallingConverter(string name, bool utf16)
     {
         var root = Path.Combine(Path.GetTempPath(), "attachment-text-tests-" + Guid.NewGuid().ToString("N"));
+        var workingDirectory = WorkingDirectory(root);
         var id = Guid.NewGuid();
-        var directory = Path.Combine(root, id.ToString("N"));
+        var directory = Path.Combine(workingDirectory.Value.ResolvedAttachmentsDirectory, id.ToString("N"));
         Directory.CreateDirectory(directory);
         try
         {
@@ -89,9 +98,8 @@ public sealed class AttachmentContentTests
             // No converter or Blob client: cached text must be read directly on every index/reindex.
             using var cache = new AttachmentContentCache(null!, null!, Options.Create(new UploadOptions
             {
-                CacheDirectory = root,
                 TextFileExtensions = [" txt ", ".MD", ".json", "CSV"]
-            }));
+            }), workingDirectory);
             var file = new ChatMessageAttachmentFileEntity { Id = id, FileName = name, SizeBytes = new FileInfo(path).Length };
             Assert.Equal(text, await cache.ConvertForIndexAsync(file, default));
             Assert.Equal(text, await cache.ConvertForIndexAsync(file, default));
@@ -113,7 +121,7 @@ public sealed class AttachmentContentTests
         container.GetBlobClient($"markdown-cache/{id:N}/content.md").Returns(blob);
         blob.UploadAsync(Arg.Any<BinaryData>(), true, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Response<BlobContentInfo>>(null!));
-        using var cache = new AttachmentContentCache(service, null!, Options.Create(new UploadOptions()));
+        using var cache = new AttachmentContentCache(service, null!, Options.Create(new UploadOptions()), WorkingDirectory(Path.GetTempPath()));
         await cache.StoreMarkdownAsync(id, "# First\r\nα", default);
         await cache.StoreMarkdownAsync(id, "# Reindexed\nβ", default);
         await blob.Received(1).UploadAsync(Arg.Is<BinaryData>(b => b.ToString() == "# First\r\nα"), true, Arg.Any<CancellationToken>());
@@ -124,8 +132,9 @@ public sealed class AttachmentContentTests
     public async Task MissingMarkdownRequiresReindexInsteadOfReconversion()
     {
         var root = Path.Combine(Path.GetTempPath(), "attachment-tests-" + Guid.NewGuid().ToString("N"));
+        var workingDirectory = WorkingDirectory(root);
         var id = Guid.NewGuid();
-        var directory = Path.Combine(root, id.ToString("N"));
+        var directory = Path.Combine(workingDirectory.Value.ResolvedAttachmentsDirectory, id.ToString("N"));
         Directory.CreateDirectory(directory);
         try
         {
@@ -138,7 +147,7 @@ public sealed class AttachmentContentTests
             blob.GetPropertiesAsync(cancellationToken: Arg.Any<CancellationToken>())
                 .Returns(Task.FromException<Response<BlobProperties>>(new RequestFailedException(404, "Missing")));
             // A converter is deliberately absent: a read must never attempt conversion.
-            using var cache = new AttachmentContentCache(service, null!, Options.Create(new UploadOptions { CacheDirectory = root }));
+            using var cache = new AttachmentContentCache(service, null!, Options.Create(new UploadOptions()), workingDirectory);
             var error = await Assert.ThrowsAsync<AttachmentMarkdownUnavailableException>(() => cache.GetMarkdownAsync(
                 new ChatMessageAttachmentFileEntity { Id = id, SizeBytes = 6, Status = UploadIndexStatus.Indexed }, default));
             Assert.Contains("Reindex", error.Message);
@@ -152,7 +161,7 @@ public sealed class AttachmentContentTests
     [Fact]
     public async Task UnindexedFilesCannotReadOrGenerateMarkdown()
     {
-        using var cache = new AttachmentContentCache(null!, null!, Options.Create(new UploadOptions()));
+        using var cache = new AttachmentContentCache(null!, null!, Options.Create(new UploadOptions()), WorkingDirectory(Path.GetTempPath()));
         await Assert.ThrowsAsync<AttachmentMarkdownUnavailableException>(() => cache.GetMarkdownAsync(
             new ChatMessageAttachmentFileEntity { Status = UploadIndexStatus.Failed }, default));
     }

@@ -7,7 +7,8 @@ using SharePointAgent.Domain;
 namespace SharePointAgent.Infrastructure;
 
 /// <summary>
-/// The local copies of SharePoint files: one folder per drive item under the configured root, filled by
+/// The local copies of SharePoint files: one folder per drive item under <c>Downloads/SharePoint</c> in
+/// the agent's working directory, filled by
 /// <see cref="DownloadAsync"/> and sent back by <see cref="UploadAsync"/>. It owns where a drive item
 /// lives on disk, so both directions agree on the path without either caller working it out.
 /// <para>
@@ -19,13 +20,13 @@ namespace SharePointAgent.Infrastructure;
 public sealed class SharePointFileCache(
     SharePointClient sharePointClient,
     IProtectedFileService protectedFiles,
-    IOptions<DownloadOptions> options,
+    IOptions<LocalWorkingDirectoryOptions> options,
     ILogger<SharePointFileCache> logger) : IDisposable
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private static readonly SearchValues<char> InvalidNameChars = SearchValues.Create(Path.GetInvalidFileNameChars());
 
-    private readonly DownloadOptions _options = options.Value;
+    private readonly LocalWorkingDirectoryOptions _options = options.Value;
 
     /// <summary>The local copy of a drive item, or null when it has not been downloaded.</summary>
     public DownloadedFile? Find(string itemId, string fileName)
@@ -62,7 +63,7 @@ public sealed class SharePointFileCache(
 
         if (Find(itemId, fileName) is { } existing)
         {
-            await protectedFiles.EnsureReadableAsync(existing.LocalPath, fileName, _options.MaxFileBytes, cancellationToken);
+            await protectedFiles.EnsureReadableAsync(existing.LocalPath, fileName, _options.Downloads.MaxFileBytes, cancellationToken);
             logger.LogInformation("Reused the local copy of {FileName} at {LocalPath}.", existing.FileName, existing.LocalPath);
             return existing with { SizeBytes = new FileInfo(existing.LocalPath).Length };
         }
@@ -124,7 +125,7 @@ public sealed class SharePointFileCache(
         long size;
         try
         {
-            size = await sharePointClient.DownloadReadableToFileAsync(itemId, fileName, stagingPath, _options.MaxFileBytes, cancellationToken);
+            size = await sharePointClient.DownloadReadableToFileAsync(itemId, fileName, stagingPath, _options.Downloads.MaxFileBytes, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             PublishDownload(stagingPath, localPath);
         }
@@ -176,7 +177,7 @@ public sealed class SharePointFileCache(
             throw new InvalidOperationException("This local copy was decrypted from a protected document. Upload is blocked to preserve the SharePoint document's protection. Save changes through a protection-aware Office application.");
         }
 
-        var version = await sharePointClient.UploadFileAsync(itemId, local.LocalPath, _options.MaxFileBytes, cancellationToken);
+        var version = await sharePointClient.UploadFileAsync(itemId, local.LocalPath, _options.Downloads.MaxFileBytes, cancellationToken);
 
         logger.LogInformation(
             "Uploaded {LocalPath} ({Bytes} bytes) back to SharePoint as a new version of {FileName}.",
@@ -194,12 +195,12 @@ public sealed class SharePointFileCache(
     /// </summary>
     private string ResolveLocalPath(string itemId, string fileName)
     {
-        var root = _options.ResolvedDirectory;
+        var root = _options.ResolvedSharePointDirectory;
         var localPath = Path.GetFullPath(Path.Combine(root, Sanitize(itemId), Sanitize(Path.GetFileName(fileName))));
 
         if (!localPath.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
         {
-            throw new ArgumentException($"'{fileName}' does not resolve to a path inside the download directory.", nameof(fileName));
+            throw new ArgumentException($"'{fileName}' does not resolve to a path inside the downloads directory.", nameof(fileName));
         }
 
         return localPath;

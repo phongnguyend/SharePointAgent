@@ -37,7 +37,7 @@ The app shows **Sign in with your organization** before loading its pages. The a
 DOCX, XLSX, and PPTX files can be opened in the app from Search results, the Indexed files detail panel,
 the Attachment files page, or a chat message attachment. The preview downloads the file bytes to the browser
 and offers a save button. Indexed-file previews fetch the current SharePoint version and are limited by
-`Downloads:MaxFileBytes` (20 MB by default). XLSX sheets show 50 rows and 26 columns at a time, with
+`LocalWorkingDirectory:Downloads:MaxFileBytes` (20 MB by default). XLSX sheets show 50 rows and 26 columns at a time, with
 tabs to select worksheets and controls to move through larger sheets. The grid displays common cell
 formatting, number formats, column widths, row heights, and merged cells.
 

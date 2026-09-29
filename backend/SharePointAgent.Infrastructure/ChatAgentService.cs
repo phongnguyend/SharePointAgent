@@ -34,6 +34,7 @@ public sealed class ChatAgentService(
     ChatMessageAttachmentFileService attachmentFiles,
     SharePointFileCache files,
     ILogger<ChatAgentService> logger,
+    AgentFileSystem workingDirectory,
     IDbContextFactory<SharePointIndexDbContext> contextFactory) : IChatAgentExecutor
 {
     public async Task<ChatTurn> RunStreamingAsync(
@@ -111,7 +112,9 @@ public sealed class ChatAgentService(
                 });
                 await db.SaveChangesAsync(recording.Token);
             });
-        var turnTools = new AgentTools(searchStore, attachmentFiles, files, conversationId, userId, logger, ReportStatusAsync, imageDescriber);
+        var turnTools = new AgentTools(
+            searchStore, attachmentFiles, files, conversationId, userId, logger, ReportStatusAsync,
+            imageDescriber, workingDirectory);
         using var embeddingUsage = ChatEmbeddingUsage.Begin();
 
         // Named explicitly so the names the instructions above use are the names the model sees. Skill
@@ -124,6 +127,12 @@ public sealed class ChatAgentService(
             AIFunctionFactory.Create(turnTools.DescribeImageAttachmentAsync, new AIFunctionFactoryOptions { Name = "describe_image_attachment" }),
             AIFunctionFactory.Create(turnTools.DownloadAttachmentMarkdownAsync, new AIFunctionFactoryOptions { Name = "download_attachment_markdown" }),
             AIFunctionFactory.Create(turnTools.ReadTextAsync, new AIFunctionFactoryOptions { Name = "read_text" }),
+            AIFunctionFactory.Create(turnTools.ListFilesAsync, new AIFunctionFactoryOptions { Name = "list_files" }),
+            AIFunctionFactory.Create(turnTools.WriteTextFileAsync, new AIFunctionFactoryOptions { Name = "write_text_file" }),
+            AIFunctionFactory.Create(turnTools.CreateDirectoryAsync, new AIFunctionFactoryOptions { Name = "create_directory" }),
+            AIFunctionFactory.Create(turnTools.MoveFileAsync, new AIFunctionFactoryOptions { Name = "move_file" }),
+            AIFunctionFactory.Create(turnTools.CopyFileAsync, new AIFunctionFactoryOptions { Name = "copy_file" }),
+            AIFunctionFactory.Create(turnTools.DeleteFileAsync, new AIFunctionFactoryOptions { Name = "delete_file" }),
             AIFunctionFactory.Create(turnTools.DownloadSharePointFileAsync, new AIFunctionFactoryOptions { Name = "download_sharepoint_file" }),
             AIFunctionFactory.Create(turnTools.RefreshSharePointFileAsync, new AIFunctionFactoryOptions { Name = "refresh_sharepoint_file" }),
             AIFunctionFactory.Create(turnTools.UploadSharePointFileAsync, new AIFunctionFactoryOptions { Name = "upload_sharepoint_file" }),
@@ -348,7 +357,8 @@ public sealed class ChatAgentService(
         string? userId,
         ILogger logger,
         Func<string, CancellationToken, ValueTask> reportStatus,
-        ImageAttachmentDescriber imageDescriber)
+        ImageAttachmentDescriber imageDescriber,
+        AgentFileSystem workingDirectory)
     {
         private readonly List<ChatCitation> _citations = [];
         private readonly object _citationGate = new();
@@ -359,7 +369,7 @@ public sealed class ChatAgentService(
         /// replaced by asking the model for an arbitrary ID.
         /// </summary>
         private readonly Dictionary<string, string> _retrievedFiles = new(StringComparer.Ordinal);
-        private readonly AgentTextFiles _textFiles = new();
+        private readonly AgentTextFiles _textFiles = new(workingDirectory);
 
         public IReadOnlyList<ChatCitation> Citations => _citations;
 
@@ -422,6 +432,107 @@ public sealed class ChatAgentService(
                 return await _textFiles.ReadAsync(path, startLine, endLine, cancellationToken);
             }
             catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+            {
+                return new { error = ex.Message };
+            }
+        }
+
+        [Description("List what is in the agent's working directory: SharePoint downloads under Downloads/SharePoint, attachment downloads under Downloads/Attachments, and anything written there. Paths are relative to that directory and are what every other file tool accepts. Start here when the user refers to a file without saying where it is. Returns at most 500 entries.")]
+        public async Task<object> ListFilesAsync(
+            [Description("Directory to list, relative to the working directory. Omit or pass '.' for the top of it.")] string? path = null,
+            [Description("Include everything in subdirectories as well as the directory itself.")] bool recursive = false,
+            CancellationToken cancellationToken = default)
+        {
+            await reportStatus("Listing files\u2026", cancellationToken);
+            return Guarded(() => workingDirectory.List(path, recursive));
+        }
+
+        [Description("Write a text file in the working directory, creating any directories it needs. Use it for notes, extracted text, CSV, Markdown, or code. It cannot write .docx, .xlsx, or .pptx: those are binary, and changing one is done with the skill for that format. Writing does not touch SharePoint; upload_sharepoint_file is what sends a file back.")]
+        public async Task<object> WriteTextFileAsync(
+            [Description("Where to write it, relative to the working directory, including the file name.")] string path,
+            [Description("The complete contents of the file. What is written replaces the file, so include everything it should end up with.")] string content,
+            [Description("Replace the file if it is already there. Without this, writing over an existing file fails.")] bool overwrite = false,
+            CancellationToken cancellationToken = default)
+        {
+            await reportStatus("Writing a file\u2026", cancellationToken);
+            var result = await GuardedAsync(async () =>
+            {
+                var entry = await workingDirectory.WriteTextAsync(path, content, overwrite, cancellationToken);
+                _textFiles.Register(System.IO.Path.Combine(workingDirectory.Root, entry.Path));
+                return (object)entry;
+            });
+            return result;
+        }
+
+        [Description("Create a directory in the working directory, including any parent directories. Doing nothing when it already exists.")]
+        public async Task<object> CreateDirectoryAsync(
+            [Description("Where to create it, relative to the working directory.")] string path,
+            CancellationToken cancellationToken = default)
+        {
+            await reportStatus("Creating a directory\u2026", cancellationToken);
+            return Guarded(() => workingDirectory.CreateDirectory(path));
+        }
+
+        [Description("Move or rename a file or directory inside the working directory. A destination that is an existing directory moves the item into it; anything else is the new name. This does not move anything in SharePoint.")]
+        public async Task<object> MoveFileAsync(
+            [Description("What to move, relative to the working directory.")] string source,
+            [Description("The new path, or an existing directory to move it into.")] string destination,
+            [Description("Replace whatever is already at the destination.")] bool overwrite = false,
+            CancellationToken cancellationToken = default)
+        {
+            await reportStatus("Moving a file\u2026", cancellationToken);
+            return Guarded(() => workingDirectory.Move(source, destination, overwrite));
+        }
+
+        [Description("Copy a file inside the working directory. Use this to keep the downloaded original untouched while working on a copy. Directories are not copied; copy the files in them one at a time.")]
+        public async Task<object> CopyFileAsync(
+            [Description("The file to copy, relative to the working directory.")] string source,
+            [Description("The new path, or an existing directory to copy it into.")] string destination,
+            [Description("Replace whatever is already at the destination.")] bool overwrite = false,
+            CancellationToken cancellationToken = default)
+        {
+            await reportStatus("Copying a file\u2026", cancellationToken);
+            return Guarded(() => workingDirectory.Copy(source, destination, overwrite));
+        }
+
+        [Description("Delete a file or directory in the working directory. This removes the local copy only and never deletes anything in SharePoint, but it cannot be undone: a downloaded file has to be downloaded again, and anything written here and not uploaded is lost. Delete only what the user asked you to.")]
+        public async Task<object> DeleteFileAsync(
+            [Description("What to delete, relative to the working directory.")] string path,
+            [Description("Required to delete a directory that is not empty, along with everything in it.")] bool recursive = false,
+            CancellationToken cancellationToken = default)
+        {
+            await reportStatus("Deleting a file\u2026", cancellationToken);
+            return Guarded(() =>
+            {
+                workingDirectory.Delete(path, recursive);
+                return (object)new { deleted = path };
+            });
+        }
+
+        /// <summary>
+        /// Turns the file errors a caller can do something about into a message for the model, and lets
+        /// everything else fail the turn. A tool that reports "no such file" is useful; one that reports
+        /// a bug as though the file were at fault is not.
+        /// </summary>
+        private static object Guarded(Func<object> operation)
+        {
+            try
+            {
+                return operation();
+            }
+            catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException)
+            {
+                return new { error = ex.Message };
+            }
+        }
+
+        private static async Task<object> GuardedAsync(Func<Task<object>> operation)
+        {
+            try
+            {
+                return await operation();
+            }
+            catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException)
             {
                 return new { error = ex.Message };
             }

@@ -129,8 +129,7 @@ public static class DependencyInjection
 
     private static IServiceCollection AddLocalChatAgent(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddOptions<DownloadOptions>().Bind(configuration.GetSection(DownloadOptions.SectionName))
-            .ValidateDataAnnotations().ValidateOnStart();
+        services.AddLocalWorkingDirectory(configuration);
 
         // Keep the resource client so each persisted agent can select its own chat deployment.
         services.AddSingleton(sp =>
@@ -142,14 +141,33 @@ public static class DependencyInjection
         });
 
         services.AddSingleton<SharePointFileCache>();
+        services.AddSingleton<AgentFileSystem>();
         services.AddSingleton<ChatAgentContextLoader>();
         services.AddSingleton<ChatAgentService>();
         services.AddSingleton<IChatAgentExecutor>(sp => sp.GetRequiredService<ChatAgentService>());
         return services;
     }
 
+    /// <summary>
+    /// The working directory options, bound by everything that puts a file in it: the chat agent and
+    /// the attachment cache. Binding the same section twice is what the other shared options here do.
+    /// </summary>
+    private static IServiceCollection AddLocalWorkingDirectory(this IServiceCollection services, IConfiguration configuration)
+    {
+        // ValidateDataAnnotations does not recurse into Downloads, so its range is checked here.
+        services.AddOptions<LocalWorkingDirectoryOptions>()
+            .Bind(configuration.GetSection(LocalWorkingDirectoryOptions.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(
+                options => options.Downloads.MaxFileBytes is >= 1024 and <= 209_715_200,
+                "LocalWorkingDirectory:Downloads:MaxFileBytes must be between 1024 and 209715200.")
+            .ValidateOnStart();
+        return services;
+    }
+
     public static IServiceCollection AddAttachmentFileServices(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddLocalWorkingDirectory(configuration);
         services.AddContentSafety(configuration);
         services.AddPersistence(configuration);
         AddSearchOptions(services, configuration);

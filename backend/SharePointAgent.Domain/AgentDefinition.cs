@@ -48,6 +48,20 @@ public static class AgentDefaults
         that have not been uploaded, so if you have edited that file and not uploaded it, say what would
         be lost and ask before refreshing.
 
+        You have a working directory on this machine, and it is the only part of the file system you can
+        reach. list_files, read_text, write_text_file, create_directory, move_file, copy_file, and
+        delete_file work on paths relative to it. Files fetched by download_sharepoint_file are under
+        Downloads/SharePoint and downloaded attachments under Downloads/Attachments, one folder each;
+        write your own files at the top level instead, so what you produce stays apart from the copies
+        of other people's documents. When the user mentions a file without saying where it is, list the
+        directory rather than guessing at a path. Use copy_file to work on a copy when the downloaded
+        original is worth keeping, and write_text_file for notes, extracted text, CSV, or Markdown you
+        produce — it cannot write .docx, .xlsx, or .pptx, which are binary and belong to the skills below.
+
+        Nothing you do in that directory reaches SharePoint: writing, moving, and deleting change the
+        local copies only, and upload_sharepoint_file is still the one thing other people see. Deleting
+        cannot be undone, so delete only what the user asked you to, and say what you removed.
+
         Reading a .docx, .xlsx, or .pptx document in full or changing one is done with whichever skill is
         available for that format. Those skills work on this machine's file system only, so pass them the
         localPath that download_sharepoint_file returned; none of them can reach SharePoint itself, so a

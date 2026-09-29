@@ -5,8 +5,11 @@ namespace SharePointAgent.Infrastructure;
 
 public sealed record TextFilePage(string Path, int StartLine, int EndLine, int TotalLines, int? NextLine, string Text);
 
-/// <summary>Paths granted by successful downloads in a single agent turn.</summary>
-public sealed class AgentTextFiles
+/// <summary>
+/// What <c>read_text</c> is allowed to open: paths granted by successful downloads in a single agent
+/// turn, plus anything inside the agent's working directory, which it can list and write to anyway.
+/// </summary>
+public sealed class AgentTextFiles(AgentFileSystem? workingDirectory = null)
 {
     private readonly ConcurrentDictionary<string, byte> paths = new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
 
@@ -18,7 +21,10 @@ public sealed class AgentTextFiles
         var fullPath = System.IO.Path.GetFullPath(path);
         if (!paths.ContainsKey(fullPath))
         {
-            throw new ArgumentException("Download the file with a download tool in this turn first, then use the exact returned localPath.");
+            // Resolve throws when the path leaves the working directory, which is the same refusal.
+            _ = workingDirectory?.Resolve(path, mustExist: true)
+                ?? throw new ArgumentException("Download the file with a download tool in this turn first, then use the exact returned localPath.");
+            fullPath = workingDirectory.Resolve(path, mustExist: true);
         }
 
         for (FileSystemInfo? entry = new FileInfo(fullPath); entry is not null;

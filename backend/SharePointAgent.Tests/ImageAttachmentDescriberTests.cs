@@ -137,11 +137,12 @@ public sealed class ImageAttachmentDescriberTests
                 });
                 await db.SaveChangesAsync();
             }
-            var folder = Path.Combine(fixture.directory, fixture.AttachmentId.ToString("N"));
+            var workingDirectory = Options.Create(new LocalWorkingDirectoryOptions { Directory = fixture.directory });
+            var folder = Path.Combine(workingDirectory.Value.ResolvedAttachmentsDirectory, fixture.AttachmentId.ToString("N"));
             Directory.CreateDirectory(folder);
             await File.WriteAllBytesAsync(Path.Combine(folder, "original" + Path.GetExtension(name)), bytes);
-            var uploadOptions = Options.Create(new UploadOptions { CacheDirectory = fixture.directory });
-            fixture.cache = new AttachmentContentCache(null!, null!, uploadOptions);
+            var uploadOptions = Options.Create(new UploadOptions());
+            fixture.cache = new AttachmentContentCache(null!, null!, uploadOptions, workingDirectory);
             var factory = Substitute.For<IDbContextFactory<SharePointIndexDbContext>>();
             factory.CreateDbContextAsync(Arg.Any<CancellationToken>()).Returns(_ => new SharePointIndexDbContext(options));
             fixture.Service = new ChatMessageAttachmentFileService(factory, null!, null!, fixture.cache, null!, uploadOptions,

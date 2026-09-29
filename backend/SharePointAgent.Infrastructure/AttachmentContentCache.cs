@@ -13,12 +13,22 @@ namespace SharePointAgent.Infrastructure;
 public sealed record CachedAttachmentDownload(string LocalPath, bool CacheHit);
 public sealed record CachedAttachmentMarkdown(string Content, string LocalPath, bool DownloadCacheHit, bool MarkdownCacheHit);
 
-public sealed class AttachmentContentCache(BlobServiceClient blobs, MarkItDownClient converter, IOptions<UploadOptions> options) : IDisposable
+public sealed class AttachmentContentCache(
+    BlobServiceClient blobs,
+    MarkItDownClient converter,
+    IOptions<UploadOptions> options,
+    IOptions<LocalWorkingDirectoryOptions> workingDirectory) : IDisposable
 {
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly UploadOptions settings = options.Value;
+
+    // Attachments sit beside the SharePoint downloads in the agent's working directory, so a file it
+    // fetched from a conversation and one it fetched from the library are in the same tree its file
+    // tools can list and read.
+    private readonly string attachments = workingDirectory.Value.ResolvedAttachmentsDirectory;
+
     private BlobContainerClient Container => blobs.GetBlobContainerClient(settings.ContainerName);
-    private string DirectoryFor(Guid id) => Path.Combine(Path.GetFullPath(settings.CacheDirectory), id.ToString("N"));
+    private string DirectoryFor(Guid id) => Path.Combine(Path.GetFullPath(attachments), id.ToString("N"));
     private BlobClient MarkdownBlob(Guid id) => Container.GetBlobClient($"markdown-cache/{id:N}/content.md");
 
     public async Task<CachedAttachmentDownload> DownloadAsync(ChatMessageAttachmentFileEntity file, CancellationToken ct)
