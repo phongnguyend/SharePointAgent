@@ -23,6 +23,12 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
     /// </summary>
     public const int ToolListLength = 1000;
 
+    /// <summary>
+    /// The longest workspace rule text. Every turn in the workspace carries it in the system prompt,
+    /// so it is capped rather than left to the column's maximum.
+    /// </summary>
+    public const int WorkspaceInstructionsLength = 8000;
+
     public DbSet<AgentDefinitionEntity> AgentDefinitions => Set<AgentDefinitionEntity>();
 
     public DbSet<ImageDescriptionTokenUsageEntity> ImageDescriptionTokenUsage => Set<ImageDescriptionTokenUsageEntity>();
@@ -34,6 +40,7 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
     public DbSet<WebhookSubscriptionEntity> WebhookSubscriptions => Set<WebhookSubscriptionEntity>();
     public DbSet<DeltaStateEntity> DeltaState => Set<DeltaStateEntity>();
     public DbSet<IndexedFileEntity> IndexedFiles => Set<IndexedFileEntity>();
+    public DbSet<ChatWorkspaceEntity> ChatWorkspaces => Set<ChatWorkspaceEntity>();
     public DbSet<ChatConversationEntity> ChatConversations => Set<ChatConversationEntity>();
     public DbSet<ChatMessageEntity> ChatMessages => Set<ChatMessageEntity>();
     public DbSet<ChatMessageAttachmentFileEntity> ChatMessageAttachmentFiles => Set<ChatMessageAttachmentFileEntity>();
@@ -121,6 +128,9 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
             NormalizedName = name.ToUpperInvariant(),
             ConcurrencyStamp = $"app-role-{index + 1}"
         }));
+        modelBuilder.Entity<ChatWorkspaceEntity>().HasIndex(x => x.CreatedById);
+        modelBuilder.Entity<ChatWorkspaceEntity>().HasOne<ApplicationUser>().WithMany()
+            .HasForeignKey(x => x.CreatedById).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<ChatConversationEntity>().HasIndex(x => x.CreatedById);
         modelBuilder.Entity<ChatMessageAttachmentFileEntity>().HasIndex(x => x.CreatedById);
         modelBuilder.Entity<ChatConversationEntity>().HasOne<ApplicationUser>().WithMany()
@@ -191,6 +201,26 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
             entity.HasIndex(x => new { x.DriveId, x.ScanId });
         });
 
+        modelBuilder.Entity<ChatWorkspaceEntity>(entity =>
+        {
+            entity.ToTable("ChatWorkspaces");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedOnAdd();
+            entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
+
+            // Prompt text, so it is bounded by what a turn can afford to carry.
+            entity.Property(x => x.Instructions).HasMaxLength(WorkspaceInstructionsLength);
+
+            // The sandbox binding a grouped conversation uses instead of its own.
+            entity.Property(x => x.FoundryEndpoint).HasMaxLength(2048);
+            entity.Property(x => x.FoundrySessionId).HasMaxLength(200);
+            entity.Property(x => x.CreatedAtUtc).HasPrecision(7);
+            entity.Property(x => x.UpdatedAtUtc).HasPrecision(7);
+
+            // The sidebar lists workspaces most recently used first, as it does conversations.
+            entity.HasIndex(x => x.UpdatedAtUtc).IsDescending();
+        });
+
         modelBuilder.Entity<ChatConversationEntity>(entity =>
         {
             entity.ToTable("ChatConversations");
@@ -207,6 +237,16 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
                 .WithMany()
                 .HasForeignKey(x => x.AgentId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Deleting a workspace releases its conversations rather than taking them with it. They
+            // keep their history and fall back to a sandbox of their own.
+            entity.HasOne(x => x.Workspace)
+                .WithMany(x => x.Conversations)
+                .HasForeignKey(x => x.WorkspaceId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // The sidebar groups the conversation list by workspace.
+            entity.HasIndex(x => x.WorkspaceId);
 
             // The sidebar lists conversations most recently used first.
             entity.HasIndex(x => x.UpdatedAtUtc).IsDescending();

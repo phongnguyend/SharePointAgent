@@ -45,6 +45,7 @@ public static class DependencyInjection
 
         services.AddSingleton<IAgentRepository, AgentRepository>();
         services.AddSingleton<IChatRepository, ChatRepository>();
+        services.AddSingleton<IChatWorkspaceRepository, ChatWorkspaceRepository>();
         services.AddSingleton<IDeltaStateRepository, DeltaStateRepository>();
         services.AddSingleton<IFileMetadataRepository, FileMetadataRepository>();
         services.AddSingleton<IFoundrySessionRepository, FoundrySessionRepository>();

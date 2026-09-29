@@ -19,7 +19,7 @@ public sealed class ChatAgentContextTests
         var agents = Substitute.For<IAgentRepository>();
         var id = Guid.NewGuid();
         var agent = new AgentDefinition(Guid.NewGuid(), "Document agent", "model-from-db", "instructions-from-db", default, default);
-        var conversation = new ChatConversation(id, "Chat", "user-from-db", agent.Id, default, default, 53, 0, 0, 0);
+        var conversation = new ChatConversation(id, "Chat", "user-from-db", agent.Id, null, default, default, 53, 0, 0, 0);
         var messages = Enumerable.Range(0, 53).Select(i => Message(id, i.ToString())).ToArray();
         var question = messages[50];
         messages[49] = messages[49] with { Attachments = [new(Guid.NewGuid(), "document.docx", null, 10)] };
@@ -27,7 +27,7 @@ public sealed class ChatAgentContextTests
         chats.ListMessagesAsync(id, default).Returns(messages);
         agents.GetAsync(agent.Id, default).Returns(agent);
 
-        var result = await new ChatAgentContextLoader(chats, agents).LoadAsync(new(id, question.Id), default);
+        var result = await new ChatAgentContextLoader(chats, agents, NoWorkspaces()).LoadAsync(new(id, question.Id), default);
 
         Assert.Equal(agent, result.Agent);
         Assert.Equal("user-from-db", result.Conversation.UserId);
@@ -43,13 +43,13 @@ public sealed class ChatAgentContextTests
         var chats = Substitute.For<IChatRepository>();
         var agents = Substitute.For<IAgentRepository>();
         var id = Guid.NewGuid();
-        chats.GetConversationAsync(id, default).Returns(new ChatConversation(id, "Chat", null, null, default, default, 0, 0, 0, 0));
+        chats.GetConversationAsync(id, default).Returns(new ChatConversation(id, "Chat", null, null, null, default, default, 0, 0, 0, 0));
         agents.GetByNameAsync(AgentDefaults.Name, default)
             .Returns(new AgentDefinition(Guid.NewGuid(), AgentDefaults.Name, "model", "instructions", default, default));
         chats.ListMessagesAsync(id, default).Returns(new[] { Message(id, "other question") });
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            new ChatAgentContextLoader(chats, agents).LoadAsync(new(id, Guid.NewGuid()), default));
+            new ChatAgentContextLoader(chats, agents, NoWorkspaces()).LoadAsync(new(id, Guid.NewGuid()), default));
     }
 
     [Fact]
@@ -62,6 +62,9 @@ public sealed class ChatAgentContextTests
         Assert.Contains("[FoundryEndpoint] nvarchar(2048)", script);
         Assert.Contains("[FoundrySessionId] nvarchar(200)", script);
     }
+
+    /// <summary>A conversation in no workspace, which is what these cases are about.</summary>
+    private static IChatWorkspaceRepository NoWorkspaces() => Substitute.For<IChatWorkspaceRepository>();
 
     private static ChatMessageRecord Message(Guid conversationId, string content) =>
         new(Guid.NewGuid(), conversationId, ChatMessageRole.User, content, [], 0, 0, 0, null, null, [], default);

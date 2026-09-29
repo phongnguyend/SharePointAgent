@@ -18,6 +18,7 @@ public interface IChatRepository
         string title,
         string? userId,
         Guid agentId,
+        Guid? workspaceId,
         CancellationToken cancellationToken, Guid? createdById = null);
     Task<ChatConversation?> BranchConversationAsync(
         Guid conversationId,
@@ -76,11 +77,55 @@ public interface IAgentRepository
         CancellationToken cancellationToken);
 }
 
-/// <summary>Which Foundry sandbox a conversation is bound to, so the binding survives an API restart.</summary>
+/// <summary>
+/// Named groups of conversations that share one sandbox. A workspace is optional: a conversation
+/// outside one keeps a sandbox of its own. Membership is decided when the conversation is created
+/// and does not change after it, so nothing here moves an existing conversation.
+/// </summary>
+public interface IChatWorkspaceRepository
+{
+    Task<IReadOnlyList<ChatWorkspace>> ListAsync(CancellationToken cancellationToken, Guid? createdById = null);
+
+    /// <summary>
+    /// One workspace. <paramref name="createdById"/> restricts the lookup to that user's own, so a
+    /// caller cannot reach another user's workspace by knowing its ID.
+    /// </summary>
+    Task<ChatWorkspace?> GetAsync(Guid id, CancellationToken cancellationToken, Guid? createdById = null);
+
+    Task<ChatWorkspace> CreateAsync(
+        string name,
+        string? instructions,
+        CancellationToken cancellationToken,
+        Guid? createdById = null);
+
+    /// <summary>
+    /// Renames the workspace and replaces its rules. A null or empty <paramref name="instructions"/>
+    /// clears them, leaving its conversations on their agent's instructions alone. The change applies
+    /// from the next turn; answers already given are not revisited. Returns null when it is gone.
+    /// </summary>
+    Task<ChatWorkspace?> UpdateAsync(Guid id, string name, string? instructions, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Removes the workspace and the sandbox binding with it. Its conversations survive, ungrouped.
+    /// Returns false when it was already gone. The remote session itself is not deleted.
+    /// </summary>
+    Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Which Foundry sandbox a conversation is bound to, so the binding survives an API restart. A
+/// conversation in a workspace reads and writes the workspace's binding rather than its own.
+/// </summary>
 public interface IFoundrySessionRepository
 {
     Task<string?> GetAsync(Guid conversationId, string endpoint, CancellationToken cancellationToken);
     Task SaveAsync(Guid conversationId, string endpoint, string sessionId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The binding as it stands, whatever endpoint it was made against, for showing a reader which
+    /// sandbox their next turn will reach. Returns null when there is no such conversation.
+    /// </summary>
+    Task<FoundrySessionBinding?> DescribeAsync(Guid conversationId, CancellationToken cancellationToken);
 }
 
 /// <summary>

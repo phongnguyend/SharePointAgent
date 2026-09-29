@@ -163,6 +163,38 @@ export interface IndexedFileQuery {
   top?: number
 }
 
+/**
+ * A named group of conversations that share one agent sandbox. Files the agent downloads or edits in
+ * one conversation are still on disk in the next one opened from the same workspace.
+ */
+export interface ChatWorkspace {
+  id: string
+  name: string
+  /** Rules added to the agent's instructions for every conversation here. Null means none. */
+  instructions: string | null
+  createdAtUtc: string
+  updatedAtUtc: string
+  conversationCount: number
+}
+
+/**
+ * Which sandbox a conversation's next turn will reach. `scope` says which row holds the binding: a
+ * workspace shares one across its conversations, a conversation outside one keeps its own. Endpoints
+ * are null unless the reader may see administration detail, and in Local mode there is no session.
+ */
+export interface ChatSandboxSession {
+  mode: 'Local' | 'Foundry'
+  scope: 'Workspace' | 'Conversation'
+  workspaceId: string | null
+  workspaceName: string | null
+  sharedWithConversations: number
+  sessionId: string | null
+  boundEndpoint: string | null
+  configuredEndpoint: string | null
+  /** False when the binding was made against a different endpoint, so the next turn starts anew. */
+  reusedOnNextTurn: boolean
+}
+
 export interface ChatConversation {
   id: string
   title: string
@@ -170,6 +202,9 @@ export interface ChatConversation {
   userId: string | null
   /** The persisted agent whose instructions govern this conversation. Null means the default agent. */
   agentId: string | null
+  /** The workspace whose sandbox this conversation shares, chosen when it was created and fixed
+   * afterwards. Null means a sandbox of its own. */
+  workspaceId: string | null
   createdAtUtc: string
   updatedAtUtc: string
   messageCount: number

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using SharePointAgent.Persistence;
 using SharePointAgent.Application;
 using SharePointAgent.Domain;
@@ -23,6 +24,7 @@ public static class ChatEndpoints
             NewConversation? body,
             IChatRepository store,
             IAgentRepository agentRepository,
+            IChatWorkspaceRepository workspaceRepository,
             CancellationToken cancellationToken) =>
         {
             var title = string.IsNullOrWhiteSpace(body?.Title) ? "New chat" : body!.Title!.Trim();
@@ -39,6 +41,23 @@ public static class ChatEndpoints
                 requestedAgentId = parsedAgentId;
             }
 
+            Guid? workspaceId = null;
+            if (!string.IsNullOrWhiteSpace(body?.WorkspaceId))
+            {
+                if (!Guid.TryParse(body.WorkspaceId, out var parsedWorkspaceId))
+                {
+                    return Results.BadRequest(new { error = "'workspaceId' must be a valid GUID when provided." });
+                }
+
+                var owner = context.AppUser().Roles.Contains(AppRoles.GlobalAdmin) ? null : (Guid?)context.AppUser().Id;
+                if (await workspaceRepository.GetAsync(parsedWorkspaceId, cancellationToken, owner) is null)
+                {
+                    return Results.BadRequest(new { error = "The selected workspace does not exist." });
+                }
+
+                workspaceId = parsedWorkspaceId;
+            }
+
             var usesDefaultAgent = requestedAgentId is null || requestedAgentId == Guid.Empty;
             var selectedAgent = await ResolveAgentAsync(requestedAgentId, agentRepository, cancellationToken);
             if (selectedAgent is null)
@@ -48,7 +67,8 @@ public static class ChatEndpoints
                     : Results.BadRequest(new { error = "The selected agent does not exist." });
             }
 
-            return Results.Ok(await store.CreateConversationAsync(title, userId, selectedAgent.Id, cancellationToken, context.AppUser().Id));
+            return Results.Ok(await store.CreateConversationAsync(
+                title, userId, selectedAgent.Id, workspaceId, cancellationToken, context.AppUser().Id));
         });
 
         app.MapDelete("/api/chat/conversations/{id:guid}", async (
@@ -58,6 +78,42 @@ public static class ChatEndpoints
             await store.DeleteConversationAsync(id, cancellationToken)
                 ? Results.Ok(new { deleted = id })
                 : Results.NotFound());
+
+        // Which sandbox the next turn will reach, and whether anything else reaches it too. Reading
+        // this runs no turn and changes no binding. The configured endpoint is a deployment detail, so
+        // only an administration reader is shown it; the session ID belongs to the conversation.
+        app.MapGet("/api/chat/conversations/{id:guid}/session", async (
+            HttpContext context,
+            Guid id,
+            IFoundrySessionRepository sessions,
+            IOptions<ChatAgentHostingOptions> hosting,
+            CancellationToken cancellationToken) =>
+        {
+            var binding = await sessions.DescribeAsync(id, cancellationToken);
+            if (binding is null)
+            {
+                return Results.NotFound();
+            }
+
+            var options = hosting.Value;
+            var local = options.Mode != ChatAgentExecutionMode.Foundry;
+            var configured = local ? null : options.Foundry.Endpoint;
+            var showsEndpoints = AppAccess.CanReadAdministration(context.AppUser().Roles);
+
+            // Only a binding made against the endpoint in force now is sent back to Foundry; any other
+            // is dead weight, and saying so is the point of showing the two side by side.
+            var reused = !local && binding.SessionId is not null && binding.Endpoint == configured;
+            return Results.Ok(new ChatSandboxSession(
+                options.Mode.ToString(),
+                binding.WorkspaceId is null ? "Conversation" : "Workspace",
+                binding.WorkspaceId,
+                binding.WorkspaceName,
+                binding.ConversationCount,
+                local ? null : binding.SessionId,
+                showsEndpoints ? binding.Endpoint : null,
+                showsEndpoints ? configured : null,
+                reused));
+        });
 
         app.MapPost("/api/chat/conversations/{id:guid}/branch/{messageId:guid}", async (
             Guid id,

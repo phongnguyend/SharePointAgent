@@ -47,7 +47,7 @@ public sealed class ChatAgentService(
             UserId: request.UserId, ConversationId: context.Conversation.Id, QuestionId: context.Question.Id));
         return await RunStreamingCoreAsync(
             context.Conversation.Id, context.History, context.Question, context.Conversation.UserId,
-            context.Agent.ModelId, context.Agent.Instructions, request.StartedAtUtc ?? DateTimeOffset.UtcNow,
+            context.Agent.ModelId, context.Instructions, request.StartedAtUtc ?? DateTimeOffset.UtcNow,
             onText, onStatus, cancellationToken);
     }
 

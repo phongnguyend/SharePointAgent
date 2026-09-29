@@ -145,7 +145,9 @@ public sealed class AppIdentityMiddleware(RequestDelegate next)
         }
 
         var path = context.Request.Path;
-        var owned = path.StartsWithSegments("/api/chat/conversations")
+        var owned = path.StartsWithSegments("/api/chat/workspaces")
+            ? await db.ChatWorkspaces.AnyAsync(x => x.Id == id && x.CreatedById == owner, ct)
+            : path.StartsWithSegments("/api/chat/conversations")
             ? await db.ChatConversations.AnyAsync(x => x.Id == id && x.CreatedById == owner, ct)
             : path.StartsWithSegments("/api/chat/messages")
                 ? await db.ChatMessages.AnyAsync(x => x.Id == id && x.Conversation!.CreatedById == owner, ct)
@@ -216,7 +218,8 @@ public static class AppAccess
             return true; // Available agents for the chat selector.
         }
 
-        return path == "/api/chat/conversations" || path.StartsWith("/api/chat/conversations/")
+        return path == "/api/chat/workspaces" || path.StartsWith("/api/chat/workspaces/")
+            || path == "/api/chat/conversations" || path.StartsWith("/api/chat/conversations/")
             || (path.StartsWith("/api/chat/messages/") && path.EndsWith("/feedback") && HttpMethods.IsPost(method))
             || path == "/api/attachment-files" || path.StartsWith("/api/attachment-files/");
     }

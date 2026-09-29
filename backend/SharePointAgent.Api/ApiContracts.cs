@@ -24,9 +24,19 @@ public sealed record CreateSubscriptionRequest(string? Name, int? Days, string? 
 
 /// <summary>
 /// A new conversation. <see cref="UserId"/> optionally restricts search permissions, while a null or
-/// empty <see cref="AgentId"/> selects the built-in default agent.
+/// empty <see cref="AgentId"/> selects the built-in default agent. A <see cref="WorkspaceId"/> puts
+/// the conversation in that workspace, so it shares the sandbox — and the files — of every other
+/// conversation in it; omitting it gives the conversation a sandbox of its own. This is the only
+/// point at which membership is decided: a conversation cannot be moved afterwards.
 /// </summary>
-public sealed record NewConversation(string? Title, string? UserId, string? AgentId);
+public sealed record NewConversation(string? Title, string? UserId, string? AgentId, string? WorkspaceId = null);
+
+/// <summary>
+/// A workspace's name and its rules, on create and on update. <see cref="Instructions"/> is added to
+/// the agent's own instructions for every conversation in the workspace; null or empty clears it. An
+/// update applies from the next turn asked in the workspace.
+/// </summary>
+public sealed record ChatWorkspaceRequest(string? Name, string? Instructions = null);
 
 public sealed record ChatTurnRequest(string? Content, IReadOnlyList<Guid>? AttachmentFileIds);
 

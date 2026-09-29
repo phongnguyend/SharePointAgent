@@ -12,7 +12,27 @@ The API selects `IChatAgentExecutor` with `ChatAgent:Mode`. `Local` (the default
 
 SQL remains the history authority in **both** modes. This does not use Responses-managed history or Foundry conversation storage. The frontend's `started`, `status`, `delta`, `completed`, and `error` events are unchanged.
 
-The API stores `FoundryEndpoint` and `FoundrySessionId` on the conversation and sends the session ID in the next invocation's query string. That preserves sandbox files across turns and API restarts. New branches get a new binding. Changing the configured endpoint starts a new binding; deleting a Foundry session requires clearing its binding before further use. SQL history survives either operation, but unsaved sandbox edits do not transfer between local and Foundry execution or between different endpoints. Conversation deletion removes the SQL binding, not the remote session; manage remote retention separately.
+The API stores `FoundryEndpoint` and `FoundrySessionId` and sends the session ID in the next invocation's query string. That preserves sandbox files across turns and API restarts. Changing the configured endpoint starts a new binding; deleting a Foundry session requires clearing its binding before further use. SQL history survives either operation, but unsaved sandbox edits do not transfer between local and Foundry execution or between different endpoints. Deletion removes the SQL binding, not the remote session; manage remote retention separately.
+
+## Workspaces: one sandbox for several conversations
+
+The binding lives on whichever row owns the sandbox. A conversation outside a workspace holds its own on `ChatConversations`, and a new branch of it starts unbound, as before. A conversation in a **workspace** uses the binding on `ChatWorkspaces` instead, so every conversation in that workspace opens onto the same files: a document downloaded in one is already there in the next, and a branch inherits the workspace rather than starting empty.
+
+Membership is optional but **fixed**: it is chosen by the `workspaceId` on `POST /api/chat/conversations` and there is no endpoint that moves an existing conversation. A conversation therefore keeps one sandbox for its whole life, and the set of conversations sharing a sandbox only ever grows. To work in a different workspace, start a new conversation in it.
+
+The one thing that ends a membership is deleting the workspace. That releases its conversations — their history is untouched and each falls back to a sandbox of its own, empty, since the shared binding went with the workspace. As for a deleted conversation, the remote session is not deleted.
+
+## Workspace rules
+
+A workspace can also carry **rules** — instructions every conversation in it works under. They are stored on the workspace and set through `name` and `instructions` on `POST` or `PUT /api/chat/workspaces`, up to 8000 characters; empty means none.
+
+The shared context loader reads them each turn and appends them to the agent's own instructions under a `# Workspace rules` heading, naming the workspace and saying that where the two genuinely conflict the workspace rules are the narrower instruction and win. Both hosting modes use that loader, so `Local` and `Foundry` send the same system prompt. Because they are read per turn rather than copied at creation, editing them reaches conversations that already exist, from their next question; answers already given are not revisited.
+
+Rules are a prompt, not a permission. They cannot widen what a conversation may reach: the search permission filter and the Graph credentials still decide that. They can be written by anyone who can create a workspace, which is any signed-in user for their own, so treat them as what that user could have typed into the chat themselves rather than as a control over them.
+
+`GET /api/chat/conversations/{id}/session` reports the binding without running anything: the execution mode, whether a workspace or the conversation holds it, how many conversations share it, and the session ID. It also reports whether the recorded endpoint is the one configured now — a binding made against another endpoint is not sent back, so the next turn silently starts a fresh sandbox, and this is where that shows. The endpoints themselves are returned only to an administration reader; the session ID belongs to the conversation. The chat header's workspace badge opens onto the same information.
+
+Two conversations in the same unbound workspace whose first turns run at once would each be handed a different sandbox. The second save is rejected rather than silently splitting the workspace's files, so that turn fails and can be retried against the sandbox the first one established. Apply `AddChatWorkspaces` with the other migrations before using this.
 
 ## Run in the API
 
@@ -98,4 +118,4 @@ dotnet build backend/SharePointAgent.slnx
 dotnet test backend/SharePointAgent.Tests
 ```
 
-Tests cover history boundaries and attachment references, migration/model consistency, mode selection, endpoint validation, authentication, sandbox reuse, concurrent writes, early status delivery through the real Invocations adapter, metadata, cancellation, errors, and truncated streams. They use fake model/tool execution and do not require Azure credentials or modify SQL data. A deployed smoke test should additionally verify cloud permissions, networking, model calls, and edit/upload continuity across two turns.
+Tests cover history boundaries and attachment references, workspace rules reaching the composed prompt and clearing again, migration/model consistency, mode selection, endpoint validation, authentication, sandbox reuse within and outside a workspace, moving a conversation between the two, workspace deletion releasing its conversations, concurrent writes, early status delivery through the real Invocations adapter, metadata, cancellation, errors, and truncated streams. They use fake model/tool execution and do not require Azure credentials or modify SQL data. A deployed smoke test should additionally verify cloud permissions, networking, model calls, and edit/upload continuity across two turns.

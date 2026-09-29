@@ -26,14 +26,23 @@ public interface IChatAgentExecutor
         CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// <paramref name="Instructions"/> is what the agent is actually given: its own instructions, plus the
+/// rules of the workspace the conversation belongs to. Read it rather than
+/// <see cref="AgentDefinition.Instructions"/>, which is only the agent's half.
+/// </summary>
 public sealed record ChatAgentContext(
     ChatConversation Conversation,
     AgentDefinition Agent,
     IReadOnlyList<ChatMessageRecord> History,
-    ChatMessageRecord Question);
+    ChatMessageRecord Question,
+    string Instructions);
 
 /// <summary>Loads the same bounded, database-backed context for local and hosted execution.</summary>
-public sealed class ChatAgentContextLoader(IChatRepository chats, IAgentRepository agents)
+public sealed class ChatAgentContextLoader(
+    IChatRepository chats,
+    IAgentRepository agents,
+    IChatWorkspaceRepository workspaces)
 {
     public const int MaxHistoryMessages = 40;
 
@@ -54,6 +63,13 @@ public sealed class ChatAgentContextLoader(IChatRepository chats, IAgentReposito
             ?? throw new InvalidOperationException("The saved question does not belong to this conversation.");
         // The API saves the question before invoking us. Never replay it twice, or include later turns.
         var history = messages.TakeWhile(m => m.Id != question.Id).TakeLast(MaxHistoryMessages).ToArray();
-        return new(conversation, agent, history, question);
+
+        // The rules are read per turn, so editing them takes effect on the next question rather than
+        // only in conversations started afterwards. A workspace deleted mid-turn simply has none.
+        var workspace = conversation.WorkspaceId is { } workspaceId
+            ? await workspaces.GetAsync(workspaceId, cancellationToken)
+            : null;
+        var instructions = WorkspaceInstructions.Compose(agent.Instructions, workspace?.Name, workspace?.Instructions);
+        return new(conversation, agent, history, question, instructions);
     }
 }

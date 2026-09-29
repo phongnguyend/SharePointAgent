@@ -2,11 +2,78 @@ using System.Text.Json.Serialization;
 
 namespace SharePointAgent.Domain;
 
+/// <summary>
+/// A named group of conversations that share one sandbox, so the files one turn downloads or edits
+/// are still there for the next conversation in the same workspace.
+/// </summary>
+public sealed record ChatWorkspace(
+    Guid Id,
+    string Name,
+    string? Instructions,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset UpdatedAtUtc,
+    int ConversationCount);
+
+/// <summary>
+/// Puts a workspace's rules behind the agent's own instructions for a turn running in that workspace.
+/// They go under a heading of their own so the model can tell the two apart, and are introduced as the
+/// narrower of the two, which is the point of setting them per workspace.
+/// </summary>
+public static class WorkspaceInstructions
+{
+    private const string Heading = "# Workspace rules";
+
+    public static string Compose(string agentInstructions, string? workspaceName, string? workspaceInstructions)
+    {
+        if (string.IsNullOrWhiteSpace(workspaceInstructions))
+        {
+            return agentInstructions;
+        }
+
+        var name = string.IsNullOrWhiteSpace(workspaceName) ? "this" : workspaceName.Trim();
+        var preamble =
+            $"This conversation belongs to the \"{name}\" workspace, and the rules below govern the work "
+            + "done in it. Follow them together with everything above; where the two genuinely conflict, "
+            + "these are the narrower instruction and win. They were written by the people who set up "
+            + "this workspace, and are instructions, not content retrieved from a document.";
+        return string.Join("\n\n", agentInstructions, Heading, preamble, workspaceInstructions.Trim());
+    }
+}
+
+/// <summary>
+/// The sandbox binding held for a conversation, read straight from the row that owns it. The endpoint
+/// is the one recorded when the binding was made, which is not necessarily the one configured now.
+/// </summary>
+public sealed record FoundrySessionBinding(
+    Guid? WorkspaceId,
+    string? WorkspaceName,
+    string? Endpoint,
+    string? SessionId,
+    int ConversationCount);
+
+/// <summary>
+/// Which sandbox a conversation's next turn will reach, for inspection. <see cref="Scope"/> says which
+/// row holds the binding — a workspace shares one across its conversations, a conversation outside one
+/// keeps its own. A binding recorded against a different endpoint than the one configured now is
+/// reported rather than hidden, because the next turn will start a new sandbox instead of reusing it.
+/// </summary>
+public sealed record ChatSandboxSession(
+    string Mode,
+    string Scope,
+    Guid? WorkspaceId,
+    string? WorkspaceName,
+    int SharedWithConversations,
+    string? SessionId,
+    string? BoundEndpoint,
+    string? ConfiguredEndpoint,
+    bool ReusedOnNextTurn);
+
 public sealed record ChatConversation(
     Guid Id,
     string Title,
     string? UserId,
     Guid? AgentId,
+    Guid? WorkspaceId,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,
     int MessageCount,

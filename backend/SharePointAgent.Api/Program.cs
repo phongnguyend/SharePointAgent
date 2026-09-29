@@ -41,6 +41,7 @@ app.MapDeltaStateEndpoints();
 app.MapAttachmentFilesEndpoints();
 app.MapSubscriptionsEndpoints();
 app.MapAgentsEndpoints();
+app.MapChatWorkspacesEndpoints();
 app.MapChatEndpoints();
 
 app.Run();

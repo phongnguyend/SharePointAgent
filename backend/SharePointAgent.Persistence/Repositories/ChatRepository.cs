@@ -24,7 +24,7 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
             .Where(c => createdById == null || c.CreatedById == createdById)
             .OrderByDescending(c => c.UpdatedAtUtc)
             .Select(c => new ChatConversation(
-                c.Id, c.Title, c.UserId, c.AgentId, c.CreatedAtUtc, c.UpdatedAtUtc, c.Messages.Count,
+                c.Id, c.Title, c.UserId, c.AgentId, c.WorkspaceId, c.CreatedAtUtc, c.UpdatedAtUtc, c.Messages.Count,
                 c.InputTokenCount, c.OutputTokenCount, c.TotalTokenCount, c.EmbeddingTokenCount))
             .ToListAsync(cancellationToken);
     }
@@ -36,7 +36,7 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
             .AsNoTracking()
             .Where(c => c.Id == id)
             .Select(c => new ChatConversation(
-                c.Id, c.Title, c.UserId, c.AgentId, c.CreatedAtUtc, c.UpdatedAtUtc, c.Messages.Count,
+                c.Id, c.Title, c.UserId, c.AgentId, c.WorkspaceId, c.CreatedAtUtc, c.UpdatedAtUtc, c.Messages.Count,
                 c.InputTokenCount, c.OutputTokenCount, c.TotalTokenCount, c.EmbeddingTokenCount))
             .FirstOrDefaultAsync(cancellationToken);
     }
@@ -45,11 +45,12 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
         string title,
         string? userId,
         Guid agentId,
+        Guid? workspaceId,
         CancellationToken cancellationToken, Guid? createdById = null)
     {
         var now = DateTimeOffset.UtcNow;
         var conversation = new ChatConversation(
-            Guid.NewGuid(), Truncate(title, 200), userId, agentId, now, now, 0, 0, 0, 0);
+            Guid.NewGuid(), Truncate(title, 200), userId, agentId, workspaceId, now, now, 0, 0, 0, 0);
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         context.ChatConversations.Add(new ChatConversationEntity
@@ -59,6 +60,7 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
             Title = conversation.Title,
             UserId = userId,
             AgentId = agentId,
+            WorkspaceId = workspaceId,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         });
@@ -112,6 +114,10 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
             Title = source.Title,
             UserId = source.UserId,
             AgentId = source.AgentId,
+
+            // A branch joins the same workspace, so it opens onto the same files. Outside a workspace
+            // it starts with no sandbox binding, as before.
+            WorkspaceId = source.WorkspaceId,
             InputTokenCount = inputTokens,
             OutputTokenCount = outputTokens,
             TotalTokenCount = totalTokens,
@@ -146,6 +152,7 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
             source.Title,
             source.UserId,
             source.AgentId,
+            source.WorkspaceId,
             now,
             now,
             sourceMessages.Count,
@@ -276,6 +283,11 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
                 .SetProperty(p => p.TotalTokenCount, p => p.TotalTokenCount + totalTokens)
                 .SetProperty(p => p.EmbeddingTokenCount, p => p.EmbeddingTokenCount + embeddingTokens),
                 cancellationToken);
+
+        // The sidebar orders workspaces the same way, so one in use moves to the top with its chat.
+        await context.ChatWorkspaces
+            .Where(w => w.Conversations.Any(c => c.Id == conversationId))
+            .ExecuteUpdateAsync(w => w.SetProperty(p => p.UpdatedAtUtc, now), cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
         return record;

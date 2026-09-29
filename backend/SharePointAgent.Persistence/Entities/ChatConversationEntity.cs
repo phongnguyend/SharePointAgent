@@ -8,6 +8,13 @@ public sealed class ChatConversationEntity
     public string Title { get; set; } = "";
     public string? UserId { get; set; }
     public Guid? AgentId { get; set; }
+
+    /// <summary>
+    /// The workspace whose sandbox this conversation shares, or null to keep its own. Set when the
+    /// conversation is created; only deleting the workspace clears it afterwards.
+    /// </summary>
+    public Guid? WorkspaceId { get; set; }
+
     public string? FoundryEndpoint { get; set; }
     public string? FoundrySessionId { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
@@ -18,4 +25,6 @@ public sealed class ChatConversationEntity
 
     public ICollection<ChatMessageEntity> Messages { get; set; } = [];
     public AgentDefinitionEntity? Agent { get; set; }
+
+    public ChatWorkspaceEntity? Workspace { get; set; }
 }

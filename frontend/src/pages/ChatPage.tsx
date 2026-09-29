@@ -11,8 +11,14 @@ import {
   RefreshCw,
   ExternalLink,
   Eye,
+  Folder,
+  FolderPlus,
   GitBranch,
+  HardDrive,
   MessageSquare,
+  Pencil,
+  ScrollText,
+  TriangleAlert,
   Plus,
   Paperclip,
   Download,
@@ -37,9 +43,21 @@ import {
   getAttachmentOptions,
   getCurrentUser,
   downloadAttachmentFile,
+  listWorkspaces,
+  getConversationSession,
+  createWorkspace,
+  updateWorkspace,
+  deleteWorkspace,
 } from '../api/client'
-import type { ChatConversation, ChatFeedback, ChatMessage, ChatMessageAttachment } from '../api/types'
-import { Empty, ErrorBanner, LoadingBar } from '../components/ui'
+import type {
+  ChatConversation,
+  ChatFeedback,
+  ChatMessage,
+  ChatMessageAttachment,
+  ChatSandboxSession,
+  ChatWorkspace,
+} from '../api/types'
+import { Empty, ErrorBanner, Field, LoadingBar, Modal } from '../components/ui'
 import { FileTypeIcon } from '../components/FileTypeIcon'
 import { AttachmentDownload } from '../components/AttachmentDownload'
 import { MonthlyTokenUsage } from '../components/MonthlyTokenUsage'
@@ -56,9 +74,14 @@ import {
 import { copyText } from '../lib/clipboard'
 import { useAsync } from '../lib/useAsync'
 
+/** Match the API's caps, so a box stops where the request would be rejected. */
+const WORKSPACE_NAME_LIMIT = 200
+const WORKSPACE_RULES_LIMIT = 8000
+
 export default function ChatPage() {
   const readOnly = !canManageOwnContent(useAppUser())
   const conversations = useAsync((signal) => listConversations(signal), [])
+  const workspaces = useAsync((signal) => listWorkspaces(signal), [])
   const agents = useAsync((signal) => listAgents(signal), [])
   const attachmentOptions = useAsync((signal) => getAttachmentOptions(signal), [])
   const tokenUsage = useAsync(signal => getCurrentUser(signal), [])
@@ -80,6 +103,15 @@ export default function ChatPage() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [creatingConversation, setCreatingConversation] = useState(false)
   const [agentMenuOpen, setAgentMenuOpen] = useState(false)
+  // Which workspace the sidebar is showing: '' is all of them, 'none' the conversations in none.
+  const [workspaceFilter, setWorkspaceFilter] = useState('')
+  // The inline editor. A null id is a new workspace, an id an edit of that one.
+  const [workspaceDraft, setWorkspaceDraft] =
+    useState<{ id: string | null; name: string; instructions: string } | null>(null)
+  const [confirmDeleteWorkspace, setConfirmDeleteWorkspace] = useState(false)
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false)
+  const workspaceMenuRef = useRef<HTMLDivElement>(null)
+  const [copiedSession, setCopiedSession] = useState(false)
   const [attachments, setAttachments] = useState<ChatMessageAttachment[]>([])
   const [uploading, setUploading] = useState(false)
   const uploadInProgress = useRef(false)
@@ -91,7 +123,34 @@ export default function ChatPage() {
   const agentMenuButtonRef = useRef<HTMLButtonElement>(null)
 
   const list = conversations.data ?? []
+  const workspaceList = workspaces.data ?? []
+  const selectedWorkspace = workspaceList.find((item) => item.id === workspaceFilter) ?? null
+
+  // A new conversation joins whichever workspace the sidebar is filtered to, which is what makes
+  // "open a workspace, then start a chat in it" reach the same files as the chats already there.
+  const targetWorkspaceId = selectedWorkspace?.id ?? null
+  const visible = workspaceFilter === ''
+    ? list
+    : list.filter((item) => (workspaceFilter === 'none' ? item.workspaceId === null : item.workspaceId === workspaceFilter))
+
+  // Headings only earn their space once there is a workspace to distinguish conversations by.
+  const grouped = workspaceFilter === '' && workspaceList.length > 0
+  const groups: { workspace: ChatWorkspace | null; items: ChatConversation[] }[] = grouped
+    ? [
+        ...workspaceList.map((workspace) => ({
+          workspace,
+          items: list.filter((item) => item.workspaceId === workspace.id),
+        })),
+        // Anything whose workspace is not in the list lands here rather than disappearing from it.
+        {
+          workspace: null,
+          items: list.filter((item) => !workspaceList.some((workspace) => workspace.id === item.workspaceId)),
+        },
+      ].filter((group) => group.items.length > 0)
+    : [{ workspace: null, items: visible }]
+
   const active = list.find((item) => item.id === activeId) ?? null
+  const activeWorkspace = workspaceList.find((item) => item.id === active?.workspaceId) ?? null
   const activeAgent = active
     ? (agents.data ?? []).find((item) =>
         active.agentId ? item.id === active.agentId : item.name.toLowerCase() === 'default',
@@ -135,6 +194,11 @@ export default function ChatPage() {
   const thread = useAsync(
     async (signal) => (activeId ? getThread(activeId, signal) : null),
     [activeId],
+  )
+
+  const session = useAsync(
+    async (signal) => (activeId && workspaceMenuOpen ? getConversationSession(activeId, signal) : null),
+    [activeId, workspaceMenuOpen],
   )
 
   // Switching conversations empties the thread at once rather than leaving the previous one on
@@ -197,14 +261,40 @@ export default function ChatPage() {
     }
   }, [agentMenuOpen])
 
+  // Escape and a click elsewhere both close the workspace panel, since it covers the thread.
+  useEffect(() => {
+    if (!workspaceMenuOpen) return
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setWorkspaceMenuOpen(false)
+    }
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!workspaceMenuRef.current?.contains(event.target as Node)) setWorkspaceMenuOpen(false)
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    document.addEventListener('mousedown', closeOnOutsideClick)
+    return () => {
+      document.removeEventListener('keydown', closeOnEscape)
+      document.removeEventListener('mousedown', closeOnOutsideClick)
+    }
+  }, [workspaceMenuOpen])
+
+  // The tick on a copied session ID is a hint, not a state: it goes away on its own.
+  useEffect(() => {
+    if (!copiedSession) return
+    const timer = setTimeout(() => setCopiedSession(false), 1800)
+    return () => clearTimeout(timer)
+  }, [copiedSession])
+
   const newChat = async (agentId: string | null = null) => {
     if (creatingConversation) return
     setAgentMenuOpen(false)
     setError(null)
     setCreatingConversation(true)
     try {
-      const created = await createConversation({ agentId })
+      const created = await createConversation({ agentId, workspaceId: targetWorkspaceId })
       conversations.reload()
+      workspaces.reload()
       open(created.id)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
@@ -254,6 +344,44 @@ export default function ChatPage() {
     try {
       await deleteConversation(id)
       if (id === activeId) open(null)
+      conversations.reload()
+      workspaces.reload()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
+  const saveWorkspace = async () => {
+    const name = workspaceDraft?.name.trim() ?? ''
+    if (name === '') return
+
+    const rules = workspaceDraft!.instructions.trim() || null
+    setError(null)
+    try {
+      const saved = workspaceDraft!.id === null
+        ? await createWorkspace(name, rules)
+        : await updateWorkspace(workspaceDraft!.id, name, rules)
+      setWorkspaceDraft(null)
+      workspaces.reload()
+      // A workspace is made in order to be used, so the sidebar switches to it.
+      setWorkspaceFilter(saved.id)
+      // The open conversation may be in it, and it is now working under different rules.
+      session.reload()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
+  const removeWorkspace = async () => {
+    if (!selectedWorkspace) return
+
+    setError(null)
+    setConfirmDeleteWorkspace(false)
+    try {
+      await deleteWorkspace(selectedWorkspace.id)
+      setWorkspaceFilter('')
+      workspaces.reload()
+      // Its conversations are still there, ungrouped, so the list has to be read again.
       conversations.reload()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
@@ -341,7 +469,7 @@ export default function ChatPage() {
     try {
       // Typing into an empty page starts a conversation rather than making the user press New chat.
       if (conversationId === null) {
-        const created = await createConversation()
+        const created = await createConversation({ workspaceId: targetWorkspaceId })
         conversationId = created.id
         open(created.id)
       }
@@ -412,7 +540,11 @@ export default function ChatPage() {
               className="chat-new-actions"
               ref={agentMenuRef}
             >
-              <button disabled={readOnly || creatingConversation} onClick={() => void newChat()}>
+              <button
+                disabled={readOnly || creatingConversation}
+                title={selectedWorkspace ? `New chat in ${selectedWorkspace.name}` : 'New chat, with files of its own'}
+                onClick={() => void newChat()}
+              >
                 <Plus size={14} />
                 New
               </button>
@@ -431,7 +563,9 @@ export default function ChatPage() {
               </span>
               {agentMenuOpen ? (
                 <div className="chat-agent-menu" role="group" aria-label="Choose an agent">
-                  <span className="chat-agent-menu-label">Start a conversation with</span>
+                  <span className="chat-agent-menu-label">
+                    {selectedWorkspace ? `Start a conversation in ${selectedWorkspace.name}, with` : 'Start a conversation with'}
+                  </span>
                   <button type="button" onClick={() => void newChat()}><Bot size={14} />Default agent</button>
                   {(agents.data ?? [])
                     .filter((agent) => agent.name.toLowerCase() !== 'default')
@@ -444,26 +578,108 @@ export default function ChatPage() {
               ) : null}
             </div>
           </div>
-          <LoadingBar active={conversations.loading} />
+          <div className="chat-workspace-bar">
+            <select
+              aria-label="Show conversations in"
+              value={workspaceFilter}
+              onChange={(event) => {
+                setWorkspaceFilter(event.target.value)
+                setWorkspaceDraft(null)
+                setConfirmDeleteWorkspace(false)
+              }}
+            >
+              <option value="">All conversations</option>
+              <option value="none">No workspace</option>
+              {workspaceList.map((workspace) => (
+                <option key={workspace.id} value={workspace.id}>
+                  {workspace.name} ({workspace.conversationCount}){workspace.instructions ? ' · rules' : ''}
+                </option>
+              ))}
+            </select>
+            <button
+              className="ghost icon-only"
+              disabled={readOnly}
+              title="New workspace"
+              aria-label="New workspace"
+              onClick={() => {
+                setConfirmDeleteWorkspace(false)
+                setWorkspaceDraft({ id: null, name: '', instructions: '' })
+              }}
+            >
+              <FolderPlus size={14} />
+            </button>
+            {selectedWorkspace ? (
+              <>
+                <button
+                  className="ghost icon-only"
+                  disabled={readOnly}
+                  title={`Edit ${selectedWorkspace.name} and its rules`}
+                  aria-label="Edit workspace"
+                  onClick={() => {
+                    setConfirmDeleteWorkspace(false)
+                    setWorkspaceDraft({
+                      id: selectedWorkspace.id,
+                      name: selectedWorkspace.name,
+                      instructions: selectedWorkspace.instructions ?? '',
+                    })
+                  }}
+                >
+                  <Pencil size={14} />
+                </button>
+                <button
+                  className="ghost icon-only"
+                  disabled={readOnly}
+                  title={`Delete ${selectedWorkspace.name}`}
+                  aria-label="Delete workspace"
+                  onClick={() => {
+                    setWorkspaceDraft(null)
+                    setConfirmDeleteWorkspace(true)
+                  }}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </>
+            ) : null}
+          </div>
+          {confirmDeleteWorkspace && selectedWorkspace ? (
+            <div className="chat-workspace-draft">
+              <span className="hint">
+                Delete {selectedWorkspace.name}? Its conversations stay, each with files of its own again.
+              </span>
+              <button className="ghost" onClick={() => setConfirmDeleteWorkspace(false)}>No</button>
+              <button className="danger" onClick={() => void removeWorkspace()}>Delete</button>
+            </div>
+          ) : null}
+          <LoadingBar active={conversations.loading || workspaces.loading} />
           <div className="chat-conversations">
-            {list.length === 0 && !conversations.loading ? (
+            {visible.length === 0 && !conversations.loading ? (
               <Empty
-                title="No conversations"
+                title={workspaceFilter === '' ? 'No conversations' : 'No conversations here'}
                 icon={<MessageSquare size={24} strokeWidth={1.5} />}
-                detail="Use New or choose an agent."
+                detail={workspaceFilter === '' ? 'Use New or choose an agent.' : 'New starts one in this workspace.'}
               />
             ) : (
-              list.map((item) => (
-                <ConversationRow
-                  key={item.id}
-                  item={item}
-                  active={item.id === activeId}
-                  confirming={confirmDelete === item.id}
-                  onOpen={() => open(item.id)}
-                  onAskDelete={() => setConfirmDelete(item.id)}
-                  onCancelDelete={() => setConfirmDelete(null)}
-                  onDelete={() => remove(item.id)}
-                />
+              groups.map((group) => (
+                <div key={group.workspace?.id ?? 'none'}>
+                  {grouped ? (
+                    <div className="chat-workspace-heading">
+                      <Folder size={12} />
+                      {group.workspace?.name ?? 'No workspace'}
+                    </div>
+                  ) : null}
+                  {group.items.map((item) => (
+                    <ConversationRow
+                      key={item.id}
+                      item={item}
+                      active={item.id === activeId}
+                      confirming={confirmDelete === item.id}
+                      onOpen={() => open(item.id)}
+                      onAskDelete={() => setConfirmDelete(item.id)}
+                      onCancelDelete={() => setConfirmDelete(null)}
+                      onDelete={() => remove(item.id)}
+                    />
+                  ))}
+                </div>
               ))
             )}
           </div>
@@ -487,6 +703,47 @@ export default function ChatPage() {
                   <Cpu size={12} />
                   {activeAgent?.modelId ?? (agents.loading ? 'Loading model…' : 'Model unavailable')}
                 </span>
+              ) : null}
+              {active ? (
+                <div className="chat-workspace-move" ref={workspaceMenuRef}>
+                  <button
+                    type="button"
+                    className={activeWorkspace ? 'badge accent badge-button' : 'badge badge-button'}
+                    aria-expanded={workspaceMenuOpen}
+                    title="Which sandbox this conversation works in. Set when it was started."
+                    onClick={() => setWorkspaceMenuOpen((open) => !open)}
+                  >
+                    <Folder size={12} />
+                    {activeWorkspace?.name ?? 'No workspace'}
+                    <ChevronDown size={12} aria-hidden="true" />
+                  </button>
+                  {workspaceMenuOpen ? (
+                    <div className="chat-workspace-menu" role="group" aria-label="Sandbox">
+                      <span className="chat-agent-menu-label">
+                        {activeWorkspace ? `Workspace: ${activeWorkspace.name}` : 'No workspace'}
+                      </span>
+                      <span className="hint">
+                        Chosen when this conversation was started, and fixed. To work in another
+                        workspace, pick it in the sidebar and start a new chat there.
+                      </span>
+                      {activeWorkspace?.instructions ? (
+                        <div className="chat-workspace-rules">
+                          <span className="chat-agent-menu-label">
+                            <ScrollText size={12} aria-hidden="true" /> Rules the agent follows here
+                          </span>
+                          <p>{activeWorkspace.instructions}</p>
+                        </div>
+                      ) : null}
+                      <SandboxDetails
+                        session={session.data ?? null}
+                        loading={session.loading}
+                        error={session.error}
+                        copied={copiedSession}
+                        onCopy={async (value) => setCopiedSession(await copyText(value))}
+                      />
+                    </div>
+                  ) : null}
+                </div>
               ) : null}
               {active?.userId ? (
                 <span className="badge accent" title="Searches are filtered to this user's permissions">
@@ -603,6 +860,140 @@ export default function ChatPage() {
           </div>
         </section>
       </div>
+
+      <Modal
+        open={workspaceDraft !== null}
+        title={workspaceDraft?.id === null ? 'New workspace' : 'Edit workspace'}
+        icon={<Folder size={18} aria-hidden="true" />}
+        onClose={() => setWorkspaceDraft(null)}
+        footer={
+          <>
+            <button onClick={() => setWorkspaceDraft(null)}>
+              <X size={14} aria-hidden="true" />
+              Cancel
+            </button>
+            <button
+              className="primary"
+              disabled={(workspaceDraft?.name.trim() ?? '') === ''}
+              onClick={() => void saveWorkspace()}
+            >
+              <Check size={14} aria-hidden="true" />
+              {workspaceDraft?.id === null ? 'Create' : 'Save'}
+            </button>
+          </>
+        }
+      >
+        {workspaceDraft ? (
+          <div className="workspace-editor">
+            <Field label="Name" help="What the sidebar lists it as. Maximum 200 characters.">
+              <input
+                autoFocus
+                type="text"
+                maxLength={WORKSPACE_NAME_LIMIT}
+                value={workspaceDraft.name}
+                placeholder="For example: Quarterly report"
+                onChange={(event) => setWorkspaceDraft({ ...workspaceDraft, name: event.target.value })}
+                onKeyDown={(event) => {
+                  // Enter submits from the name box; the rules box below needs it for new lines.
+                  if (event.key === 'Enter' && workspaceDraft.name.trim() !== '') {
+                    event.preventDefault()
+                    void saveWorkspace()
+                  }
+                }}
+              />
+            </Field>
+            <Field
+              label="Rules"
+              help="Added to the agent's instructions for every conversation here, from its next question. Leave empty for none."
+            >
+              <textarea
+                className="workspace-rules-editor"
+                maxLength={WORKSPACE_RULES_LIMIT}
+                value={workspaceDraft.instructions}
+                placeholder={"For example:\nAlways cite the file name you took an answer from.\nNever upload a change back to SharePoint without being asked."}
+                onChange={(event) => setWorkspaceDraft({ ...workspaceDraft, instructions: event.target.value })}
+              />
+            </Field>
+            <span className="hint">
+              {workspaceDraft.instructions.length.toLocaleString()} of{' '}
+              {WORKSPACE_RULES_LIMIT.toLocaleString()} characters. Conversations already in this
+              workspace pick up a change on their next question; what has been answered is not revisited.
+            </span>
+          </div>
+        ) : null}
+      </Modal>
+    </div>
+  )
+}
+
+/**
+ * What the next turn will actually run against. It answers the two questions a shared sandbox raises —
+ * which one am I in, and who else is in it — and shows plainly when a recorded binding is stale, since
+ * that is the case where the files someone expects to still be there will not be.
+ */
+function SandboxDetails({
+  session,
+  loading,
+  error,
+  copied,
+  onCopy,
+}: {
+  session: ChatSandboxSession | null
+  loading: boolean
+  error: string | null
+  copied: boolean
+  onCopy: (value: string) => void
+}) {
+  return (
+    <div className="chat-sandbox">
+      <span className="chat-agent-menu-label">
+        <HardDrive size={12} aria-hidden="true" /> Sandbox
+      </span>
+      {error ? <span className="hint">{error}</span> : null}
+      {!error && (loading || !session) ? <span className="hint">Reading the binding…</span> : null}
+      {session ? (
+        <>
+          <span className="hint">
+            {session.mode === 'Local'
+              ? 'Running in the API, which uses one local directory for every conversation.'
+              : session.scope === 'Workspace'
+                ? `Shared with ${session.sharedWithConversations} ${session.sharedWithConversations === 1 ? 'conversation' : 'conversations'} in this workspace.`
+                : 'Private to this conversation.'}
+          </span>
+          {session.mode === 'Foundry' ? (
+            session.sessionId ? (
+              <div className="chat-sandbox-id">
+                <code title={session.sessionId}>{session.sessionId}</code>
+                <button
+                  className="ghost icon-only"
+                  aria-label="Copy session ID"
+                  title="Copy session ID"
+                  onClick={() => onCopy(session.sessionId!)}
+                >
+                  {copied ? <Check size={13} /> : <Copy size={13} />}
+                </button>
+              </div>
+            ) : (
+              <span className="hint">No session yet. The next turn starts one.</span>
+            )
+          ) : null}
+          {session.sessionId && !session.reusedOnNextTurn ? (
+            <span className="chat-sandbox-stale">
+              <TriangleAlert size={13} aria-hidden="true" />
+              Recorded against another endpoint, so the next turn starts a new sandbox and these files
+              will not be there.
+            </span>
+          ) : null}
+          {session.boundEndpoint ? (
+            <span className="hint" title={session.boundEndpoint}>Bound: {session.boundEndpoint}</span>
+          ) : null}
+          {session.configuredEndpoint && session.configuredEndpoint !== session.boundEndpoint ? (
+            <span className="hint" title={session.configuredEndpoint}>
+              Configured: {session.configuredEndpoint}
+            </span>
+          ) : null}
+        </>
+      ) : null}
     </div>
   )
 }

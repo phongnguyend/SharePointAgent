@@ -13,6 +13,8 @@ import type {
   AppUserStorageInput,
   AgentDefinition,
   ChatConversation,
+  ChatSandboxSession,
+  ChatWorkspace,
   ChatFeedback,
   ChatStreamEvent,
   ChatThread,
@@ -165,6 +167,7 @@ export function listConversations(signal?: AbortSignal): Promise<ChatConversatio
 export function createConversation(options?: {
   userId?: string | null
   agentId?: string | null
+  workspaceId?: string | null
 }): Promise<ChatConversation> {
   return request<ChatConversation>('/api/chat/conversations', {
     method: 'POST',
@@ -173,9 +176,44 @@ export function createConversation(options?: {
       title: null,
       userId: options?.userId?.trim() || null,
       agentId: options?.agentId || null,
+      workspaceId: options?.workspaceId || null,
     }),
   })
 }
+
+/** Reads the sandbox binding for inspection. It runs no turn and changes nothing. */
+export function getConversationSession(id: string, signal?: AbortSignal): Promise<ChatSandboxSession> {
+  return request<ChatSandboxSession>(`/api/chat/conversations/${encodeURIComponent(id)}/session`, { signal })
+}
+
+export function listWorkspaces(signal?: AbortSignal): Promise<ChatWorkspace[]> {
+  return request<ChatWorkspace[]>('/api/chat/workspaces', { signal })
+}
+
+export function createWorkspace(name: string, instructions: string | null): Promise<ChatWorkspace> {
+  return request<ChatWorkspace>('/api/chat/workspaces', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, instructions }),
+  })
+}
+
+/** Replaces the name and the rules together. The rules apply from the next turn asked here. */
+export function updateWorkspace(id: string, name: string, instructions: string | null): Promise<ChatWorkspace> {
+  return request<ChatWorkspace>(`/api/chat/workspaces/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, instructions }),
+  })
+}
+
+/** Removes the workspace. Its conversations stay, each back on a sandbox of its own. */
+export function deleteWorkspace(id: string): Promise<{ deleted: string }> {
+  return request<{ deleted: string }>(`/api/chat/workspaces/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+}
+
 
 async function downloadBlob(path: string, signal?: AbortSignal): Promise<Blob> {
   let response: Response
