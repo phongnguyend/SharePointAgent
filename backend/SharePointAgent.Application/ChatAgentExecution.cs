@@ -45,8 +45,12 @@ public interface IAgentFileBrowser
 /// </summary>
 public static class AgentInvocation
 {
-    /// <summary>Absent means a chat turn, which is what every earlier caller sends.</summary>
-    public const string OperationHeader = "x-agent-operation";
+    /// <summary>
+    /// Absent means a chat turn, which is what every earlier caller sends. Prefixed <c>x-client-</c>
+    /// because that is the only prefix the hosted agent platform forwards from caller to container;
+    /// anything else is stripped before the request reaches this process.
+    /// </summary>
+    public const string OperationHeader = "x-client-agent-operation";
 
     public const string ListFilesOperation = "listFiles";
 
@@ -62,7 +66,8 @@ public sealed record AgentFileListingRequest(Guid ConversationId, string? Path, 
 
 /// <summary>
 /// A hosted invocation that returns one file out of the sandbox, named by
-/// <see cref="AgentInvocation.ReadFileOperation"/>. Like a listing it never reaches the model.
+/// <see cref="AgentInvocation.ReadFileOperation"/>. Like a listing it
+/// never reaches the model.
 /// </summary>
 public sealed record AgentFileReadRequest(Guid ConversationId, string Path);
 
