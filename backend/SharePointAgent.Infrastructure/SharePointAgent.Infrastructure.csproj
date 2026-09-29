@@ -2,8 +2,8 @@
 
   <!--
     Everything the application talks to from outside the process: Microsoft Graph and SharePoint, Azure AI
-    Search, Azure OpenAI and the chat agent, Service Bus, Blob Storage, Document Intelligence, MarkItDown,
-    and the officecli MCP server. It also holds the composition root the executable hosts call into.
+    Search, Azure OpenAI and the chat agent, Service Bus, Blob Storage, Document Intelligence, and
+    MarkItDown. It also holds the composition root the executable hosts call into.
   -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -27,7 +27,6 @@
     <PackageReference Include="Microsoft.Graph" Version="6.5.0" />
     <PackageReference Include="Microsoft.InformationProtection.File" Version="1.18.75" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
     <PackageReference Include="Microsoft.InformationProtection.File.Ubuntu2404" Version="1.18.75" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
-    <PackageReference Include="ModelContextProtocol.Core" Version="2.2.0" />
   </ItemGroup>
 
 </Project>

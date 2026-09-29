@@ -48,7 +48,6 @@ $environment = @{
   Uploads__ContainerName = $outputs.uploadContainerName.value
   MarkItDown__Endpoint = $outputs.markItDownEndpoint.value
   MarkItDown__ApiKey = (Connection-Secret 'markItDownApiKey')
-  OfficeCli__Enabled = 'false'
   ContentSafety__Enabled = ([bool]$settings.deployContentSafety.value).ToString().ToLowerInvariant()
   ContentSafety__UseManagedIdentity = 'true'
   ContentSafety__Endpoint = $outputs.contentSafetyEndpoint.value

@@ -12,7 +12,7 @@ public sealed class ChatAgentRegistrationTests
     [Theory]
     [InlineData("Local", typeof(ChatAgentService))]
     [InlineData("Foundry", typeof(FoundryChatAgentExecutor))]
-    public async Task SelectsExecutorWithoutRequiringLocalOfficeToolsInRemoteMode(string mode, Type expected)
+    public async Task SelectsExecutorWithoutRequiringLocalFileToolsInRemoteMode(string mode, Type expected)
     {
         var settings = new Dictionary<string, string?>
         {
@@ -34,7 +34,6 @@ public sealed class ChatAgentRegistrationTests
             ["SharePoint:ClientState"] = "test-client-state",
             ["Uploads:ConnectionString"] = "UseDevelopmentStorage=true",
             ["MarkItDown:Endpoint"] = "http://localhost:8000",
-            ["OfficeCli:Enabled"] = "false",
         };
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
         var services = new ServiceCollection();
@@ -50,7 +49,7 @@ public sealed class ChatAgentRegistrationTests
         Assert.IsType(expected, provider.GetRequiredService<IChatAgentExecutor>());
         if (mode == "Foundry")
         {
-            Assert.Null(provider.GetService<OfficeCliToolProvider>());
+            Assert.Null(provider.GetService<SharePointFileCache>());
         }
     }
 

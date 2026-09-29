@@ -131,8 +131,6 @@ public static class DependencyInjection
     {
         services.AddOptions<DownloadOptions>().Bind(configuration.GetSection(DownloadOptions.SectionName))
             .ValidateDataAnnotations().ValidateOnStart();
-        services.AddOptions<OfficeCliOptions>().Bind(configuration.GetSection(OfficeCliOptions.SectionName)).ValidateDataAnnotations()
-            .Validate(o => !o.Enabled || o.IsConfigured, "OfficeCli:Command is required when OfficeCli:Enabled is true.").ValidateOnStart();
 
         // Keep the resource client so each persisted agent can select its own chat deployment.
         services.AddSingleton(sp =>
@@ -144,10 +142,6 @@ public static class DependencyInjection
         });
 
         services.AddSingleton<SharePointFileCache>();
-
-        // One officecli child process per application, shared by every turn and shut down with the
-        // container, so the provider is a singleton and nothing else may own its lifetime.
-        services.AddSingleton<OfficeCliToolProvider>();
         services.AddSingleton<ChatAgentContextLoader>();
         services.AddSingleton<ChatAgentService>();
         services.AddSingleton<IChatAgentExecutor>(sp => sp.GetRequiredService<ChatAgentService>());

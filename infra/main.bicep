@@ -544,7 +544,6 @@ var commonEnv = [
   { name: 'MarkItDown__ApiKey', secretRef: 'markitdown-api-key' }
   { name: 'DocumentIntelligence__UsedManagedIdentity', value: 'true' }
   { name: 'DocumentIntelligence__Endpoint', value: documentIntelligenceAccount.?properties.endpoint ?? '' }
-  { name: 'OfficeCli__Enabled', value: 'false' }
 ]
 var secrets = [
   { name: 'graph-client-secret', value: sharePointClientSecret }

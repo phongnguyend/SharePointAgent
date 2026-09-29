@@ -22,7 +22,7 @@ Keep the existing API configuration and set:
 { "ChatAgent": { "Mode": "Local" } }
 ```
 
-No Foundry configuration or host process is needed. The API needs its existing model, SQL, search, Graph, attachment, and optional officecli settings.
+No Foundry configuration or host process is needed. The API needs its existing model, SQL, search, Graph, and attachment settings.
 
 ## Run in Foundry
 
@@ -60,7 +60,6 @@ Configure the hosted container with environment variables or a secret-backed con
 | `MarkItDown__Endpoint` | Existing attachment service dependency, reachable from the sandbox. |
 | `MarkItDown__ApiKey` | Converter authentication key; the deployment resolves this from its Foundry secret connection. |
 | `ContentSafety__Enabled`, `ContentSafety__Endpoint`, `ContentSafety__UseManagedIdentity` | Content Safety configuration; the hosted agent identity needs Cognitive Services User on that resource. |
-| `OfficeCli__Enabled`, `OfficeCli__Command` | Enable after installing officecli in the agent image. The base Dockerfile does not include officecli, matching the existing API image's dependency requirements. |
 
 The host defaults Azure OpenAI, Search, and Blob Storage to managed identity. Grant the hosted identity access to those resources and SQL, or use the existing `UsedManagedIdentity=false` and API-key/connection-string options. Graph continues to use application credentials. `Downloads:Directory` defaults to `$HOME/sharepoint-downloads` in this host so Foundry can persist edited files; leave it unset unless using another persistent session path.
 

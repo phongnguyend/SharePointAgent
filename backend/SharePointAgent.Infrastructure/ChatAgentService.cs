@@ -23,9 +23,9 @@ namespace SharePointAgent.Infrastructure;
 /// model and is given a SharePoint search, a conversation-scoped attachment search, a download of one
 /// of the SharePoint files that search returned, a refresh that takes that file
 /// again as SharePoint holds it now, and an upload of the local copy back over the document — so it
-/// answers from indexed SharePoint or conversation attachment content. The officecli MCP
-/// server's tools are added to those when it is configured, which is what lets the assistant edit a
-/// downloaded file before sending it back.
+/// answers from indexed SharePoint or conversation attachment content. Anything beyond those tools,
+/// such as working on a downloaded Office file, comes from the deployed agent skills in
+/// <see cref="ChatAgentSkills"/>.
 /// </summary>
 public sealed class ChatAgentService(
     ChatAgentContextLoader contextLoader,
@@ -33,7 +33,6 @@ public sealed class ChatAgentService(
     ISearchQueryStore searchStore,
     ChatMessageAttachmentFileService attachmentFiles,
     SharePointFileCache files,
-    OfficeCliToolProvider officeCli,
     ILogger<ChatAgentService> logger,
     IDbContextFactory<SharePointIndexDbContext> contextFactory) : IChatAgentExecutor
 {
@@ -113,8 +112,8 @@ public sealed class ChatAgentService(
         var turnTools = new AgentTools(searchStore, attachmentFiles, files, conversationId, userId, logger, ReportStatusAsync, imageDescriber);
         using var embeddingUsage = ChatEmbeddingUsage.Begin();
 
-        // Named explicitly so the names the instructions above use are the names the model sees. officecli's
-        // tools come from the MCP server itself and keep the names it publishes.
+        // Named explicitly so the names the instructions above use are the names the model sees. Skill
+        // tools come from the skills provider below and keep the names it publishes.
         List<AITool> tools =
         [
             AIFunctionFactory.Create(turnTools.SearchDocumentsAsync, new AIFunctionFactoryOptions { Name = "search_documents" }),
@@ -126,7 +125,6 @@ public sealed class ChatAgentService(
             AIFunctionFactory.Create(turnTools.DownloadSharePointFileAsync, new AIFunctionFactoryOptions { Name = "download_sharepoint_file" }),
             AIFunctionFactory.Create(turnTools.RefreshSharePointFileAsync, new AIFunctionFactoryOptions { Name = "refresh_sharepoint_file" }),
             AIFunctionFactory.Create(turnTools.UploadSharePointFileAsync, new AIFunctionFactoryOptions { Name = "upload_sharepoint_file" }),
-            .. await officeCli.GetToolsAsync(cancellationToken),
         ];
 
         var agent = chatClient.AsAIAgent(new ChatClientAgentOptions
@@ -259,7 +257,6 @@ public sealed class ChatAgentService(
         "download_sharepoint_file" => "Downloading the document…",
         "refresh_sharepoint_file" => "Retrieving the latest document version…",
         "upload_sharepoint_file" => "Uploading the updated document…",
-        "officecli" => "Working with the document…",
         _ => "Running a document tool…",
     };
 

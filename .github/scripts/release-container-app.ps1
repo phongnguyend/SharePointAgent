@@ -24,7 +24,6 @@ $commonValues = @{
   MarkItDown__Endpoint = $outputs.markItDownEndpoint.value
   DocumentIntelligence__UsedManagedIdentity = 'true'
   DocumentIntelligence__Endpoint = [string]$outputs.documentIntelligenceEndpoint.value
-  OfficeCli__Enabled = 'false'
 }
 $commonEnvironment = @($commonValues.GetEnumerator() | ForEach-Object { @{ name = $_.Key; value = [string]$_.Value } }) + @(
   @{ name = 'SharePoint__ClientSecret'; secretRef = 'graph-client-secret' }
