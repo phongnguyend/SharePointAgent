@@ -61,3 +61,40 @@ jobs:
           path: TestResults/*.trx
           if-no-files-found: ignore
           retention-days: 14
+
+  docker-build:
+    name: Build ${{ matrix.image }} image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: api
+            context: .
+            file: backend/SharePointAgent.Api/Dockerfile
+          - image: agenthost
+            context: .
+            file: backend/SharePointAgent.AgentHost/Dockerfile
+          - image: background
+            context: .
+            file: backend/SharePointAgent.Background/Dockerfile
+          - image: markitdown
+            context: backend/MarkItDown
+            file: backend/MarkItDown/Dockerfile
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          platforms: linux/amd64
+          push: false
+          load: false
+          tags: ${{ matrix.image }}:ci
+          cache-from: type=gha,scope=backend-ci-${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=backend-ci-${{ matrix.image }}

@@ -25,7 +25,8 @@ public static class ChatAgentSkills
         {
             ".ps1" => OperatingSystem.IsWindows() ? "powershell.exe" : "pwsh",
             ".py" => OperatingSystem.IsWindows() ? "python.exe" : "python3",
-            _ => throw new ArgumentException("The skill runner supports PowerShell (.ps1) and Python (.py) scripts only."),
+            ".js" or ".mjs" or ".cjs" => OperatingSystem.IsWindows() ? "node.exe" : "node",
+            _ => throw new ArgumentException("The skill runner supports PowerShell (.ps1), Python (.py) and Node.js (.js, .mjs, .cjs) scripts only."),
         };
         var start = new ProcessStartInfo(executable)
         {
@@ -41,11 +42,16 @@ public static class ChatAgentSkills
             start.ArgumentList.Add("-NonInteractive");
             start.ArgumentList.Add("-File");
         }
-        else
+        else if (extension == ".py")
         {
             start.ArgumentList.Add("-X");
             start.ArgumentList.Add("utf8");
             start.ArgumentList.Add("-u");
+            start.StandardOutputEncoding = System.Text.Encoding.UTF8;
+            start.StandardErrorEncoding = System.Text.Encoding.UTF8;
+        }
+        else
+        {
             start.StandardOutputEncoding = System.Text.Encoding.UTF8;
             start.StandardErrorEncoding = System.Text.Encoding.UTF8;
         }
