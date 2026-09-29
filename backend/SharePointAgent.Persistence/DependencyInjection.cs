@@ -56,6 +56,9 @@ public static class DependencyInjection
             services.AddHostedService<DatabaseMigrationHostedService>();
         }
 
+        // Seed required data even when the pipeline owns schema migrations.
+        services.AddHostedService<DatabaseSeedHostedService>();
+
         return services;
     }
 }

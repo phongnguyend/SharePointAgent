@@ -535,7 +535,7 @@ var commonEnv = [
   { name: 'ServiceBus__TopicName', value: serviceBusTopicName }
   { name: 'ServiceBus__SubscriptionName', value: serviceBusSubscriptionName }
   { name: 'AzureSearch__UsedManagedIdentity', value: 'true' }
-  { name: 'AzureSearch__Endpoint', value: 'https://${searchService.name}.searchService.windows.net' }
+  { name: 'AzureSearch__Endpoint', value: 'https://${searchService.name}.search.windows.net' }
   { name: 'AzureOpenAI__UsedManagedIdentity', value: 'true' }
   { name: 'AzureOpenAI__Endpoint', value: openAiAccount.properties.endpoint }
   { name: 'AzureOpenAI__EmbeddingDeployment', value: embeddingDeploymentName }

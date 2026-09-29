@@ -74,7 +74,7 @@ jobs:
           API_IMAGE: ${{ vars.API_IMAGE }}
           BACKGROUND_IMAGE: ${{ vars.BACKGROUND_IMAGE }}
           MARKITDOWN_IMAGE: ${{ vars.MARKITDOWN_IMAGE }}
-          SHAREPOINT_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          SHAREPOINT_TENANT_ID: ${{ vars.SHAREPOINT_TENANT_ID }}
           SHAREPOINT_CLIENT_ID: ${{ vars.SHAREPOINT_CLIENT_ID }}
           SHAREPOINT_CLIENT_SECRET: ${{ secrets.SHAREPOINT_CLIENT_SECRET }}
           SHAREPOINT_CLIENT_STATE: ${{ secrets.SHAREPOINT_CLIENT_STATE }}
@@ -161,7 +161,7 @@ jobs:
           $outputs = Get-Content "$env:RUNNER_TEMP/shared-outputs.json" -Raw | ConvertFrom-Json
           "- Static Web App: $($outputs.staticWebAppName.value)" >> $env:GITHUB_STEP_SUMMARY
           "- Frontend origin: $($outputs.staticWebAppUrl.value)" >> $env:GITHUB_STEP_SUMMARY
-          "API, Background and MarkItDown use GitHub environment image variables, falling back to hello images when all three are unset. Run Release to build new images, apply migrations and publish AgentHost." >> $env:GITHUB_STEP_SUMMARY
+          "API, Background and MarkItDown use GitHub environment image variables, falling back to hello images when all three are unset. Run Release Database first, then the independent MarkItDown, AgentHost, API, Background and Frontend release workflows." >> $env:GITHUB_STEP_SUMMARY
       - name: Remove temporary files
         if: always()
         run: |

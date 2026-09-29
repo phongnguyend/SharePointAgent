@@ -1,0 +1,115 @@
+name: Release AgentHost
+run-name: Release AgentHost (${{ inputs.environment }})
+'on':
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options:
+          - dev
+          - test
+        default: dev
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: deployment-${{ inputs.environment }}
+  cancel-in-progress: false
+jobs:
+  agent:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    environment: ${{ inputs.environment }}
+    env:
+      DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      SHAREPOINT_TENANT_ID: ${{ vars.SHAREPOINT_TENANT_ID }}
+      SHAREPOINT_CLIENT_ID: ${{ vars.SHAREPOINT_CLIENT_ID }}
+      SHAREPOINT_SITE_HOSTNAME: ${{ vars.SHAREPOINT_SITE_HOSTNAME }}
+      SHAREPOINT_SITE_PATH: ${{ vars.SHAREPOINT_SITE_PATH }}
+      SHAREPOINT_DOCUMENT_LIBRARY_NAME: ${{ vars.SHAREPOINT_DOCUMENT_LIBRARY_NAME }}
+      IMAGE_TAG: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Check deployment settings
+        run: |
+          $parametersFile = "infra/parameters.$env:DEPLOY_ENVIRONMENT.json"
+          $settings = (Get-Content $parametersFile -Raw | ConvertFrom-Json).parameters
+          if ($settings.environmentName.value -ne $env:DEPLOY_ENVIRONMENT) {
+            throw 'Parameter environment does not match the selected environment.'
+          }
+          if ([string]::IsNullOrWhiteSpace($settings.location.value)) {
+            throw 'Set location in the environment parameter file.'
+          }
+          $resourceGroup = $env:AZURE_RESOURCE_GROUP
+          if ([string]::IsNullOrWhiteSpace($resourceGroup)) {
+            $resourceGroup = "rg-$($settings.workloadName.value)-$env:DEPLOY_ENVIRONMENT"
+          }
+          "RESOURCE_GROUP=$resourceGroup" >> $env:GITHUB_ENV
+          "PARAMETERS_FILE=$parametersFile" >> $env:GITHUB_ENV
+      - name: Check application settings
+        env:
+          SHAREPOINT_CLIENT_SECRET: ${{ secrets.SHAREPOINT_CLIENT_SECRET }}
+          SHAREPOINT_CLIENT_STATE: ${{ secrets.SHAREPOINT_CLIENT_STATE }}
+          MARKITDOWN_API_KEY: ${{ secrets.MARKITDOWN_API_KEY }}
+        run: |
+          if ($env:DEPLOY_ENVIRONMENT -eq 'local') {
+            throw 'Use dev or test for a release.'
+          }
+          foreach ($name in @('SHAREPOINT_TENANT_ID', 'SHAREPOINT_CLIENT_ID', 'SHAREPOINT_CLIENT_SECRET', 'SHAREPOINT_SITE_HOSTNAME', 'SHAREPOINT_SITE_PATH', 'SHAREPOINT_DOCUMENT_LIBRARY_NAME')) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+              throw "Set $name in the selected GitHub environment."
+            }
+          }
+          if ($env:SHAREPOINT_CLIENT_STATE.Length -lt 16 -or $env:MARKITDOWN_API_KEY.Length -lt 32) {
+            throw 'SHAREPOINT_CLIENT_STATE requires 16+ characters; MARKITDOWN_API_KEY requires 32+ characters.'
+          }
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Read provisioned infrastructure
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $result = az deployment group show --resource-group $env:RESOURCE_GROUP `
+            --name "infra-$env:DEPLOY_ENVIRONMENT" --query properties.outputs --output json
+          if (-not $result) {
+            throw 'Run Deploy infrastructure before releasing applications.'
+          }
+          $result | Set-Content "$env:RUNNER_TEMP/shared-outputs.json"
+      - name: Build and push AgentHost
+        run: |
+          . "$env:GITHUB_WORKSPACE/.github/scripts/deployment-helpers.ps1"
+          az acr build --registry $outputs.containerRegistryName.value --platform linux/amd64 --no-logs `
+            --image "agenthost:$env:IMAGE_TAG" --file "backend/SharePointAgent.AgentHost/Dockerfile" .
+      - name: Release AgentHost
+        run: |
+          & ./.github/scripts/release-agent.ps1
+        env:
+          SHAREPOINT_CLIENT_SECRET: ${{ secrets.SHAREPOINT_CLIENT_SECRET }}
+          SHAREPOINT_CLIENT_STATE: ${{ secrets.SHAREPOINT_CLIENT_STATE }}
+          MARKITDOWN_API_KEY: ${{ secrets.MARKITDOWN_API_KEY }}
+      - name: Deployment summary
+        run: |
+          "## AgentHost release completed" >> $env:GITHUB_STEP_SUMMARY
+          "- Environment: $env:DEPLOY_ENVIRONMENT" >> $env:GITHUB_STEP_SUMMARY
+          "- Image tag: $env:IMAGE_TAG" >> $env:GITHUB_STEP_SUMMARY
+          "- Foundry version: $env:FOUNDRY_VERSION" >> $env:GITHUB_STEP_SUMMARY
+      - name: Remove temporary deployment files
+        if: always()
+        run: |
+          foreach ($name in @('foundry-secrets.request.json', 'api.request.json', 'background.request.json', 'migrations.sql', 'shared-outputs.json')) {
+            $path = Join-Path $env:RUNNER_TEMP $name
+            if (Test-Path -LiteralPath $path) {
+              Remove-Item -LiteralPath $path -Force
+            }
+          }

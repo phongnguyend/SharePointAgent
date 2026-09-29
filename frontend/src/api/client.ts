@@ -348,8 +348,8 @@ export function getAgent(id: string, signal?: AbortSignal): Promise<AgentDefinit
 
 export function getDefaultAgentInstructions(
   signal?: AbortSignal,
-): Promise<{ instructions: string; modelId: string }> {
-  return request<{ instructions: string; modelId: string }>('/api/agents/default-instructions', {
+): Promise<{ instructions: string; modelId: string; mode: 'Local' | 'Foundry'; endpoint: string | null }> {
+  return request<{ instructions: string; modelId: string; mode: 'Local' | 'Foundry'; endpoint: string | null }>('/api/agents/default-instructions', {
     signal,
   })
 }

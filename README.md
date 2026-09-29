@@ -39,7 +39,7 @@ Create these resources before deploying:
 
 Assign Azure RBAC appropriate to each process: Service Bus Data Sender, Storage Blob Data Contributor, Search Index Data Contributor, Search Service Contributor, and Cognitive Services OpenAI User to the API; Service Bus Data Receiver, Search Index Data Contributor, Search Service Contributor, and Cognitive Services OpenAI User to the worker. Add Cognitive Services User when Document Intelligence is enabled. The Bicep templates create these assignments. SQL Server permissions are granted inside the database rather than through RBAC: see [Worker state in SQL Server](#worker-state-in-sql-server).
 
-The GitHub Actions infrastructure workflow provisions Azure resources and default hello images for the ACA apps. Run `release.yml` afterward to build and deploy API/Background/MarkItDown, apply SQL migrations and runtime grants, publish AgentHost to Foundry, and deploy the frontend to Azure Static Web Apps. Deployment uses PowerShell and Azure CLI.
+The GitHub Actions infrastructure workflow provisions Azure resources and default hello images for the ACA apps. Use the independent `release-db-migration.yml`, `release-markitdown.yml`, `release-agent.yml`, `release-api.yml`, `release-background.yml`, and `release-frontend.yml` workflows in that order for the first deployment. Later releases can run only the affected components; apply required migrations first. Deployment uses PowerShell and Azure CLI.
 
 See [the infrastructure deployment guide](infra/README.md) for settings and the application deployment sequence. The frontend is hosted separately.
 

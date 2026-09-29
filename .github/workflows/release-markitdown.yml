@@ -1,0 +1,89 @@
+name: Release MarkItDown
+run-name: Release MarkItDown (${{ inputs.environment }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options: [dev, test]
+        default: dev
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deployment-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  markitdown:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: ${{ inputs.environment }}
+    env:
+      DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      IMAGE_TAG: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Check MarkItDown settings
+        env:
+          MARKITDOWN_API_KEY: ${{ secrets.MARKITDOWN_API_KEY }}
+        run: |
+          if ($env:MARKITDOWN_API_KEY.Length -lt 32) {
+            throw 'MARKITDOWN_API_KEY requires 32+ characters.'
+          }
+          $settings = (Get-Content "infra/parameters.$env:DEPLOY_ENVIRONMENT.json" -Raw | ConvertFrom-Json).parameters
+          $resourceGroup = $env:AZURE_RESOURCE_GROUP
+          if ([string]::IsNullOrWhiteSpace($resourceGroup)) {
+            $resourceGroup = "rg-$($settings.workloadName.value)-$env:DEPLOY_ENVIRONMENT"
+          }
+          "RESOURCE_GROUP=$resourceGroup" >> $env:GITHUB_ENV
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Build and release MarkItDown
+        env:
+          MARKITDOWN_API_KEY: ${{ secrets.MARKITDOWN_API_KEY }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          . "$env:GITHUB_WORKSPACE/.github/scripts/container-apps.ps1"
+          $outputs = az deployment group show --resource-group $env:RESOURCE_GROUP --name "infra-$env:DEPLOY_ENVIRONMENT" --query properties.outputs -o json | ConvertFrom-Json
+          if (-not $outputs.markItDownContainerAppName.value) {
+            throw 'Run Deploy infrastructure before releasing MarkItDown.'
+          }
+          Push-Location backend/MarkItDown
+          try {
+            az acr build --registry $outputs.containerRegistryName.value --platform linux/amd64 --no-logs `
+              --image "markitdown:$env:IMAGE_TAG" --file Dockerfile .
+          } finally {
+            Pop-Location
+          }
+          $environment = @(@{ name = 'MARKITDOWN_API_KEY'; secretRef = 'markitdown-api-key' })
+          $secrets = @(@{ name = 'markitdown-api-key'; value = $env:MARKITDOWN_API_KEY })
+          Update-ContainerApp $outputs.markItDownContainerAppName.value 'markitdown' $environment $secrets 8000
+          Wait-ContainerApp $outputs.markItDownContainerAppName.value
+          Invoke-RestMethod "$($outputs.markItDownEndpoint.value.TrimEnd('/'))/health" -MaximumRetryCount 12 -RetryIntervalSec 10 -TimeoutSec 30 | Out-Null
+          "## MarkItDown deployed" >> $env:GITHUB_STEP_SUMMARY
+          "- Image: $($outputs.containerRegistryLoginServer.value)/markitdown:$env:IMAGE_TAG" >> $env:GITHUB_STEP_SUMMARY
+      - name: Remove temporary request file
+        if: always()
+        run: |
+          $path = Join-Path $env:RUNNER_TEMP 'markitdown.request.json'
+          if (Test-Path -LiteralPath $path) {
+            Remove-Item -LiteralPath $path -Force
+          }
+

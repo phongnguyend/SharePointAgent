@@ -11,11 +11,17 @@ public static class AgentsEndpoints
     {
         // Persisted agent definitions. The default instruction text is exposed by the chat service so the
         // editor and server-side creation fallback always use the same private template.
-        app.MapGet("/api/agents/default-instructions", (IOptions<OpenAiOptions> openAiOptions) =>
+        app.MapGet("/api/agents/default-instructions", (
+            IOptions<OpenAiOptions> openAiOptions,
+            IOptions<ChatAgentHostingOptions> hostingOptions) =>
             Results.Ok(new
             {
                 instructions = AgentDefaults.Instructions,
                 modelId = openAiOptions.Value.ChatDeployment,
+                mode = hostingOptions.Value.Mode.ToString(),
+                endpoint = hostingOptions.Value.Mode == ChatAgentExecutionMode.Foundry
+                    ? hostingOptions.Value.Foundry.Endpoint
+                    : openAiOptions.Value.Endpoint,
             }));
 
         app.MapGet("/api/agents", (IAgentRepository store, CancellationToken cancellationToken) =>

@@ -15,7 +15,7 @@ RUN dotnet publish "backend/SharePointAgent.Background/SharePointAgent.Backgroun
     --no-restore \
     /p:UseAppHost=false
 
-FROM mcr.microsoft.com/dotnet/runtime:10.0-noble AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble AS final
 RUN apt-get update && apt-get install -y --no-install-recommends libgsf-1-114 libgmime-3.0-0t64 libcurl4t64 libssl3t64 libsecret-1-0 && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 USER $APP_UID

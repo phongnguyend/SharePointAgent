@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bot, Check, CircleCheck, Eye, Pencil, Plus, RefreshCw, RotateCcw, X } from 'lucide-react'
+import { Bot, Check, CircleCheck, Cloud, Eye, Pencil, Plus, RefreshCw, RotateCcw, Server, X } from 'lucide-react'
 import {
   createAgent,
   getDefaultAgentInstructions,
@@ -7,7 +7,7 @@ import {
   updateAgent,
 } from '../api/client'
 import type { AgentDefinition } from '../api/types'
-import { Empty, ErrorBanner, Field, LoadingBar, Modal } from '../components/ui'
+import { CopyButton, Empty, ErrorBanner, Field, LoadingBar, Modal } from '../components/ui'
 import { formatDateTime, formatRelative } from '../lib/format'
 import { useAsync } from '../lib/useAsync'
 
@@ -84,7 +84,10 @@ export default function AgentsPage() {
           <p>Create and manage reusable agent instructions and models.</p>
         </div>
         <div className="row" style={{ gap: 8 }}>
-          <button onClick={agents.reload}>
+          <button onClick={() => {
+            agents.reload()
+            defaults.reload()
+          }}>
             <RefreshCw size={14} />
             Refresh
           </button>
@@ -98,6 +101,31 @@ export default function AgentsPage() {
       <LoadingBar active={agents.loading || defaults.loading} />
       {agents.error ? <ErrorBanner message={agents.error} onRetry={agents.reload} /> : null}
       {defaults.error ? <ErrorBanner message={defaults.error} onRetry={defaults.reload} /> : null}
+      {defaults.data ? (
+        <section className="card agent-hosting-summary" aria-label="Agent hosting configuration">
+          <div className="agent-hosting-mode">
+            <span className="agent-hosting-icon" aria-hidden="true">
+              {defaults.data.mode === 'Foundry' ? <Cloud size={20} /> : <Server size={20} />}
+            </span>
+            <div>
+              <div className="agent-hosting-label">Agent mode · All agents</div>
+              <strong>{defaults.data.mode}</strong>
+              <div className="agent-hosting-description">
+                {defaults.data.mode === 'Foundry' ? 'Hosted in Microsoft Foundry' : 'Runs within the API'}
+              </div>
+            </div>
+          </div>
+          <div className="agent-hosting-endpoint">
+            <span className="agent-hosting-label">
+              {defaults.data.mode === 'Foundry' ? 'Foundry endpoint' : 'Azure OpenAI endpoint'}
+            </span>
+            <div className="agent-hosting-endpoint-value">
+              <code>{defaults.data.endpoint || 'Not configured'}</code>
+              {defaults.data.endpoint ? <CopyButton value={defaults.data.endpoint} label="Copy endpoint" /> : null}
+            </div>
+          </div>
+        </section>
+      ) : null}
       {notice ? (
         <div className="banner success" role="status">
           <CircleCheck size={17} color="var(--good)" />

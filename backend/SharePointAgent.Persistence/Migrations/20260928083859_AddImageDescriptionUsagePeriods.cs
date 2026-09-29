@@ -24,12 +24,6 @@ namespace SharePointAgent.Persistence.Migrations
                 nullable: false,
                 defaultValue: 0);
 
-            migrationBuilder.Sql("""
-                UPDATE [ImageDescriptionTokenUsage]
-                SET [Day] = CONVERT(int, CONVERT(char(8), SWITCHOFFSET([CreatedAtUtc], '+00:00'), 112)),
-                    [Month] = CONVERT(int, CONVERT(char(6), SWITCHOFFSET([CreatedAtUtc], '+00:00'), 112));
-                """);
-
             migrationBuilder.CreateIndex(
                 name: "IX_ImageDescriptionTokenUsage_ModelId_Month",
                 table: "ImageDescriptionTokenUsage",
