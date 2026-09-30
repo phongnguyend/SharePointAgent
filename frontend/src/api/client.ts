@@ -417,6 +417,10 @@ export function listAgents(signal?: AbortSignal): Promise<AgentDefinition[]> {
   return request<AgentDefinition[]>('/api/agents', { signal })
 }
 
+export function getAgentCapabilities(signal?: AbortSignal): Promise<import('./types').AgentCapabilities> {
+  return request('/api/agents/capabilities', { signal })
+}
+
 export function getAgent(id: string, signal?: AbortSignal): Promise<AgentDefinition> {
   return request<AgentDefinition>(`/api/agents/${encodeURIComponent(id)}`, { signal })
 }

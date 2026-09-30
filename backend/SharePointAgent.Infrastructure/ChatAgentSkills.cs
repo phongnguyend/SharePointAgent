@@ -8,6 +8,17 @@ public static class ChatAgentSkills
 {
     public static string DirectoryPath => Path.Combine(AppContext.BaseDirectory, "skills");
 
+    public static async Task<IReadOnlyList<AgentCapability>> GetCatalogAsync(CancellationToken cancellationToken)
+    {
+        using var source = new AgentFileSkillsSource(DirectoryPath, RunScriptAsync);
+        // Discovery needs an agent context but never invokes a model or runs a skill.
+        var client = new OpenAI.Chat.ChatClient("catalog", new System.ClientModel.ApiKeyCredential("catalog-only"));
+        var agent = new ChatClientAgent(Microsoft.Extensions.AI.OpenAIClientExtensions.AsIChatClient(client));
+        var skills = await source.GetSkillsAsync(new AgentSkillsSourceContext(agent, null), cancellationToken);
+        return skills.Select(skill => new AgentCapability(skill.Frontmatter.Name, skill.Frontmatter.Description))
+            .OrderBy(skill => skill.Name, StringComparer.Ordinal).ToArray();
+    }
+
     public static AgentSkillsProvider CreateProvider()
     {
         if (!Directory.Exists(DirectoryPath))

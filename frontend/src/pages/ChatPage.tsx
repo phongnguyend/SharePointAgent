@@ -1093,7 +1093,7 @@ function SandboxFiles({
   onDownload,
 }: {
   path: string
-  listing: { entries: FileSystemEntry[]; truncated: boolean; sandboxStarted: boolean } | null
+  listing: { path: string; entries: FileSystemEntry[]; truncated: boolean; sandboxStarted: boolean } | null
   loading: boolean
   error: string | null
   sort: { key: FileSortKey; desc: boolean }
@@ -1102,7 +1102,15 @@ function SandboxFiles({
   onPreview: (path: string) => void
   onDownload: (path: string) => void
 }) {
-  const parent = path === '.' ? null : path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '.'
+  const currentPath = !loading && !error && listing ? listing.path : path
+  const [address, setAddress] = useState(currentPath)
+  const [editingAddress, setEditingAddress] = useState(false)
+
+  useEffect(() => {
+    setAddress(currentPath)
+  }, [currentPath])
+
+  const parent = currentPath === '.' ? null : currentPath.includes('/') ? currentPath.slice(0, currentPath.lastIndexOf('/')) || '.' : '.'
 
   if (listing && !listing.sandboxStarted) {
     return (
@@ -1142,7 +1150,7 @@ function SandboxFiles({
 
   return (
     <div className="sandbox-explorer">
-      <div className="sandbox-crumbs">
+      <div className="sandbox-address-bar">
         <button
           type="button"
           className="ghost icon-only"
@@ -1153,23 +1161,68 @@ function SandboxFiles({
         >
           <ArrowUp size={14} />
         </button>
+        {!editingAddress ? <div className="sandbox-crumbs" onClick={(event) => {
+          if (event.target === event.currentTarget) {
+            setEditingAddress(true)
+          }
+        }}>
         <button type="button" className="sandbox-crumb" onClick={() => onOpen('.')}>
           <HardDrive size={13} aria-hidden="true" />
           Working directory
         </button>
-        {breadcrumbs(path).map((crumb, index, all) => (
+        {breadcrumbs(currentPath).map((crumb, index, all) => (
           <span className="sandbox-crumb-step" key={crumb.path}>
             <ChevronRight size={12} aria-hidden="true" />
             <button
               type="button"
               className="sandbox-crumb"
-              disabled={index === all.length - 1}
-              onClick={() => onOpen(crumb.path)}
+              onClick={() => {
+                if (index === all.length - 1) {
+                  setEditingAddress(true)
+                } else {
+                  onOpen(crumb.path)
+                }
+              }}
             >
               {crumb.name}
             </button>
           </span>
         ))}
+        <button type="button" className="ghost icon-only sandbox-edit-address" title="Edit folder path" aria-label="Edit folder path" onClick={() => setEditingAddress(true)}>
+          <Pencil size={13} />
+        </button>
+        </div> : <form className="sandbox-address" onSubmit={(event) => {
+        event.preventDefault()
+        const destination = address.trim().replace(/^"(.*)"$/, '$1').replace(/\\/g, '/')
+        onOpen(destination || '.')
+        setEditingAddress(false)
+      }} onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          setAddress(currentPath)
+          setEditingAddress(false)
+        }
+      }}>
+        <input
+          autoFocus
+          aria-label="Folder path"
+          placeholder="Paste a folder path"
+          value={address}
+          onChange={(event) => setAddress(event.target.value)}
+          onFocus={(event) => event.currentTarget.select()}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.preventDefault()
+              event.stopPropagation()
+              setAddress(currentPath)
+              setEditingAddress(false)
+            }
+          }}
+          spellCheck={false}
+        />
+        <button type="submit" disabled={loading}>
+          <ChevronRight size={14} aria-hidden="true" />Go
+        </button>
+      </form>}
       </div>
 
       <LoadingBar active={loading} />
@@ -1237,14 +1290,28 @@ function SandboxFiles({
                   ) : (
                     cells
                   )}
-                  <button
-                    className="ghost icon-only"
-                    title={`Download ${name}`}
-                    aria-label={`Download ${name}`}
-                    onClick={() => onDownload(entry.path)}
-                  >
-                    <Download size={14} />
-                  </button>
+                  <div className="sandbox-actions">
+                    {isSandboxPreviewable(name) ? (
+                      <button
+                        type="button"
+                        className="ghost icon-only"
+                        title={`Preview ${name}`}
+                        aria-label={`Preview ${name}`}
+                        onClick={() => onPreview(entry.path)}
+                      >
+                        <Eye size={14} />
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="ghost icon-only"
+                      title={`Download ${name}`}
+                      aria-label={`Download ${name}`}
+                      onClick={() => onDownload(entry.path)}
+                    >
+                      <Download size={14} />
+                    </button>
+                  </div>
                 </div>
               )
             })

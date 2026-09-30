@@ -1224,9 +1224,18 @@ button.ghost:hover:not(:disabled) {
 .chat-workspace-draft { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
 .chat-workspace-draft .hint { flex: 1; min-width: 0; }
 .modal.sandbox-files-modal { width: min(760px, calc(100vw - 32px)); }
+.agent-capability { padding: 12px 14px; overflow-wrap: anywhere; }
+.agent-capability p { margin: 6px 0 0; color: var(--text-secondary); font-size: 13px; }
 .sandbox-explorer { display: flex; flex-direction: column; gap: 8px; }
+.sandbox-address-bar { display: flex; align-items: center; gap: 2px; padding: 4px 6px; min-height: 38px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
+.sandbox-address { display: flex; flex: 1; min-width: 0; align-items: center; gap: 8px; }
+.sandbox-address input { flex: 1; min-width: 0; }
+.sandbox-address button { flex: none; }
+.sandbox-actions { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
 
-.sandbox-crumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; padding: 4px 6px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
+.sandbox-crumbs { display: flex; flex: 1; min-width: 0; align-items: center; gap: 2px; overflow-x: auto; white-space: nowrap; }
+.sandbox-crumbs > * { flex-shrink: 0; }
+.sandbox-edit-address { margin-left: auto; }
 .sandbox-crumb-step { display: inline-flex; align-items: center; gap: 2px; color: var(--text-muted); }
 .sandbox-crumb { display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; border: 0; border-radius: var(--radius-sm); background: transparent; font-weight: 500; font-size: 12px; }
 .sandbox-crumb:hover:not(:disabled), .sandbox-crumb:focus-visible { background: var(--surface-1); }
@@ -1234,7 +1243,7 @@ button.ghost:hover:not(:disabled) {
 
 /* Name takes the slack; size and modified are as wide as their content needs and no wider. */
 .sandbox-table { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
-.sandbox-row { display: grid; grid-template-columns: minmax(0, 1fr) 90px 130px 30px; align-items: center; gap: 10px; width: 100%; padding: 7px 10px; border: 0; border-bottom: 1px solid var(--border); background: transparent; text-align: left; font-weight: 400; }
+.sandbox-row { display: grid; grid-template-columns: minmax(0, 1fr) 90px 130px 62px; align-items: center; gap: 10px; width: 100%; padding: 7px 10px; border: 0; border-bottom: 1px solid var(--border); background: transparent; text-align: left; font-weight: 400; }
 
 /* A previewable file makes its three cells one button, so the row keeps its column alignment. */
 .sandbox-open { display: contents; border: 0; background: transparent; text-align: left; font-weight: 400; cursor: pointer; }

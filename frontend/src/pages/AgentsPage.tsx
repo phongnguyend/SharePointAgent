@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Bot, Check, CircleCheck, Cloud, Eye, Pencil, Plus, RefreshCw, RotateCcw, Server, X } from 'lucide-react'
+import { Bot, Check, CircleCheck, Cloud, Eye, Pencil, Plus, RefreshCw, RotateCcw, Server, X, Wrench, BookOpen, FileText } from 'lucide-react'
 import {
   createAgent,
   getDefaultAgentInstructions,
+  getAgentCapabilities,
   listAgents,
   updateAgent,
 } from '../api/client'
@@ -189,12 +190,7 @@ export default function AgentsPage() {
         }
       >
         {viewing ? (
-          <div className="stack" style={{ gap: 12 }}>
-            <span className="badge agent-model-id" title="Model ID">
-              {viewing.modelId}
-            </span>
-            <pre className="agent-instructions">{viewing.instructions}</pre>
-          </div>
+          <AgentDetails key={viewing.id} agent={viewing} />
         ) : null}
       </Modal>
 
@@ -305,3 +301,55 @@ export default function AgentsPage() {
   )
 }
 import { useAppUser, canManageAdministration } from '../components/AppUserContext'
+
+function AgentDetails({ agent }: { agent: AgentDefinition }) {
+  const [tab, setTab] = useState<'instructions' | 'tools' | 'skills'>('instructions')
+  const catalog = useAsync(getAgentCapabilities, [])
+  const tabs = ['instructions', 'tools', 'skills'] as const
+  return <div className="stack" style={{ gap: 12 }}>
+    <span className="badge agent-model-id" title="Model ID">{agent.modelId}</span>
+    <div className="row" role="tablist" aria-label="Agent details">
+      {tabs.map((name, index) => <button
+        key={name}
+        id={`agent-tab-${name}`}
+        role="tab"
+        aria-selected={tab === name}
+        aria-controls="agent-details-panel"
+        tabIndex={tab === name ? 0 : -1}
+        className={tab === name ? 'primary' : 'ghost'}
+        onClick={() => setTab(name)}
+        onKeyDown={event => {
+          let next: typeof tab
+          if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+            next = tabs[(index + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]
+          } else if (event.key === 'Home') {
+            next = tabs[0]
+          } else if (event.key === 'End') {
+            next = tabs[tabs.length - 1]
+          } else {
+            return
+          }
+          event.preventDefault()
+          setTab(next)
+          document.getElementById(`agent-tab-${next}`)?.focus()
+        }}
+      >
+        {name === 'instructions' ? <FileText size={14} /> : name === 'tools' ? <Wrench size={14} /> : <BookOpen size={14} />}
+        {name === 'instructions' ? 'Instructions' : name === 'tools' ? 'Tools' : 'Skills'}
+        {name !== 'instructions' && catalog.data ? ` (${catalog.data[name].length})` : ''}
+      </button>)}
+    </div>
+    <div id="agent-details-panel" role="tabpanel" aria-labelledby={`agent-tab-${tab}`} tabIndex={0}>
+      {tab === 'instructions' ? <pre className="agent-instructions">{agent.instructions}</pre> : <div className="stack">
+        <p className="hint">Available to all agents. Per-agent assignment is not configured yet. Skills reflect this API deployment; deploy the same skills to AgentHost when using Foundry.</p>
+        <LoadingBar active={catalog.loading} />
+        {catalog.error ? <ErrorBanner message={catalog.error} onRetry={catalog.reload} /> : null}
+        {catalog.data && catalog.data[tab].length === 0 ? <Empty title={`No ${tab} available`} /> : null}
+        {catalog.data?.[tab].map(item => <article className="card agent-capability" key={item.name}>
+          <strong>{item.name}</strong>
+          <p>{item.description}</p>
+        </article>)}
+      </div>}
+    </div>
+  </div>
+}

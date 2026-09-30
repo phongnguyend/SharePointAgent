@@ -9,6 +9,13 @@ public static class AgentsEndpoints
 {
     public static void MapAgentsEndpoints(this WebApplication app)
     {
+        app.MapGet("/api/agents/capabilities", async (CancellationToken cancellationToken) =>
+            Results.Ok(new
+            {
+                tools = ChatAgentService.GetTools(),
+                skills = await ChatAgentSkills.GetCatalogAsync(cancellationToken)
+            }));
+
         // Persisted agent definitions. The default instruction text is exposed by the chat service so the
         // editor and server-side creation fallback always use the same private template.
         app.MapGet("/api/agents/default-instructions", (

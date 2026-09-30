@@ -44,7 +44,7 @@ public sealed class AgentTextFiles(AgentFileSystem? workingDirectory = null)
         var text = await reader.ReadToEndAsync(ct);
         if (text.Contains('\0'))
         {
-            throw new ArgumentException("This is not a text file. Download the attachment Markdown instead.");
+            throw new ArgumentException("This is not a text file. Use convert_to_markdown for supported documents, then read the returned localPath.");
         }
 
         var page = AttachmentMarkdownReader.Read(Guid.Empty, System.IO.Path.GetFileName(fullPath), new(text, fullPath, true, true), startLine, endLine);

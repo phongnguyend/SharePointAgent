@@ -148,8 +148,9 @@ public static class DependencyInjection
                 : new AzureOpenAIClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!));
         });
 
-        services.AddSingleton<SharePointFileCache>();
+        services.AddSingleton<AgentSharePointFiles>();
         services.AddSingleton<AgentFileSystem>();
+        services.AddTransient<AgentMarkdownConverter>();
         services.AddSingleton<IAgentFileBrowser, LocalAgentFileBrowser>();
         services.AddSingleton<ChatAgentContextLoader>();
         services.AddSingleton<ChatAgentService>();

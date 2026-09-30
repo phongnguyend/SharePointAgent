@@ -82,6 +82,11 @@ export interface AgentDefinition {
   updatedAtUtc: string
 }
 
+export interface AgentCapabilities {
+  tools: { name: string; description: string }[]
+  skills: { name: string; description: string }[]
+}
+
 export interface PagedResult<T> {
   totalCount: number
   items: T[]

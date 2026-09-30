@@ -9,6 +9,21 @@ namespace SharePointAgent.Tests;
 
 public sealed class ChatAgentSkillsTests
 {
+    [Fact]
+    public async Task CapabilityCatalogIncludesPackagedSkillsAndCurrentTools()
+    {
+        var skills = await ChatAgentSkills.GetCatalogAsync(default);
+        Assert.Contains(skills, skill => skill.Name == "dns-lookup" && !string.IsNullOrWhiteSpace(skill.Description));
+        var tools = ChatAgentService.GetTools();
+        Assert.Contains(tools, tool => tool.Name == "search_sharepoint_documents");
+        Assert.DoesNotContain(tools, tool => tool.Name == "search_documents");
+        Assert.Contains(tools, tool => tool.Name == "convert_to_markdown");
+        Assert.Contains(tools, tool => tool.Name == "upload_sharepoint_file");
+        Assert.DoesNotContain(tools, tool => tool.Name == "refresh_sharepoint_file" || tool.Name == "download_attachment_markdown");
+        Assert.All(tools, tool => Assert.False(string.IsNullOrWhiteSpace(tool.Description)));
+        Assert.Equal(tools.Count, tools.Select(tool => tool.Name).Distinct().Count());
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

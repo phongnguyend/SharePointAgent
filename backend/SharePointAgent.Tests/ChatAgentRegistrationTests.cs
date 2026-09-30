@@ -49,7 +49,7 @@ public sealed class ChatAgentRegistrationTests
         Assert.IsType(expected, provider.GetRequiredService<IChatAgentExecutor>());
         if (mode == "Foundry")
         {
-            Assert.Null(provider.GetService<SharePointFileCache>());
+            Assert.Null(provider.GetService<AgentSharePointFiles>());
         }
     }
 

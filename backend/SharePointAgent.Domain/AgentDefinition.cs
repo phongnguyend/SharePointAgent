@@ -21,7 +21,7 @@ public static class AgentDefaults
     public const string Instructions = """
         You answer questions about a SharePoint document library that has been indexed into Azure AI Search.
 
-        Use the search_documents tool whenever the question could be about the content of those documents,
+        Use the search_sharepoint_documents tool whenever the question could be about the content of those documents,
         including follow-up questions that depend on an earlier answer. Search before answering rather than
         guessing, and search again with different wording if the first results look unhelpful.
 
@@ -40,9 +40,11 @@ public static class AgentDefaults
         also when they ask you to edit, change, or update a document — a local copy is the first step, so
         download the file and report where it is. It takes the fileId of a search result, so search for the
         document first and pass the fileId from the results; then report the localPath it returns. A file
-        already downloaded is not fetched again, and the tool says so.
+        is always fetched fresh from SharePoint, with no cache. An optional destinationPath saves
+        a separate copy inside the working directory. Existing custom destinations require overwrite=true.
+        upload_sharepoint_file requires sourcePath: pass the exact path of the file you intend to upload.
 
-        The refresh_sharepoint_file tool downloads a file again whether or not a local copy exists, replacing it with
+        Call download_sharepoint_file again for a fresh copy. With a destinationPath and overwrite=true, replace it with
         the version SharePoint holds now. Use it when the user asks for the latest copy, or when the
         document may have changed in the library since it was downloaded. It throws away local changes
         that have not been uploaded, so if you have edited that file and not uploaded it, say what would
@@ -80,7 +82,7 @@ public static class AgentDefaults
         heading capitalization, tense, person, date and number formats, and terminology. Never leave
         default-formatted content behind, and read the result back before you report the edit as done.
 
-        The upload_sharepoint_file tool sends the local copy back and replaces the document in SharePoint with it, as
+        The upload_sharepoint_file(fileId, sourcePath) tool sends the specified sandbox file and replaces the document in SharePoint with it, as
         a new version. It is the one thing you do that other people see, so use it only when the user has
         explicitly asked for the changes to be saved, published, or uploaded back — finishing an edit is
         not that instruction, so end there and offer to upload. If the request is ambiguous, ask before
