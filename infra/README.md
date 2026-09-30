@@ -6,6 +6,88 @@ All Azure resources are defined in `main.bicep`: shared services, SQL, runtime i
 
 Main resource names start with `workloadName`, followed by the environment. ACR and Storage use the compact prefix without hyphens; for example, ACR uses `<workloadName><environment>cr<uniqueSuffix>`. Child resources retain their service-specific names. Changing a resource name creates a new resource rather than renaming an existing one; registries created with the previous `cr<workloadName>...` pattern and their images are not migrated automatically.
 
+## Current configured capacity
+
+These are the repository's target allocations for both `dev` and `test`; existing Azure deployments keep their previous allocations until the corresponding deployment runs.
+
+| Service | Configured resources | Scaling |
+| --- | --- | --- |
+| AgentHost, hosted in Foundry | 2 vCPU + 4 GiB per session | On-demand sessions; compute released after inactivity |
+| API, Container Apps | 2 vCPU + 4 GiB per replica | 1–3 replicas |
+| Background, Container Apps | 1 vCPU + 2 GiB per replica | 1 replica while running |
+| MarkItDown, Container Apps | 0.5 vCPU + 1 GiB per replica | 1–3 replicas |
+
+AgentHost allocation is defined in [release-agent.ps1](../.github/scripts/release-agent.ps1). Container Apps allocations and replica limits are defined in [main.bicep](main.bicep). The three Container Apps together allocate at least 3.5 vCPU and 7 GiB per environment while running at their configured minimums; AgentHost sessions add capacity separately. API can allocate up to 6 vCPU and 12 GiB across three replicas.
+
+To apply the increased capacity to an existing environment:
+
+1. Run **Deploy infrastructure** to update API to 2 vCPU and 4 GiB, or follow [manual Container Apps capacity updates](#manually-update-container-apps-capacity) below. For an infrastructure deployment, set `API_IMAGE`, `BACKGROUND_IMAGE`, and `MARKITDOWN_IMAGE` to the current application images first, as described below, to preserve them. An API-only release preserves the existing resource allocation and does not apply Bicep changes.
+2. Run **Release AgentHost**, or select **AgentHost** in **Release services**, to publish a version with 2 vCPU and 4 GiB per session.
+
+## Manually update Container Apps capacity
+
+You can change CPU and memory without rebuilding the image or running the infrastructure/release workflows. Azure creates a new revision using the existing image and settings; this is not an in-place resize of a running container. These instructions cover API, Background, and MarkItDown. AgentHost is hosted in Foundry and requires a new agent version instead.
+
+Use Azure CLI in PowerShell with permission to update the target Container App. Run the commands when no release or infrastructure deployment is in progress; manual CLI operations do not use the workflows' concurrency lock.
+
+### Select the app and inspect its current allocation
+
+Sign in, select the intended subscription, and list the apps. Use your actual resource group if you overrode the default name:
+
+```powershell
+az login
+az account set --subscription "<subscription-id>"
+$resourceGroup = 'rg-sharepointagent-dev' # Use rg-sharepointagent-test for test.
+az containerapp list --resource-group $resourceGroup --query "[].{name:name,state:properties.runningStatus}" --output table
+```
+
+Choose one app using this mapping. The CPU and memory values are the current repository targets, per replica:
+
+| Service | App name contains | Container name | CPU | Memory |
+| --- | --- | --- | --- | --- |
+| API | `-api-` | `api` | `2` | `4Gi` |
+| Background | `-wrk-` | `background` | `1` | `2Gi` |
+| MarkItDown | `-md-` | `markitdown` | `0.5` | `1Gi` |
+
+For example, select API and record the existing allocation and image before changing it:
+
+```powershell
+$appName = '<full-api-container-app-name-from-the-list>'
+$containerName = 'api'
+az containerapp show --resource-group $resourceGroup --name $appName `
+  --query "properties.template.{containers:containers[].{name:name,image:image,cpu:resources.cpu,memory:resources.memory},scale:scale}" `
+  --output json
+```
+
+### Update CPU and memory
+
+This example applies API's 2 vCPU / 4 GiB allocation. To resize Background or MarkItDown, change `$appName`, `$containerName`, and the resource values using the table above. Supply a CPU/memory combination supported by the app's workload profile.
+
+```powershell
+az containerapp update --resource-group $resourceGroup --name $appName `
+  --container-name $containerName --cpu 2 --memory '4Gi' --output none
+```
+
+Omitting image, environment, secrets, and scale options preserves those settings. Replica limits remain unchanged: API and MarkItDown use 1–3, while Background uses 1. The repository configures single-revision mode, so Azure moves traffic to the new revision when it is ready. Background restarts with the new allocation; allow ongoing work to complete before resizing where possible.
+
+### Verify the new revision
+
+```powershell
+az containerapp show --resource-group $resourceGroup --name $appName `
+  --query "properties.{state:runningStatus,latest:latestRevisionName,ready:latestReadyRevisionName,containers:template.containers[].{name:name,cpu:resources.cpu,memory:resources.memory}}" `
+  --output json
+
+az containerapp revision list --resource-group $resourceGroup --name $appName `
+  --query "[].{revision:name,active:properties.active,health:properties.healthState,replicas:properties.replicas}" `
+  --output table
+```
+
+Confirm the intended resources are shown and the latest revision becomes ready and healthy. For API and MarkItDown, also check their `/health` endpoint; for Background, check its logs and processing activity. To revert the allocation, run the update command again with the CPU and memory values recorded before the change; this creates another revision with the previous sizing.
+
+Manual changes affect only the selected app and environment. Component release workflows preserve its resource allocation, but the next **Deploy infrastructure** run reapplies `main.bicep`. Keep that file and the capacity table above aligned with any sizing you intend to retain. The API example already matches the repository's 2 vCPU / 4 GiB target.
+
+Reference: [Azure CLI Container Apps update](https://learn.microsoft.com/en-us/cli/azure/containerapp#az-containerapp-update) and [Container Apps revisions](https://learn.microsoft.com/en-us/azure/container-apps/revisions).
+
 ## GitHub Actions deployment
 
 Use **Actions → Release services → Run workflow** to select `dev` or `test`, the branch or tag, and any combination of service checkboxes. All checkboxes start unchecked; select at least one. The workflow reuses the component releases at the same commit, preserving GitHub environment secrets and approval rules. Individual workflows also remain available.

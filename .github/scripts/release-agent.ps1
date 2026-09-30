@@ -54,8 +54,8 @@ $environment = @{
 }
 $definition = @{
   kind = 'hosted'
-  cpu = '1'
-  memory = '2Gi'
+  cpu = '2'
+  memory = '4Gi'
   container_configuration = @{ image = "$($outputs.containerRegistryLoginServer.value)/agenthost:$env:IMAGE_TAG" }
   protocol_versions = @(@{ protocol = 'invocations'; version = '2.0.0' })
   environment_variables = $environment

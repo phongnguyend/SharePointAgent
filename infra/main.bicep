@@ -610,7 +610,7 @@ resource api 'Microsoft.App/containerApps@2025-01-01' = {
           { name: 'ContentSafety__UseManagedIdentity', value: 'true' }
           { name: 'ContentSafety__ManagedIdentityClientId', value: apiIdentity.properties.clientId }
         ]) : []
-        resources: { cpu: json('1.0'), memory: '2Gi' }
+        resources: { cpu: json('2.0'), memory: '4Gi' }
         probes: [{ type: 'Readiness', httpGet: { path: deployApplicationImages ? '/health' : '/', port: deployApplicationImages ? 8080 : 80 }, periodSeconds: 10 }]
       }]
       scale: { minReplicas: 1, maxReplicas: 3 }

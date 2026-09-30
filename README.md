@@ -42,6 +42,8 @@ The GitHub Actions infrastructure workflow provisions Azure resources and defaul
 
 See [the infrastructure deployment guide](infra/README.md) for settings and the application deployment sequence. The frontend is hosted separately.
 
+Configured capacity is **2 vCPU / 4 GiB per AgentHost session** and **2 vCPU / 4 GiB per API replica** (1–3 replicas). Background uses 1 vCPU / 2 GiB with one replica, and MarkItDown uses 0.5 vCPU / 1 GiB per replica (1–3 replicas). See [current configured capacity](infra/README.md#current-configured-capacity) for allocation sources and how to apply changes to existing deployments.
+
 ## Configure and run
 
 The frontend's **Browse → Recycle bin** provides a preview, read-only listing of deleted items in the configured SharePoint site. It uses Graph beta and may require broader Graph application permissions than `Sites.Selected`; see the [frontend setup and limitations](frontend/README.md#running-it). Restore remains available through the view's link to SharePoint.
