@@ -463,8 +463,12 @@ export async function uploadAttachmentFile(file: File, signal?: AbortSignal): Pr
   return request<AttachmentFileRecord>('/api/attachment-files', { method: 'POST', body, signal })
 }
 
-export function analyzeAttachmentImage(id: string, action: 'describe-image' | 'extract-text', signal?: AbortSignal): Promise<{ text: string }> {
-  return request(`/api/attachment-files/${encodeURIComponent(id)}/${action}`, { method: 'POST', signal })
+export function describeAttachmentImage(id: string, signal?: AbortSignal): Promise<{ text: string }> {
+  return request(`/api/attachment-files/${encodeURIComponent(id)}/describe-image`, { method: 'POST', signal })
+}
+
+export function extractAttachmentText(id: string, signal?: AbortSignal): Promise<{ text: string }> {
+  return request(`/api/attachment-files/${encodeURIComponent(id)}/extract-text`, { method: 'POST', signal })
 }
 
 export function getAttachmentOptions(signal?: AbortSignal): Promise<{ allowedFileExtensions: string[]; textFileExtensions: string[]; imageFileExtensions: string[]; imageDescriptionExtensions: string[]; imageTextExtensions: string[] }> {

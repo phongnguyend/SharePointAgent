@@ -2244,6 +2244,11 @@ button.sandbox-row:hover, button.sandbox-row:focus-visible { background: var(--s
   grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
+.modal.pdf-extracted-text-modal {
+  width: min(1100px, calc(100vw - 32px));
+  height: min(850px, calc(100dvh - 32px));
+}
+
 .modal::backdrop {
   background: rgb(0 0 0 / 0.45);
 }

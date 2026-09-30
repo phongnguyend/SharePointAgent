@@ -183,7 +183,7 @@ public sealed class ChatMessageAttachmentFileService(
         }
 
         // Convert the original without replacing the Markdown or chunks used by the index.
-        return await contentCache.ConvertForIndexAsync(row, cancellationToken);
+        return await contentCache.ConvertToMarkdownAsync(row, cancellationToken);
     }
 
     public async Task<DownloadedFile?> DownloadConversationAttachmentAsync(Guid conversationId, Guid attachmentId,

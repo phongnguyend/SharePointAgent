@@ -17,7 +17,8 @@ public sealed class AttachmentContentCache(
     BlobServiceClient blobs,
     MarkItDownClient converter,
     IOptions<UploadOptions> options,
-    IOptions<LocalWorkingDirectoryOptions> workingDirectory) : IDisposable
+    IOptions<LocalWorkingDirectoryOptions> workingDirectory,
+    DocumentIntelligenceClient? documentIntelligence = null) : IDisposable
 {
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly UploadOptions settings = options.Value;
@@ -81,6 +82,14 @@ public sealed class AttachmentContentCache(
     {
         RejectImageMarkdown(file);
         var source = await DownloadAsync(file, ct);
+        if (Path.GetExtension(file.FileName).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            if (documentIntelligence is null)
+            {
+                throw new InvalidOperationException("Document Intelligence is required to index PDF attachments.");
+            }
+            return await documentIntelligence.ExtractAsync(await File.ReadAllBytesAsync(source.LocalPath, ct), ct);
+        }
         if (settings.IsTextFile(file.FileName))
         {
             // Preserve text and line breaks; detect Unicode BOMs and reject invalid UTF-8
@@ -88,6 +97,12 @@ public sealed class AttachmentContentCache(
             using var reader = new StreamReader(source.LocalPath, new UTF8Encoding(false, true), detectEncodingFromByteOrderMarks: true);
             return await reader.ReadToEndAsync(ct);
         }
+        return await converter.ConvertAsync(file.FileName, await File.ReadAllBytesAsync(source.LocalPath, ct), file.ContentType, ct);
+    }
+
+    public async Task<string> ConvertToMarkdownAsync(ChatMessageAttachmentFileEntity file, CancellationToken ct)
+    {
+        var source = await DownloadAsync(file, ct);
         return await converter.ConvertAsync(file.FileName, await File.ReadAllBytesAsync(source.LocalPath, ct), file.ContentType, ct);
     }
 

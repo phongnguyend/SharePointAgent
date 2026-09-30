@@ -61,6 +61,7 @@ public sealed class AttachmentImageIndexingTests
                 return;
             }
             var markdown = await service.ConvertForIndexAsync(file, default);
+            Assert.NotNull(markdown);
             Assert.Equal(visionExpected, markdown.Contains("A receipt"));
             Assert.Equal(ocrExpected, markdown.Contains("Total 42"));
             Assert.Equal(visionExpected ? 1 : 0, handler.VisionCalls);

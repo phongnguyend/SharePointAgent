@@ -9,6 +9,8 @@ public sealed class AttachmentUploadValidationTests
 {
     [Theory]
     [InlineData("report.DOCX")]
+    [InlineData("report.pdf")]
+    [InlineData("scan.PDF")]
     [InlineData("slides.pptx")]
     [InlineData("sheet.xlsx")]
     [InlineData("notes.txt")]
@@ -30,7 +32,6 @@ public sealed class AttachmentUploadValidationTests
     [InlineData("program.exe")]
     [InlineData("report.docx.exe")]
     [InlineData("no-extension")]
-    [InlineData("report.pdf")]
     public async Task UnsupportedTypesAreRejectedBeforeStorage(string name)
     {
         var service = new ChatMessageAttachmentFileService(null!, null!, null!, null!, null!,

@@ -263,7 +263,7 @@ export default function IndexedFilesPage() {
                           <td>
                             <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
                               <button onClick={(event) => { event.stopPropagation(); setMarkdownFile(file) }}>
-                                <FileText size={13} />Convert to markdown
+                                <FileText size={13} />Convert to Markdown
                               </button>
                               <button
                                 disabled={readOnly || reindexingKey !== null}
@@ -313,7 +313,7 @@ export default function IndexedFilesPage() {
       ) : null}
       {markdownFile ? (
         <MarkdownPreview
-          title="Convert to markdown"
+          title="Convert to Markdown"
           key={`${markdownFile.driveId}:${markdownFile.itemId}`}
           name={markdownFile.name}
           sourceKey={`${markdownFile.driveId}:${markdownFile.itemId}`}

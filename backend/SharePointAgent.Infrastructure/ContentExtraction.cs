@@ -24,6 +24,10 @@ public sealed class ContentExtractor(
     public async Task<string> ExtractAsync(DriveItemChange item, byte[] content, CancellationToken cancellationToken)
     {
         var extension = Path.GetExtension(item.Name);
+        if (extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            return await documentIntelligence.ExtractAsync(content, cancellationToken);
+        }
         if (TextExtensions.Contains(extension))
         {
             return Encoding.UTF8.GetString(content);
@@ -85,6 +89,10 @@ public sealed class DocumentIntelligenceClient(
 
     public async Task<string> ExtractAsync(byte[] content, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(_options.Endpoint))
+        {
+            throw new InvalidOperationException("Configure DocumentIntelligence:Endpoint to extract document text.");
+        }
         var endpoint = _options.Endpoint!.TrimEnd('/');
         var url = $"{endpoint}/documentintelligence/documentModels/{Uri.EscapeDataString(_options.ModelId)}:analyze?_overload=analyzeDocument&api-version={Uri.EscapeDataString(_options.ApiVersion)}";
         using var request = new HttpRequestMessage(HttpMethod.Post, url)

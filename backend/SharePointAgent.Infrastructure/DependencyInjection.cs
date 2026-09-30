@@ -221,6 +221,7 @@ public static class DependencyInjection
                 : new AzureOpenAIClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!));
         });
         services.AddTransient<AttachmentImageService>();
+        services.AddTransient<AttachmentPdfService>();
         services.AddOptions<DocumentIntelligenceOptions>().Bind(configuration.GetSection(DocumentIntelligenceOptions.SectionName))
             .Validate(o => string.IsNullOrWhiteSpace(o.Endpoint) || o.UsedManagedIdentity || !string.IsNullOrWhiteSpace(o.ApiKey), "DocumentIntelligence:ApiKey is required when an endpoint is configured and UsedManagedIdentity is false.").ValidateOnStart();
         services.AddHttpClient<DocumentIntelligenceClient>();

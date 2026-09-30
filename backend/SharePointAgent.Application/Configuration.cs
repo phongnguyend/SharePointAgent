@@ -60,7 +60,7 @@ public sealed class SearchOptions
 
 public sealed class UploadOptions
 {
-    public string[] AllowedFileExtensions { get; set; } = [".docx", ".pptx", ".xlsx", ".txt", ".md", ".json", ".csv", ".png", ".jpg", ".jpeg", ".gif", ".webp"];
+    public string[] AllowedFileExtensions { get; set; } = [".pdf", ".docx", ".pptx", ".xlsx", ".txt", ".md", ".json", ".csv", ".png", ".jpg", ".jpeg", ".gif", ".webp"];
 
     public string[] TextFileExtensions { get; set; } = [".txt", ".md", ".json", ".csv"];
     public string[] ImageFileExtensions { get; set; } = [".png", ".jpg", ".jpeg", ".gif", ".webp"];

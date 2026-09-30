@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore;
+using SharePointAgent.Persistence;
 using SharePointAgent.Application;
 using SharePointAgent.Domain;
 using SharePointAgent.Infrastructure;
@@ -129,38 +131,68 @@ public static class AttachmentFilesEndpoints
             }
         });
 
-        foreach (var action in new[] { "describe-image", "extract-text" })
+        app.MapPost("/api/attachment-files/{id:guid}/describe-image", async (
+            Guid id,
+            HttpContext context,
+            AttachmentImageService images,
+            CancellationToken cancellationToken) =>
         {
-            app.MapPost($"/api/attachment-files/{{id:guid}}/{action}", async (
-                Guid id,
-                HttpContext context,
-                AttachmentImageService images,
-                CancellationToken cancellationToken) =>
+            context.Response.Headers.CacheControl = "no-store";
+            try
             {
-                context.Response.Headers.CacheControl = "no-store";
-                try
-                {
-                    var text = action == "describe-image"
-                        ? await images.DescribeAsync(id, context.AppUser().Id, cancellationToken)
-                        : await images.ExtractTextAsync(id, cancellationToken);
-                    return text is null
-                        ? Results.NotFound(new { error = "Attachment file not found." })
-                        : Results.Ok(new { text });
-                }
-                catch (ArgumentException ex)
-                {
-                    return Results.BadRequest(new { error = ex.Message });
-                }
-                catch (InvalidOperationException ex)
-                {
-                    return Results.Conflict(new { error = ex.Message });
-                }
-                catch (HttpRequestException ex)
-                {
-                    return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status502BadGateway);
-                }
-            });
-        }
+                var text = await images.DescribeAsync(id, context.AppUser().Id, cancellationToken);
+                return text is null
+                    ? Results.NotFound(new { error = "Attachment file not found." })
+                    : Results.Ok(new { text });
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.Conflict(new { error = ex.Message });
+            }
+            catch (HttpRequestException ex)
+            {
+                return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status502BadGateway);
+            }
+        });
+
+        app.MapPost("/api/attachment-files/{id:guid}/extract-text", async (
+            Guid id,
+            HttpContext context,
+            AttachmentImageService images,
+            AttachmentPdfService pdfs,
+            IDbContextFactory<SharePointIndexDbContext> contextFactory,
+            CancellationToken cancellationToken) =>
+        {
+            context.Response.Headers.CacheControl = "no-store";
+            try
+            {
+                await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+                var name = await db.ChatMessageAttachmentFiles.Where(x => x.Id == id)
+                    .Select(x => x.FileName).SingleOrDefaultAsync(cancellationToken);
+                var text = Path.GetExtension(name)?.Equals(".pdf", StringComparison.OrdinalIgnoreCase) == true
+                    ? await pdfs.ExtractTextAsync(id, cancellationToken)
+                    : await images.ExtractTextAsync(id, cancellationToken);
+                return text is null
+                    ? Results.NotFound(new { error = "Attachment file not found." })
+                    : Results.Ok(new { text });
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.Conflict(new { error = ex.Message });
+            }
+            catch (HttpRequestException ex)
+            {
+                return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status502BadGateway);
+            }
+        });
 
         app.MapPost("/api/attachment-files/{id:guid}/reindex", async (
             Guid id,

@@ -10,7 +10,8 @@ import {
   reindexAttachmentFile,
   getCurrentUser,
   getAttachmentOptions,
-  analyzeAttachmentImage,
+  describeAttachmentImage,
+  extractAttachmentText,
 } from '../api/client'
 import type { UploadIndexStatus } from '../api/types'
 import { CopyButton, Empty, ErrorBanner, LoadingBar, Modal, Pagination } from '../components/ui'
@@ -53,31 +54,56 @@ export default function AttachmentFilesPage() {
   const [preview, setPreview] = useState<{ id: string; name: string } | null>(null)
   const [imagePreview, setImagePreview] = useState<{ id: string; name: string } | null>(null)
   const [markdownFile, setMarkdownFile] = useState<{ id: string; name: string; mode: 'indexed' | 'convert' } | null>(null)
-  const [imageResult, setImageResult] = useState<{ name: string; title: string; text?: string; error?: string } | null>(null)
-  const imageRequest = useRef<AbortController | null>(null)
-  useEffect(() => () => imageRequest.current?.abort(), [])
+  const [imageDescriptionResult, setImageDescriptionResult] = useState<AttachmentTextResult | null>(null)
+  const imageDescriptionRequest = useRef<AbortController | null>(null)
+  useEffect(() => () => imageDescriptionRequest.current?.abort(), [])
 
-  const analyzeImage = async (id: string, name: string, action: 'describe-image' | 'extract-text') => {
-    imageRequest.current?.abort()
+  const describeImage = async (id: string, name: string) => {
+    imageDescriptionRequest.current?.abort()
     const controller = new AbortController()
-    imageRequest.current = controller
-    const title = action === 'describe-image' ? 'Describe image' : 'Extract text'
-    setImageResult({ name, title })
+    imageDescriptionRequest.current = controller
+    setImageDescriptionResult({ name })
     try {
-      const result = await analyzeAttachmentImage(id, action, controller.signal)
+      const result = await describeAttachmentImage(id, controller.signal)
       if (!controller.signal.aborted) {
-        setImageResult({ name, title, text: result.text || 'No text was found in this image.' })
+        setImageDescriptionResult({ name, text: result.text || ('No image description was returned.') })
       }
     } catch (cause) {
       if (!controller.signal.aborted) {
-        setImageResult({ name, title, error: cause instanceof Error ? cause.message : String(cause) })
+        setImageDescriptionResult({ name, error: cause instanceof Error ? cause.message : String(cause) })
       }
     }
   }
 
-  const closeImageResult = () => {
-    imageRequest.current?.abort()
-    setImageResult(null)
+  const closeImageDescription = () => {
+    imageDescriptionRequest.current?.abort()
+    setImageDescriptionResult(null)
+  }
+
+  const [extractTextResult, setExtractTextResult] = useState<AttachmentTextResult | null>(null)
+  const extractTextRequest = useRef<AbortController | null>(null)
+  useEffect(() => () => extractTextRequest.current?.abort(), [])
+
+  const extractText = async (id: string, name: string) => {
+    extractTextRequest.current?.abort()
+    const controller = new AbortController()
+    extractTextRequest.current = controller
+    setExtractTextResult({ name })
+    try {
+      const result = await extractAttachmentText(id, controller.signal)
+      if (!controller.signal.aborted) {
+        setExtractTextResult({ name, text: result.text || (name.toLowerCase().endsWith('.pdf') ? 'No text was found in this PDF.' : 'No text was found in this image.') })
+      }
+    } catch (cause) {
+      if (!controller.signal.aborted) {
+        setExtractTextResult({ name, error: cause instanceof Error ? cause.message : String(cause) })
+      }
+    }
+  }
+
+  const closeExtractText = () => {
+    extractTextRequest.current?.abort()
+    setExtractTextResult(null)
   }
   const debouncedSearch = useDebounced(search)
   const storage = useAsync(signal => getCurrentUser(signal), [])
@@ -205,10 +231,10 @@ export default function AttachmentFilesPage() {
                         <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
                           <AttachmentDownload id={file.id} name={file.fileName}><Download size={13} />Download</AttachmentDownload>
                           {attachmentOptions.data?.imageDescriptionExtensions?.includes(file.fileName.slice(file.fileName.lastIndexOf('.')).toLowerCase()) && (
-                            <button disabled={readOnly} onClick={() => void analyzeImage(file.id, file.fileName, 'describe-image')}><Eye size={13} />Describe image</button>
+                            <button disabled={readOnly} onClick={() => void describeImage(file.id, file.fileName)}><Eye size={13} />Describe image</button>
                           )}
-                          {attachmentOptions.data?.imageTextExtensions?.includes(file.fileName.slice(file.fileName.lastIndexOf('.')).toLowerCase()) && (
-                            <button disabled={readOnly} onClick={() => void analyzeImage(file.id, file.fileName, 'extract-text')}><FileText size={13} />Extract text</button>
+                          {(file.fileName.toLowerCase().endsWith('.pdf') || attachmentOptions.data?.imageTextExtensions?.includes(file.fileName.slice(file.fileName.lastIndexOf('.')).toLowerCase())) && (
+                            <button disabled={readOnly} onClick={() => void extractText(file.id, file.fileName)}><FileText size={13} />Extract text</button>
                           )}
                           {attachmentOptions.data?.imageFileExtensions.includes(file.fileName.slice(file.fileName.lastIndexOf('.')).toLowerCase()) ? (
                             <button onClick={() => setImagePreview({ id: file.id, name: file.fileName })}><Eye size={13} />Preview</button>
@@ -216,14 +242,14 @@ export default function AttachmentFilesPage() {
                           {isPreviewableOfficeFile(file.fileName) ? (
                             <button onClick={() => setPreview({ id: file.id, name: file.fileName })}><Eye size={13} />Preview</button>
                           ) : null}
-                          <button disabled={file.status !== 'Indexed'} title="View the saved Markdown used for indexing. Reindex to update it."
+                          <button disabled={file.status !== 'Indexed'} title="View the saved text used for indexing. Reindex to update it."
                             onClick={() => setMarkdownFile({ id: file.id, name: file.fileName, mode: 'indexed' })}>
-                            <FileText size={13} />View indexed markdown
+                            <FileText size={13} />View indexed text
                           </button>
                           {attachmentOptions.data && ![...attachmentOptions.data.textFileExtensions, ...attachmentOptions.data.imageFileExtensions].includes(file.fileName.slice(file.fileName.lastIndexOf('.')).toLowerCase()) ? (
                             <button disabled={readOnly} title="Convert the original file now without changing its index."
                               onClick={() => setMarkdownFile({ id: file.id, name: file.fileName, mode: 'convert' })}>
-                              <FileText size={13} />Convert to markdown
+                              <FileText size={13} />Convert to Markdown
                             </button>
                           ) : null}
                           <button disabled={readOnly || working === file.id} onClick={() => void reindex(file.id)}>
@@ -258,17 +284,12 @@ export default function AttachmentFilesPage() {
       </div>
       </div>
       </div>
-      <Modal open={imageResult !== null} title={imageResult?.title ?? 'Image analysis'} onClose={closeImageResult}
-        footer={<>
-          {imageResult?.text && <CopyButton value={imageResult.text} />}
-          <button onClick={closeImageResult}>Close</button>
-        </>}>
-        <p>{imageResult?.name}</p>
-        <LoadingBar active={!!imageResult && imageResult.text === undefined && !imageResult.error} />
-        {imageResult && imageResult.text === undefined && !imageResult.error && <p role="status">Processing image…</p>}
-        {imageResult?.error && <ErrorBanner message={imageResult.error} />}
-        {imageResult?.text && <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontFamily: 'inherit' }}>{imageResult.text}</pre>}
-      </Modal>
+      <AttachmentTextResultModal result={imageDescriptionResult} title="Describe image"
+        processingMessage="Processing image?" onClose={closeImageDescription} />
+      <AttachmentTextResultModal result={extractTextResult} title="Extract text"
+        className={extractTextResult?.name.toLowerCase().endsWith('.pdf') ? 'pdf-extracted-text-modal' : undefined}
+        processingMessage={extractTextResult?.name.toLowerCase().endsWith('.pdf') ? 'Processing PDF?' : 'Processing image?'}
+        onClose={closeExtractText} />
       {preview ? (
         <OfficePreview
           key={preview.id}
@@ -282,7 +303,7 @@ export default function AttachmentFilesPage() {
         <MarkdownPreview
           key={`${markdownFile.id}:${markdownFile.mode}`}
           name={markdownFile.name}
-          title={markdownFile.mode === 'indexed' ? 'View indexed markdown' : 'Convert to markdown'}
+          title={markdownFile.mode === 'indexed' ? 'View indexed text' : 'Convert to Markdown'}
           sourceKey={`${markdownFile.id}:${markdownFile.mode}`}
           load={(signal) => markdownFile.mode === 'indexed'
             ? getAttachmentFileMarkdown(markdownFile.id, signal)
@@ -303,3 +324,27 @@ export default function AttachmentFilesPage() {
   )
 }
 import { useAppUser, canManageOwnContent } from '../components/AppUserContext'
+
+
+type AttachmentTextResult = { name: string; text?: string; error?: string }
+
+function AttachmentTextResultModal({ result, title, processingMessage, className, onClose }: {
+  result: AttachmentTextResult | null
+  title: string
+  processingMessage: string
+  className?: string
+  onClose: () => void
+}) {
+  const loading = !!result && result.text === undefined && !result.error
+  return <Modal open={result !== null} title={title} className={className} onClose={onClose}
+    footer={<>
+      {result?.text && <CopyButton value={result.text} />}
+      <button onClick={onClose}>Close</button>
+    </>}>
+    <p>{result?.name}</p>
+    <LoadingBar active={loading} />
+    {loading && <p role="status">{processingMessage}</p>}
+    {result?.error && <ErrorBanner message={result.error} />}
+    {result?.text && <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontFamily: 'inherit' }}>{result.text}</pre>}
+  </Modal>
+}
