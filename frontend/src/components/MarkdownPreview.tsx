@@ -10,11 +10,13 @@ export function MarkdownPreview({
   sourceKey,
   load,
   onClose,
+  title = 'View Markdown',
 }: {
   name: string
   sourceKey: string
   load: (signal: AbortSignal) => Promise<{ markdown: string }>
   onClose: () => void
+  title?: string
 }) {
   const [markdown, setMarkdown] = useState<string | null>(null)
   const [renderedHtml, setRenderedHtml] = useState<string | null>(null)
@@ -99,11 +101,11 @@ export function MarkdownPreview({
     <dialog
       ref={dialogRef}
       className="office-dialog markdown-dialog"
-      aria-label={`View Markdown for ${name}`}
+      aria-label={`${title} for ${name}`}
       onCancel={(event) => { event.preventDefault(); onClose() }}
     >
       <div className="office-toolbar">
-        <strong title={name}>{name}</strong>
+        <strong title={name}>{title}: {name}</strong>
         <div className="row">
           {downloadUrl ? <a className="button-link" href={downloadUrl} download={downloadName}><Download size={14} />Download</a> : null}
           <button className="ghost" ref={closeRef} onClick={onClose}><X size={15} />Close</button>

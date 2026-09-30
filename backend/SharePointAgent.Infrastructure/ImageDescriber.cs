@@ -11,7 +11,7 @@ public sealed class ImageDescriber(
     IChatClient client,
     string modelId,
     Func<ImageDescription, Task> recordUsage,
-    AgentFileSystem workingDirectory)
+    AgentFileSystem? workingDirectory = null)
 {
     private long inputTokens;
     private long outputTokens;
@@ -26,11 +26,11 @@ public sealed class ImageDescriber(
             throw new ArgumentException("A filePath is required.");
         }
 
-        var file = await workingDirectory.ReadAsync(filePath, ct);
+        var file = await (workingDirectory ?? throw new InvalidOperationException("A working directory is required for sandbox images.")).ReadAsync(filePath, ct);
         return await DescribeContentAsync(file.Name, file.Content, file.Path, focus, ct);
     }
 
-    private async Task<ImageDescription> DescribeContentAsync(string fileName, byte[] bytes, string? filePath, string? focus, CancellationToken ct)
+    public async Task<ImageDescription> DescribeContentAsync(string fileName, byte[] bytes, string? filePath, string? focus, CancellationToken ct)
     {
         if (focus?.Length > 2000)
         {

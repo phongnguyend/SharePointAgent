@@ -10,6 +10,38 @@ namespace SharePointAgent.Tests;
 
 public sealed class ImageDescriberTests
 {
+    [Theory]
+    [InlineData("scan.PNG", "image/png")]
+    [InlineData("photo.jpeg", "image/jpeg")]
+    [InlineData("photo.webp", "image/webp")]
+    [InlineData("animation.gif", "image/gif")]
+    public async Task AttachmentBytesCanBeDescribedWithoutSandbox(string name, string mediaType)
+    {
+        byte[] bytes = [1, 2, 3];
+        var client = Substitute.For<IChatClient>();
+        client.GetResponseAsync(Arg.Any<IEnumerable<ChatMessage>>(), Arg.Any<ChatOptions?>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var image = call.ArgAt<IEnumerable<ChatMessage>>(0).SelectMany(x => x.Contents).OfType<DataContent>().Single();
+                Assert.Equal(mediaType, image.MediaType);
+                Assert.Equal(bytes, image.Data.ToArray());
+                return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, "Visible text")));
+            });
+        ImageDescription? recorded = null;
+        var describer = new ImageDescriber(client, "vision", result =>
+        {
+            recorded = result;
+            return Task.CompletedTask;
+        });
+        var result = await describer.DescribeContentAsync(name, bytes, null, null, default);
+        Assert.Equal("Visible text", result.Description);
+        Assert.Null(result.FilePath);
+        Assert.NotNull(recorded);
+        Assert.False(recorded.UsageReported);
+        await Assert.ThrowsAsync<ArgumentException>(() => describer.DescribeContentAsync("document.pdf", bytes, null, null, default));
+        Assert.Single(client.ReceivedCalls());
+    }
+
     [Fact]
     public async Task SandboxImageUsesPathAndTracksUsageWithoutAttachment()
     {

@@ -24,17 +24,19 @@ public sealed class AttachmentContentTests
     [InlineData("screenshot.PNG")]
     [InlineData("photo.jpeg")]
     [InlineData("image.webp")]
-    public async Task ImagesCannotBeConvertedOrReadAsMarkdown(string fileName)
+    public async Task ImagesRequireImageIndexerAndSuccessfulIndexBeforeReadingMarkdown(string fileName)
     {
         using var cache = new AttachmentContentCache(null!, null!, Options.Create(new UploadOptions()), WorkingDirectory(Path.GetTempPath()));
-        var file = new ChatMessageAttachmentFileEntity { FileName = fileName, Status = UploadIndexStatus.Indexed };
+        var file = new ChatMessageAttachmentFileEntity { FileName = fileName, Status = UploadIndexStatus.NotStarted };
 
         await Assert.ThrowsAsync<ArgumentException>(() => cache.ConvertForIndexAsync(file, default));
-        await Assert.ThrowsAsync<ArgumentException>(() => cache.GetMarkdownAsync(file, default));
+        await Assert.ThrowsAsync<AttachmentMarkdownUnavailableException>(() => cache.GetMarkdownAsync(file, default));
     }
 
-    [Fact]
-    public async Task OriginalDownloadNeverReturnsMarkdownEvenWhenMarkdownIsCached()
+    [Theory]
+    [InlineData("report.docx")]
+    [InlineData("scan.PNG")]
+    public async Task OriginalDownloadNeverReturnsMarkdownEvenWhenMarkdownIsCached(string fileName)
     {
         var root = Path.Combine(Path.GetTempPath(), "attachment-distinct-tests-" + Guid.NewGuid().ToString("N"));
         var workingDirectory = WorkingDirectory(root);
@@ -57,11 +59,11 @@ public sealed class AttachmentContentTests
             markdownBlob.DownloadContentAsync(Arg.Any<CancellationToken>()).Returns(Response.FromValue(
                 BlobsModelFactory.BlobDownloadResult(BinaryData.FromString("# Converted text"), BlobsModelFactory.BlobDownloadDetails(eTag: etag)), Substitute.For<Response>()));
             using var cache = new AttachmentContentCache(service, null!, Options.Create(new UploadOptions()), workingDirectory);
-            var file = new ChatMessageAttachmentFileEntity { Id = id, FileName = "report.docx", BlobName = "original.docx", SizeBytes = originalBytes.Length, Status = UploadIndexStatus.Indexed };
+            var file = new ChatMessageAttachmentFileEntity { Id = id, FileName = fileName, BlobName = "original.docx", SizeBytes = originalBytes.Length, Status = UploadIndexStatus.Indexed };
             var markdown = await cache.GetMarkdownAsync(file, default);
             var original = await cache.DownloadAsync(file, default);
             Assert.NotEqual(markdown.LocalPath, original.LocalPath);
-            Assert.Equal(".docx", Path.GetExtension(original.LocalPath));
+            Assert.Equal(Path.GetExtension(fileName), Path.GetExtension(original.LocalPath));
             Assert.Equal(originalBytes, await File.ReadAllBytesAsync(original.LocalPath));
             Assert.Equal("# Converted text", await File.ReadAllTextAsync(markdown.LocalPath));
             Assert.True((await cache.DownloadAsync(file, default)).CacheHit);

@@ -360,6 +360,10 @@ export function getAttachmentFileMarkdown(id: string, signal?: AbortSignal): Pro
   return request<{ markdown: string }>(`/api/attachment-files/${encodeURIComponent(id)}/markdown`, { signal })
 }
 
+export function convertAttachmentFileToMarkdown(id: string, signal?: AbortSignal): Promise<{ markdown: string }> {
+  return request(`/api/attachment-files/${encodeURIComponent(id)}/convert-to-markdown`, { method: 'POST', signal })
+}
+
 export function branchConversation(
   conversationId: string,
   messageId: string,
@@ -459,7 +463,11 @@ export async function uploadAttachmentFile(file: File, signal?: AbortSignal): Pr
   return request<AttachmentFileRecord>('/api/attachment-files', { method: 'POST', body, signal })
 }
 
-export function getAttachmentOptions(signal?: AbortSignal): Promise<{ allowedFileExtensions: string[]; textFileExtensions: string[]; imageFileExtensions: string[] }> {
+export function analyzeAttachmentImage(id: string, action: 'describe-image' | 'extract-text', signal?: AbortSignal): Promise<{ text: string }> {
+  return request(`/api/attachment-files/${encodeURIComponent(id)}/${action}`, { method: 'POST', signal })
+}
+
+export function getAttachmentOptions(signal?: AbortSignal): Promise<{ allowedFileExtensions: string[]; textFileExtensions: string[]; imageFileExtensions: string[]; imageDescriptionExtensions: string[]; imageTextExtensions: string[] }> {
   return request('/api/attachment-files/options', { signal })
 }
 

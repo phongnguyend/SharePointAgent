@@ -98,7 +98,6 @@ public sealed class AttachmentContentCache(
 
     public async Task<CachedAttachmentMarkdown> GetMarkdownAsync(ChatMessageAttachmentFileEntity file, CancellationToken ct)
     {
-        RejectImageMarkdown(file);
         if (file.Status != UploadIndexStatus.Indexed)
         {
             throw new AttachmentMarkdownUnavailableException("Markdown is available after successful indexing. Reindex the attachment or wait for indexing to finish.");

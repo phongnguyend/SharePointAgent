@@ -14,7 +14,9 @@ public static class AttachmentFilesEndpoints
             {
                 allowedFileExtensions = options.Value.GetAllowedFileExtensions(),
                 textFileExtensions = options.Value.GetTextFileExtensions(),
-                imageFileExtensions = options.Value.GetImageFileExtensions()
+                imageFileExtensions = options.Value.GetImageFileExtensions(),
+                imageDescriptionExtensions = options.Value.GetImageFileExtensions().Intersect(AttachmentImageService.DescriptionExtensions),
+                imageTextExtensions = options.Value.GetImageFileExtensions().Intersect(AttachmentImageService.TextExtensions)
             }));
 
         app.MapPost("/api/attachment-files", async (
@@ -80,7 +82,7 @@ public static class AttachmentFilesEndpoints
             context.Response.Headers.CacheControl = "no-store";
             try
             {
-                var markdown = await files.ConvertToMarkdownAsync(id, cancellationToken);
+                var markdown = await files.GetIndexedMarkdownAsync(id, cancellationToken);
                 return markdown is null
                     ? Results.NotFound(new { error = "Attachment file not found." })
                     : Results.Ok(new { markdown });
@@ -98,6 +100,67 @@ public static class AttachmentFilesEndpoints
                 return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status502BadGateway);
             }
         });
+
+        app.MapPost("/api/attachment-files/{id:guid}/convert-to-markdown", async (
+            Guid id,
+            HttpContext context,
+            ChatMessageAttachmentFileService files,
+            CancellationToken cancellationToken) =>
+        {
+            context.Response.Headers.CacheControl = "no-store";
+            try
+            {
+                var markdown = await files.ConvertToMarkdownAsync(id, cancellationToken);
+                return markdown is null
+                    ? Results.NotFound(new { error = "Attachment file not found." })
+                    : Results.Ok(new { markdown });
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+            catch (UploadTooLargeException ex)
+            {
+                return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status413PayloadTooLarge);
+            }
+            catch (HttpRequestException ex)
+            {
+                return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status502BadGateway);
+            }
+        });
+
+        foreach (var action in new[] { "describe-image", "extract-text" })
+        {
+            app.MapPost($"/api/attachment-files/{{id:guid}}/{action}", async (
+                Guid id,
+                HttpContext context,
+                AttachmentImageService images,
+                CancellationToken cancellationToken) =>
+            {
+                context.Response.Headers.CacheControl = "no-store";
+                try
+                {
+                    var text = action == "describe-image"
+                        ? await images.DescribeAsync(id, context.AppUser().Id, cancellationToken)
+                        : await images.ExtractTextAsync(id, cancellationToken);
+                    return text is null
+                        ? Results.NotFound(new { error = "Attachment file not found." })
+                        : Results.Ok(new { text });
+                }
+                catch (ArgumentException ex)
+                {
+                    return Results.BadRequest(new { error = ex.Message });
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return Results.Conflict(new { error = ex.Message });
+                }
+                catch (HttpRequestException ex)
+                {
+                    return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status502BadGateway);
+                }
+            });
+        }
 
         app.MapPost("/api/attachment-files/{id:guid}/reindex", async (
             Guid id,

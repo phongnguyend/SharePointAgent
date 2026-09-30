@@ -1,17 +1,19 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Download, Eye, FileText, HardDrive, MessageSquare, Paperclip, RefreshCw, RotateCw, SearchX, Trash2, X } from 'lucide-react'
 import {
   downloadAttachmentFile,
   getAttachmentFileMarkdown,
+  convertAttachmentFileToMarkdown,
   deleteOrphanAttachmentFile,
   listAttachmentFiles,
   reindexAttachmentFile,
   getCurrentUser,
   getAttachmentOptions,
+  analyzeAttachmentImage,
 } from '../api/client'
 import type { UploadIndexStatus } from '../api/types'
-import { Empty, ErrorBanner, LoadingBar, Pagination } from '../components/ui'
+import { CopyButton, Empty, ErrorBanner, LoadingBar, Modal, Pagination } from '../components/ui'
 import { FileTypeIcon } from '../components/FileTypeIcon'
 import { AttachmentDownload } from '../components/AttachmentDownload'
 import { OfficePreview } from '../components/OfficePreview'
@@ -50,7 +52,33 @@ export default function AttachmentFilesPage() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [preview, setPreview] = useState<{ id: string; name: string } | null>(null)
   const [imagePreview, setImagePreview] = useState<{ id: string; name: string } | null>(null)
-  const [markdownFile, setMarkdownFile] = useState<{ id: string; name: string } | null>(null)
+  const [markdownFile, setMarkdownFile] = useState<{ id: string; name: string; mode: 'indexed' | 'convert' } | null>(null)
+  const [imageResult, setImageResult] = useState<{ name: string; title: string; text?: string; error?: string } | null>(null)
+  const imageRequest = useRef<AbortController | null>(null)
+  useEffect(() => () => imageRequest.current?.abort(), [])
+
+  const analyzeImage = async (id: string, name: string, action: 'describe-image' | 'extract-text') => {
+    imageRequest.current?.abort()
+    const controller = new AbortController()
+    imageRequest.current = controller
+    const title = action === 'describe-image' ? 'Describe image' : 'Extract text'
+    setImageResult({ name, title })
+    try {
+      const result = await analyzeAttachmentImage(id, action, controller.signal)
+      if (!controller.signal.aborted) {
+        setImageResult({ name, title, text: result.text || 'No text was found in this image.' })
+      }
+    } catch (cause) {
+      if (!controller.signal.aborted) {
+        setImageResult({ name, title, error: cause instanceof Error ? cause.message : String(cause) })
+      }
+    }
+  }
+
+  const closeImageResult = () => {
+    imageRequest.current?.abort()
+    setImageResult(null)
+  }
   const debouncedSearch = useDebounced(search)
   const storage = useAsync(signal => getCurrentUser(signal), [])
   const attachmentOptions = useAsync(signal => getAttachmentOptions(signal), [])
@@ -176,15 +204,26 @@ export default function AttachmentFilesPage() {
                       <td>
                         <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
                           <AttachmentDownload id={file.id} name={file.fileName}><Download size={13} />Download</AttachmentDownload>
+                          {attachmentOptions.data?.imageDescriptionExtensions?.includes(file.fileName.slice(file.fileName.lastIndexOf('.')).toLowerCase()) && (
+                            <button disabled={readOnly} onClick={() => void analyzeImage(file.id, file.fileName, 'describe-image')}><Eye size={13} />Describe image</button>
+                          )}
+                          {attachmentOptions.data?.imageTextExtensions?.includes(file.fileName.slice(file.fileName.lastIndexOf('.')).toLowerCase()) && (
+                            <button disabled={readOnly} onClick={() => void analyzeImage(file.id, file.fileName, 'extract-text')}><FileText size={13} />Extract text</button>
+                          )}
                           {attachmentOptions.data?.imageFileExtensions.includes(file.fileName.slice(file.fileName.lastIndexOf('.')).toLowerCase()) ? (
                             <button onClick={() => setImagePreview({ id: file.id, name: file.fileName })}><Eye size={13} />Preview</button>
                           ) : null}
                           {isPreviewableOfficeFile(file.fileName) ? (
                             <button onClick={() => setPreview({ id: file.id, name: file.fileName })}><Eye size={13} />Preview</button>
                           ) : null}
+                          <button disabled={file.status !== 'Indexed'} title="View the saved Markdown used for indexing. Reindex to update it."
+                            onClick={() => setMarkdownFile({ id: file.id, name: file.fileName, mode: 'indexed' })}>
+                            <FileText size={13} />View indexed markdown
+                          </button>
                           {attachmentOptions.data && ![...attachmentOptions.data.textFileExtensions, ...attachmentOptions.data.imageFileExtensions].includes(file.fileName.slice(file.fileName.lastIndexOf('.')).toLowerCase()) ? (
-                            <button onClick={() => setMarkdownFile({ id: file.id, name: file.fileName })}>
-                              <FileText size={13} />View Markdown
+                            <button disabled={readOnly} title="Convert the original file now without changing its index."
+                              onClick={() => setMarkdownFile({ id: file.id, name: file.fileName, mode: 'convert' })}>
+                              <FileText size={13} />Convert to markdown
                             </button>
                           ) : null}
                           <button disabled={readOnly || working === file.id} onClick={() => void reindex(file.id)}>
@@ -219,6 +258,17 @@ export default function AttachmentFilesPage() {
       </div>
       </div>
       </div>
+      <Modal open={imageResult !== null} title={imageResult?.title ?? 'Image analysis'} onClose={closeImageResult}
+        footer={<>
+          {imageResult?.text && <CopyButton value={imageResult.text} />}
+          <button onClick={closeImageResult}>Close</button>
+        </>}>
+        <p>{imageResult?.name}</p>
+        <LoadingBar active={!!imageResult && imageResult.text === undefined && !imageResult.error} />
+        {imageResult && imageResult.text === undefined && !imageResult.error && <p role="status">Processing image…</p>}
+        {imageResult?.error && <ErrorBanner message={imageResult.error} />}
+        {imageResult?.text && <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontFamily: 'inherit' }}>{imageResult.text}</pre>}
+      </Modal>
       {preview ? (
         <OfficePreview
           key={preview.id}
@@ -230,10 +280,13 @@ export default function AttachmentFilesPage() {
       ) : null}
       {markdownFile ? (
         <MarkdownPreview
-          key={markdownFile.id}
+          key={`${markdownFile.id}:${markdownFile.mode}`}
           name={markdownFile.name}
-          sourceKey={markdownFile.id}
-          load={(signal) => getAttachmentFileMarkdown(markdownFile.id, signal)}
+          title={markdownFile.mode === 'indexed' ? 'View indexed markdown' : 'Convert to markdown'}
+          sourceKey={`${markdownFile.id}:${markdownFile.mode}`}
+          load={(signal) => markdownFile.mode === 'indexed'
+            ? getAttachmentFileMarkdown(markdownFile.id, signal)
+            : convertAttachmentFileToMarkdown(markdownFile.id, signal)}
           onClose={() => setMarkdownFile(null)}
         />
       ) : null}

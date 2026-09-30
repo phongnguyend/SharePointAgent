@@ -213,6 +213,17 @@ public static class DependencyInjection
                 : new SearchIndexClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!));
         });
         services.AddSingleton<AttachmentContentCache>();
+        services.AddSingleton(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<OpenAiOptions>>().Value;
+            return options.UsedManagedIdentity
+                ? new AzureOpenAIClient(new Uri(options.Endpoint), CreateManagedIdentityCredential())
+                : new AzureOpenAIClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!));
+        });
+        services.AddTransient<AttachmentImageService>();
+        services.AddOptions<DocumentIntelligenceOptions>().Bind(configuration.GetSection(DocumentIntelligenceOptions.SectionName))
+            .Validate(o => string.IsNullOrWhiteSpace(o.Endpoint) || o.UsedManagedIdentity || !string.IsNullOrWhiteSpace(o.ApiKey), "DocumentIntelligence:ApiKey is required when an endpoint is configured and UsedManagedIdentity is false.").ValidateOnStart();
+        services.AddHttpClient<DocumentIntelligenceClient>();
         services.AddSingleton<ChatMessageAttachmentFileService>();
         return services;
     }

@@ -53,6 +53,12 @@ public sealed class AppIdentityTests
     [InlineData(AppRoles.User, "POST", "/api/search/hybrid", true)]
     [InlineData(AppRoles.User, "POST", "/api/chat/conversations", true)]
     [InlineData(AppRoles.User, "POST", "/api/attachment-files", true)]
+    [InlineData(AppRoles.User, "POST", "/api/attachment-files/123/describe-image", true)]
+    [InlineData(AppRoles.User, "POST", "/api/attachment-files/123/extract-text", true)]
+    [InlineData(AppRoles.User, "POST", "/api/attachment-files/123/convert-to-markdown", true)]
+    [InlineData(AppRoles.GlobalReaderAdmin, "POST", "/api/attachment-files/123/convert-to-markdown", false)]
+    [InlineData(AppRoles.GlobalReaderAdmin, "POST", "/api/attachment-files/123/describe-image", false)]
+    [InlineData(AppRoles.GlobalReaderAdmin, "POST", "/api/attachment-files/123/extract-text", false)]
     [InlineData(AppRoles.User, "POST", "/api/chat/workspaces", true)]
     [InlineData(AppRoles.User, "PUT", "/api/chat/workspaces/123", true)]
     [InlineData(AppRoles.User, "DELETE", "/api/chat/workspaces/123", true)]
@@ -173,9 +179,15 @@ public sealed class AppIdentityTests
     }
 
     [Theory]
-    [InlineData(true, 200)]
-    [InlineData(false, 404)]
-    public async Task UploadedFileAccessChecksCreatedById(bool ownsFile, int expectedStatus)
+    [InlineData(true, 200, "GET", "download")]
+    [InlineData(false, 404, "GET", "download")]
+    [InlineData(true, 200, "POST", "describe-image")]
+    [InlineData(false, 404, "POST", "describe-image")]
+    [InlineData(true, 200, "POST", "extract-text")]
+    [InlineData(false, 404, "POST", "extract-text")]
+    [InlineData(true, 200, "POST", "convert-to-markdown")]
+    [InlineData(false, 404, "POST", "convert-to-markdown")]
+    public async Task UploadedFileAccessChecksCreatedById(bool ownsFile, int expectedStatus, string method, string action)
     {
         await using var fixture = await Fixture.CreateAsync();
         var current = await fixture.Service.LinkEntraAccountAsync("tenant", "object", "user@example.com", "User", default);
@@ -185,8 +197,8 @@ public sealed class AppIdentityTests
         await fixture.Db.SaveChangesAsync();
         var context = new DefaultHttpContext { RequestServices = fixture.Services };
         context.Response.Body = new MemoryStream();
-        context.Request.Method = "GET";
-        context.Request.Path = $"/api/attachment-files/{file.Id}/download";
+        context.Request.Method = method;
+        context.Request.Path = $"/api/attachment-files/{file.Id}/{action}";
         context.Request.RouteValues["id"] = file.Id.ToString();
         context.SetEndpoint(new Endpoint(_ => Task.CompletedTask, new EndpointMetadataCollection(), "attachment"));
         context.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("tid", "tenant"), new Claim("oid", "object"), new Claim("roles", AppRoles.GlobalAdmin)], "test"));

@@ -26,7 +26,8 @@ public sealed class ChatMessageAttachmentFileService(
     IOptions<UploadOptions> uploadOptions,
     IOptions<SearchOptions> searchOptions,
     ILogger<ChatMessageAttachmentFileService> logger,
-    ContentSafetyService? contentSafety = null)
+    ContentSafetyService? contentSafety = null,
+    AttachmentImageService? imageService = null)
 {
     private readonly UploadOptions _uploads = uploadOptions.Value;
     private readonly SearchOptions _search = searchOptions.Value;
@@ -159,7 +160,7 @@ public sealed class ChatMessageAttachmentFileService(
         return new AttachmentFileDownload(new FileStream(cached.LocalPath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete), row.FileName, row.ContentType ?? "application/octet-stream");
     }
 
-    public async Task<string?> ConvertToMarkdownAsync(Guid id, CancellationToken cancellationToken)
+    public async Task<string?> GetIndexedMarkdownAsync(Guid id, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var row = await context.ChatMessageAttachmentFiles.AsNoTracking()
@@ -169,6 +170,20 @@ public sealed class ChatMessageAttachmentFileService(
             return null;
         }
         return (await contentCache.GetMarkdownAsync(row, cancellationToken)).Content;
+    }
+
+    public async Task<string?> ConvertToMarkdownAsync(Guid id, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var row = await context.ChatMessageAttachmentFiles.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (row is null)
+        {
+            return null;
+        }
+
+        // Convert the original without replacing the Markdown or chunks used by the index.
+        return await contentCache.ConvertForIndexAsync(row, cancellationToken);
     }
 
     public async Task<DownloadedFile?> DownloadConversationAttachmentAsync(Guid conversationId, Guid attachmentId,
@@ -362,16 +377,10 @@ public sealed class ChatMessageAttachmentFileService(
         try
         {
             await EnsureInfrastructureAsync(cancellationToken);
-            if (_uploads.IsImageFile(row.FileName))
-            {
-                // Images remain original binary attachments; remove any previously derived content.
-                await DeleteIndexDocumentsAsync(id, cancellationToken);
-                await contentCache.DeleteAsync(id, cancellationToken);
-                await SetOutcomeAsync(id, UploadIndexStatus.Indexed, 0, 0, null, cancellationToken);
-                await using var imageContext = await contextFactory.CreateDbContextAsync(cancellationToken);
-                return (await ListByIdAsync(imageContext, id, cancellationToken))!;
-            }
-            var markdown = await contentCache.ConvertForIndexAsync(row, cancellationToken);
+            var markdown = _uploads.IsImageFile(row.FileName)
+                ? await (imageService ?? throw new InvalidOperationException("Image indexing is not configured."))
+                    .ConvertForIndexAsync(row, cancellationToken)
+                : await contentCache.ConvertForIndexAsync(row, cancellationToken);
             if (string.IsNullOrWhiteSpace(markdown))
             {
                 throw new InvalidOperationException(
