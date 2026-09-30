@@ -120,10 +120,10 @@ export default function ChatPage() {
   const [workspaceDraft, setWorkspaceDraft] =
     useState<{ id: string | null; name: string; instructions: string } | null>(null)
   const [confirmDeleteWorkspace, setConfirmDeleteWorkspace] = useState(false)
-  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false)
-  const workspaceMenuRef = useRef<HTMLDivElement>(null)
+  const [conversationTab, setConversationTab] = useState<'workspace' | 'chat'>('chat')
+  const [workspaceDetailsOpen, setWorkspaceDetailsOpen] = useState(false)
   const [copiedSession, setCopiedSession] = useState(false)
-  const [filesPath, setFilesPath] = useState<string | null>(null)
+  const [filesPath, setFilesPath] = useState('.')
   const [fileSort, setFileSort] = useState<{ key: FileSortKey; desc: boolean }>({ key: 'name', desc: false })
   const [previewFile, setPreviewFile] = useState<string | null>(null)
   const [attachments, setAttachments] = useState<ChatMessageAttachment[]>([])
@@ -186,6 +186,11 @@ export default function ChatPage() {
 
   const requested = params.get('conversation')
   const targetMessageId = params.get('message')
+  useEffect(() => {
+    if (targetMessageId) {
+      setConversationTab('chat')
+    }
+  }, [targetMessageId])
   const jumpedTo = useRef<string | null>(null)
   const [highlighted, setHighlighted] = useState<string | null>(null)
   useEffect(() => {
@@ -211,15 +216,16 @@ export default function ChatPage() {
   )
 
   const session = useAsync(
-    async (signal) => (activeId && workspaceMenuOpen ? getConversationSession(activeId, signal) : null),
-    [activeId, workspaceMenuOpen],
+    async (signal) => (activeId && conversationTab === 'workspace'
+      ? { conversationId: activeId, value: await getConversationSession(activeId, signal) } : null),
+    [activeId, conversationTab],
   )
 
   const sandboxFiles = useAsync(
-    async (signal) => (activeId && filesPath !== null
-      ? listConversationFiles(activeId, filesPath === '.' ? null : filesPath, false, signal)
+    async (signal) => (activeId && conversationTab === 'workspace'
+      ? { conversationId: activeId, value: await listConversationFiles(activeId, filesPath === '.' ? null : filesPath, false, signal) }
       : null),
-    [activeId, filesPath],
+    [activeId, filesPath, conversationTab],
   )
 
   // Switching conversations empties the thread at once rather than leaving the previous one on
@@ -228,6 +234,10 @@ export default function ChatPage() {
   useEffect(() => {
     setMessages([])
     setAttachments([])
+    setFilesPath('.')
+    setPreviewFile(null)
+    setCopiedSession(false)
+    setWorkspaceDetailsOpen(false)
   }, [activeId])
 
   useEffect(() => {
@@ -243,7 +253,9 @@ export default function ChatPage() {
    */
   useEffect(() => {
     const element = threadRef.current
-    if (!element) return
+    if (!element || conversationTab !== 'chat') {
+      return
+    }
 
     if (targetMessageId && jumpedTo.current !== targetMessageId) {
       // The thread has not arrived yet; stay put rather than flashing to the bottom first.
@@ -259,7 +271,7 @@ export default function ChatPage() {
     }
 
     element.scrollTop = element.scrollHeight
-  }, [messages, sending, targetMessageId])
+  }, [messages, sending, targetMessageId, conversationTab])
 
   // The highlight is a hint, not a state: it fades once the reader has had a chance to see it.
   useEffect(() => {
@@ -282,24 +294,6 @@ export default function ChatPage() {
     }
   }, [agentMenuOpen])
 
-  // Escape and a click elsewhere both close the workspace panel, since it covers the thread.
-  useEffect(() => {
-    if (!workspaceMenuOpen) return
-
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setWorkspaceMenuOpen(false)
-    }
-    const closeOnOutsideClick = (event: MouseEvent) => {
-      if (!workspaceMenuRef.current?.contains(event.target as Node)) setWorkspaceMenuOpen(false)
-    }
-    document.addEventListener('keydown', closeOnEscape)
-    document.addEventListener('mousedown', closeOnOutsideClick)
-    return () => {
-      document.removeEventListener('keydown', closeOnEscape)
-      document.removeEventListener('mousedown', closeOnOutsideClick)
-    }
-  }, [workspaceMenuOpen])
-
   // The tick on a copied session ID is a hint, not a state: it goes away on its own.
   useEffect(() => {
     if (!copiedSession) return
@@ -317,6 +311,7 @@ export default function ChatPage() {
       conversations.reload()
       workspaces.reload()
       open(created.id)
+      setConversationTab('chat')
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -725,51 +720,6 @@ export default function ChatPage() {
                   {activeAgent?.modelId ?? (agents.loading ? 'Loading model…' : 'Model unavailable')}
                 </span>
               ) : null}
-              {active ? (
-                <div className="chat-workspace-move" ref={workspaceMenuRef}>
-                  <button
-                    type="button"
-                    className={activeWorkspace ? 'badge accent badge-button' : 'badge badge-button'}
-                    aria-expanded={workspaceMenuOpen}
-                    title="Which sandbox this conversation works in. Set when it was started."
-                    onClick={() => setWorkspaceMenuOpen((open) => !open)}
-                  >
-                    <Folder size={12} />
-                    {activeWorkspace?.name ?? 'No workspace'}
-                    <ChevronDown size={12} aria-hidden="true" />
-                  </button>
-                  {workspaceMenuOpen ? (
-                    <div className="chat-workspace-menu" role="group" aria-label="Sandbox">
-                      <span className="chat-agent-menu-label">
-                        {activeWorkspace ? `Workspace: ${activeWorkspace.name}` : 'No workspace'}
-                      </span>
-                      <span className="hint">
-                        Chosen when this conversation was started, and fixed. To work in another
-                        workspace, pick it in the sidebar and start a new chat there.
-                      </span>
-                      {activeWorkspace?.instructions ? (
-                        <div className="chat-workspace-rules">
-                          <span className="chat-agent-menu-label">
-                            <ScrollText size={12} aria-hidden="true" /> Rules the agent follows here
-                          </span>
-                          <p>{activeWorkspace.instructions}</p>
-                        </div>
-                      ) : null}
-                      <SandboxDetails
-                        session={session.data ?? null}
-                        loading={session.loading}
-                        error={session.error}
-                        copied={copiedSession}
-                        onCopy={async (value) => setCopiedSession(await copyText(value))}
-                        onBrowse={() => {
-                          setWorkspaceMenuOpen(false)
-                          setFilesPath('.')
-                        }}
-                      />
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
               {active?.userId ? (
                 <span className="badge accent" title="Searches are filtered to this user's permissions">
                   as {active.userId}
@@ -780,6 +730,89 @@ export default function ChatPage() {
             </div>
           </div>
 
+          <div className="conversation-tabs" role="tablist" aria-label="Conversation views"
+            onKeyDown={event => {
+              if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+                event.preventDefault()
+                const next = event.key === 'Home' ? 'workspace' : event.key === 'End' ? 'chat'
+                  : conversationTab === 'chat' ? 'workspace' : 'chat'
+                setConversationTab(next)
+                document.getElementById(`conversation-${next}-tab`)?.focus()
+              }
+            }}>
+            <button type="button" role="tab" id="conversation-workspace-tab" aria-controls="conversation-workspace-panel"
+              aria-selected={conversationTab === 'workspace'} tabIndex={conversationTab === 'workspace' ? 0 : -1}
+              onClick={() => setConversationTab('workspace')}><FolderOpen size={15} />Workspace</button>
+            <button type="button" role="tab" id="conversation-chat-tab" aria-controls="conversation-chat-panel"
+              aria-selected={conversationTab === 'chat'} tabIndex={conversationTab === 'chat' ? 0 : -1}
+              onClick={() => setConversationTab('chat')}><MessageSquare size={15} />Chat</button>
+          </div>
+          <div id="conversation-workspace-panel" role="tabpanel" aria-labelledby="conversation-workspace-tab"
+            className="conversation-workspace-panel" hidden={conversationTab !== 'workspace'}>
+            {conversationTab === 'workspace' && (activeId ? <>
+              <Modal open={workspaceDetailsOpen} title="Workspace details" icon={<Folder size={16} />}
+                onClose={() => setWorkspaceDetailsOpen(false)}
+                footer={<>
+                  <button onClick={() => {
+                    session.reload()
+                    workspaces.reload()
+                  }} disabled={session.loading}><RefreshCw size={14} />Refresh details</button>
+                  <button onClick={() => setWorkspaceDetailsOpen(false)}>Close</button>
+                </>}>
+              <div className="conversation-workspace-info">
+                <div className="conversation-workspace-heading">
+                  <h3><Folder size={16} />{activeWorkspace?.name ?? 'No workspace'}</h3>
+                  <span className="hint">{activeWorkspace
+                    ? 'Shared workspace rules and sandbox files.'
+                    : 'This conversation is not assigned to a workspace.'}</span>
+                </div>
+                {activeWorkspace && <details className="chat-workspace-rules" open>
+                  <summary><ScrollText size={13} />Workspace instructions</summary>
+                  <p>{activeWorkspace.instructions || 'No workspace instructions.'}</p>
+                </details>}
+                <SandboxDetails session={session.data?.conversationId === activeId ? session.data.value : null}
+                  loading={session.loading} error={session.error} copied={copiedSession}
+                  onCopy={async value => setCopiedSession(await copyText(value))} />
+              </div>
+              </Modal>
+              <section className="conversation-workspace-files" aria-label="Files in the sandbox">
+                <div className="row" style={{ justifyContent: 'space-between' }}>
+                  <h3><FolderOpen size={16} />Files in the sandbox</h3>
+                  <div className="row" style={{ gap: 6 }}>
+                    <button onClick={() => setWorkspaceDetailsOpen(true)} aria-haspopup="dialog"><Folder size={14} />Workspace details</button>
+                    <button onClick={sandboxFiles.reload} disabled={sandboxFiles.loading}><RefreshCw size={14} />Refresh files</button>
+                  </div>
+                </div>
+                <SandboxFiles
+                  key={activeId ?? 'none'}
+                  conversationId={activeId ?? ''}
+                  writable={!readOnly && !!activeId}
+                  onReload={sandboxFiles.reload}
+                  path={filesPath}
+                  listing={sandboxFiles.data?.conversationId === activeId ? sandboxFiles.data.value : null}
+                  loading={sandboxFiles.loading || sandboxFiles.data?.conversationId !== activeId}
+                  error={sandboxFiles.error}
+                  sort={fileSort}
+                  onSort={setFileSort}
+                  onOpen={setFilesPath}
+                  onPreview={setPreviewFile}
+                  onDownload={async (entryPath) => {
+                    if (!activeId) {
+                      return
+                    }
+                    setError(null)
+                    try {
+                      await saveBlob(await downloadConversationFile(activeId, entryPath, true), entryPath)
+                    } catch (cause) {
+                      setError(cause instanceof Error ? cause.message : String(cause))
+                    }
+                  }}
+                />
+              </section>
+            </> : <Empty title="Select a conversation" detail="Select or create a conversation to see its workspace and sandbox files." />)}
+          </div>
+          <div id="conversation-chat-panel" role="tabpanel" aria-labelledby="conversation-chat-tab"
+            className="conversation-chat-panel" hidden={conversationTab !== 'chat'}>
           <div className="chat-thread" ref={threadRef}>
             {messages.length === 0 && !thread.loading ? (
               <Empty
@@ -883,55 +916,9 @@ export default function ChatPage() {
               {sending ? 'Thinking…' : 'Send'}
             </button>
           </div>
+          </div>
         </section>
       </div>
-
-      <Modal
-        open={filesPath !== null}
-        className="sandbox-files-modal"
-        title="Files in the sandbox"
-        icon={<FolderOpen size={18} aria-hidden="true" />}
-        onClose={() => setFilesPath(null)}
-        footer={
-          <>
-            <span className="hint" style={{ marginRight: 'auto' }}>
-              {sandboxFiles.data?.sandboxStarted === false
-                ? 'No sandbox yet.'
-                : `${sandboxFiles.data?.entries.length ?? 0} item${sandboxFiles.data?.entries.length === 1 ? '' : 's'}`}
-              {' · '}File operations run without calling the agent.
-            </span>
-            <button onClick={sandboxFiles.reload} disabled={sandboxFiles.loading}>
-              <RefreshCw size={14} aria-hidden="true" />
-              Refresh
-            </button>
-            <button onClick={() => setFilesPath(null)}>Close</button>
-          </>
-        }
-      >
-        <SandboxFiles
-          key={activeId ?? 'none'}
-          conversationId={activeId ?? ''}
-          writable={!readOnly && !!activeId}
-          onReload={sandboxFiles.reload}
-          path={filesPath ?? '.'}
-          listing={sandboxFiles.data ?? null}
-          loading={sandboxFiles.loading}
-          error={sandboxFiles.error}
-          sort={fileSort}
-          onSort={setFileSort}
-          onOpen={setFilesPath}
-          onPreview={setPreviewFile}
-          onDownload={async (entryPath) => {
-            if (!activeId) return
-            setError(null)
-            try {
-              await saveBlob(await downloadConversationFile(activeId, entryPath, true), entryPath)
-            } catch (cause) {
-              setError(cause instanceof Error ? cause.message : String(cause))
-            }
-          }}
-        />
-      </Modal>
 
       {previewFile && activeId ? (
         <SandboxPreview
@@ -1352,14 +1339,12 @@ function SandboxDetails({
   error,
   copied,
   onCopy,
-  onBrowse,
 }: {
   session: ChatSandboxSession | null
   loading: boolean
   error: string | null
   copied: boolean
   onCopy: (value: string) => void
-  onBrowse: () => void
 }) {
   return (
     <div className="chat-sandbox">
@@ -1409,10 +1394,7 @@ function SandboxDetails({
               Configured: {session.configuredEndpoint}
             </span>
           ) : null}
-          <button type="button" onClick={onBrowse}>
-            <FolderOpen size={14} aria-hidden="true" />
-            Browse files
-          </button>
+
         </>
       ) : null}
     </div>

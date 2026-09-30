@@ -8,10 +8,13 @@ Main resource names start with `workloadName`, followed by the environment. ACR 
 
 ## GitHub Actions deployment
 
-Each component has an independent, manually dispatched workflow. Select `dev` or `test` and the branch or tag to release.
+Use **Actions → Release services → Run workflow** to select `dev` or `test`, the branch or tag, and any combination of service checkboxes. All checkboxes start unchecked; select at least one. The workflow reuses the component releases at the same commit, preserving GitHub environment secrets and approval rules. Individual workflows also remain available.
+
+Selected components run sequentially: Database migrations → MarkItDown → AgentHost → API → Background → Frontend. Unselected components are skipped, while a failure or cancellation prevents later releases. Include required migrations when releasing dependent code. The final summary lists each component's result; completed deployments are not rolled back if a later component fails. The combined workflow holds the environment deployment lock for the entire batch, preventing standalone releases or infrastructure deployments from overlapping it.
 
 | Workflow | Responsibility |
 | --- | --- |
+| [release.yml](../.github/workflows/release.yml) | Release any selected combination of services in one workflow run |
 | [release-db-migration.yml](../.github/workflows/release-db-migration.yml) | Restore packages, generate and apply idempotent SQL migrations |
 | [release-api.yml](../.github/workflows/release-api.yml) | Build and deploy only API, configure its runtime settings and Foundry access, and check health |
 | [release-background.yml](../.github/workflows/release-background.yml) | Build and deploy only Background and wait for its revision to become ready |
@@ -19,7 +22,7 @@ Each component has an independent, manually dispatched workflow. Select `dev` or
 | [release-markitdown.yml](../.github/workflows/release-markitdown.yml) | Build and deploy MarkItDown and check health |
 | [release-frontend.yml](../.github/workflows/release-frontend.yml) | Read the saved API URL, build with `VITE_API_BASE_URL`, and publish to Azure Static Web Apps |
 
-For the first deployment, provision infrastructure, then run Database, MarkItDown, AgentHost, API, Background, and Frontend releases in that order. Wait for each to finish. For later updates, run only the affected workflows; apply required database migrations before releasing dependent application code. API and Background never apply migrations. Runtime SQL users created with `WITH SID` use the managed identity client ID; Azure role assignments use its principal/object ID. Runtime database grants and identity repairs are manual; use the SQL below. After Database release, configure API/Background SQL access before starting them. For the first AgentHost release, configure its SQL access once Foundry creates the identity; if that release fails before routing, rerun it after granting access. The combined `release.yml` has been removed.
+For the first deployment, provision infrastructure, then run Database, MarkItDown, AgentHost, API, Background, and Frontend releases in that order. Split the initial deployment into separate runs wherever manual SQL grants are needed. API and Background never apply migrations. Runtime SQL users created with `WITH SID` use the managed identity client ID; Azure role assignments use its principal/object ID. Runtime database grants and identity repairs are manual; use the SQL below. After Database release, configure API/Background SQL access before starting them. For the first AgentHost release, configure its SQL access once Foundry creates the identity; if that release fails before routing, rerun it after granting access. Once those grants are configured, use the combined workflow for subsequent releases.
 
 
 Run the infrastructure workflow to create the Static Web App for each environment, then store its deployment token as `AZURE_STATIC_WEB_APPS_API_TOKEN` in the matching GitHub environment. Set `FRONTEND_ORIGIN` to its default HTTPS origin or configured custom domain, and register `<FRONTEND_ORIGIN>/auth-redirect.html` as an Entra **Single-page application** redirect URI. The API uses this origin for CORS. Each release publishes to that Static Web App's production site, rather than creating a preview environment. The template outputs `staticWebAppName` and `staticWebAppUrl`. Static Web Apps uses the Free tier by default; all supplied environment JSON files set `staticWebAppLocation` to `eastasia`. Change `staticWebAppSku` or the location in those files as needed.

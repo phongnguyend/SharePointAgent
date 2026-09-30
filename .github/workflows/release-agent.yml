@@ -11,11 +11,22 @@ run-name: Release AgentHost (${{ inputs.environment }})
           - dev
           - test
         default: dev
+  workflow_call:
+    inputs:
+      environment:
+        description: Target environment (dev or test)
+        required: true
+        type: string
+      orchestrated:
+        description: The calling release workflow holds the environment deployment lock
+        type: boolean
+        default: false
 permissions:
   contents: read
   id-token: write
 concurrency:
-  group: deployment-${{ inputs.environment }}
+  # Avoid waiting on the caller's environment lock during a combined release.
+  group: ${{ inputs.orchestrated && format('release-agent-{0}-{1}', github.run_id, github.run_attempt) || format('deployment-{0}', inputs.environment) }}
   cancel-in-progress: false
 jobs:
   agent:

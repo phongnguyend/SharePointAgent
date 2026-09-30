@@ -1,0 +1,166 @@
+name: Release services
+run-name: Release services (${{ inputs.environment }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options: [dev, test]
+        default: dev
+      db_migration:
+        description: Release Database migrations
+        type: boolean
+        default: false
+      markitdown:
+        description: Release MarkItDown
+        type: boolean
+        default: false
+      agent:
+        description: Release AgentHost
+        type: boolean
+        default: false
+      api:
+        description: Release API
+        type: boolean
+        default: false
+      background:
+        description: Release Background
+        type: boolean
+        default: false
+      frontend:
+        description: Release Frontend
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+# Hold the same lock as standalone releases and infrastructure for the entire batch.
+concurrency:
+  group: deployment-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate release selection
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check selected services
+        shell: pwsh
+        env:
+          RELEASE_INPUTS: ${{ toJSON(inputs) }}
+        run: |
+          $selection = $env:RELEASE_INPUTS | ConvertFrom-Json
+          if ($selection.environment -notin @('dev', 'test')) {
+            throw 'Select dev or test as the target environment.'
+          }
+          $services = @('db_migration', 'markitdown', 'agent', 'api', 'background', 'frontend')
+          $selected = @($services | Where-Object { $selection.$_ -eq $true })
+          if ($selected.Count -eq 0) {
+            throw 'Select at least one service to release.'
+          }
+          "## Selected release" >> $env:GITHUB_STEP_SUMMARY
+          "- Environment: $($selection.environment)" >> $env:GITHUB_STEP_SUMMARY
+          "- Deployment order: $($selected -join ', ')" >> $env:GITHUB_STEP_SUMMARY
+
+  db_migration:
+    name: Release Database migrations
+    needs: [validate]
+    # Explicit status checks allow unselected predecessors to be skipped.
+    if: ${{ !cancelled() && !failure() && inputs.db_migration }}
+    uses: ./.github/workflows/release-db-migration.yml
+    with:
+      environment: ${{ inputs.environment }}
+      orchestrated: true
+    secrets: inherit
+
+  markitdown:
+    name: Release MarkItDown
+    needs: [validate, db_migration]
+    # Explicit status checks allow unselected predecessors to be skipped.
+    if: ${{ !cancelled() && !failure() && inputs.markitdown }}
+    uses: ./.github/workflows/release-markitdown.yml
+    with:
+      environment: ${{ inputs.environment }}
+      orchestrated: true
+    secrets: inherit
+
+  agent:
+    name: Release AgentHost
+    needs: [validate, db_migration, markitdown]
+    # Explicit status checks allow unselected predecessors to be skipped.
+    if: ${{ !cancelled() && !failure() && inputs.agent }}
+    uses: ./.github/workflows/release-agent.yml
+    with:
+      environment: ${{ inputs.environment }}
+      orchestrated: true
+    secrets: inherit
+
+  api:
+    name: Release API
+    needs: [validate, db_migration, markitdown, agent]
+    # Explicit status checks allow unselected predecessors to be skipped.
+    if: ${{ !cancelled() && !failure() && inputs.api }}
+    uses: ./.github/workflows/release-api.yml
+    with:
+      environment: ${{ inputs.environment }}
+      orchestrated: true
+    secrets: inherit
+
+  background:
+    name: Release Background
+    needs: [validate, db_migration, markitdown, agent, api]
+    # Explicit status checks allow unselected predecessors to be skipped.
+    if: ${{ !cancelled() && !failure() && inputs.background }}
+    uses: ./.github/workflows/release-background.yml
+    with:
+      environment: ${{ inputs.environment }}
+      orchestrated: true
+    secrets: inherit
+
+  frontend:
+    name: Release Frontend
+    needs: [validate, db_migration, markitdown, agent, api, background]
+    # Explicit status checks allow unselected predecessors to be skipped.
+    if: ${{ !cancelled() && !failure() && inputs.frontend }}
+    uses: ./.github/workflows/release-frontend.yml
+    with:
+      environment: ${{ inputs.environment }}
+      orchestrated: true
+    secrets: inherit
+
+  summary:
+    name: Release summary
+    needs: [validate, db_migration, markitdown, agent, api, background, frontend]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Summarize release results
+        shell: pwsh
+        env:
+          RELEASE_INPUTS: ${{ toJSON(inputs) }}
+          RELEASE_RESULTS: ${{ toJSON(needs) }}
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: |
+          $selection = $env:RELEASE_INPUTS | ConvertFrom-Json
+          $results = $env:RELEASE_RESULTS | ConvertFrom-Json
+          "## Release results" >> $env:GITHUB_STEP_SUMMARY
+          "- Environment: $($selection.environment)" >> $env:GITHUB_STEP_SUMMARY
+          "- Commit: $env:RELEASE_COMMIT" >> $env:GITHUB_STEP_SUMMARY
+          "- Selection validation: $($results.validate.result)" >> $env:GITHUB_STEP_SUMMARY
+          "" >> $env:GITHUB_STEP_SUMMARY
+          "| Service | Result |" >> $env:GITHUB_STEP_SUMMARY
+          "| --- | --- |" >> $env:GITHUB_STEP_SUMMARY
+          foreach ($service in @('db_migration', 'markitdown', 'agent', 'api', 'background', 'frontend')) {
+            $result = 'Not selected'
+            if ($selection.$service) {
+              $result = $results.$service.result
+            }
+            "| $service | $result |" >> $env:GITHUB_STEP_SUMMARY
+          }
