@@ -10,6 +10,8 @@ The **Token usage** page also includes a **Content Safety** tab for requests, ou
 
 | Page | What it shows |
 | --- | --- |
+| **Browse** | Live SharePoint folders with breadcrumbs, filtering, and links to open items in SharePoint. Global Admin can create folders, upload files by picker or drag/drop, rename, delete, copy, and move files and folders. Global Reader Admin has read-only access. |
+| **Browse → Recycle bin** | Preview, read-only view of the configured site's deleted items, across its libraries. Shows original location, deletion date, and size, with filtering and pagination. Available to Global Admin and Global Reader Admin. Open SharePoint from this view to restore items or manage its second-stage bin. |
 | **Token usage** | Two report tabs: **Token Usage** for chat input/output/total tokens, turns, per-turn averages, daily trends, model/user breakdowns and a paginated turn log; **Embedding Usage** for indexing/search tokens, activities and attribution. Both support filters and detail popups. Available to Global Admin and Global Reader Admin. |
 | **Overview** | Totals over the indexed-file table: files, chunks, source size, drives, files outside the current reconciliation round, and how many distinct index fingerprints are in play. Plus files by content type, the most recently indexed files, and the delta checkpoints. |
 | **Indexed files** | The `SharePointIndexedFiles` table, filterable and sortable, with per-file embedding token usage and a Reindex action on each row. Select a row to see every recorded column — ETag, CTag, permissions hash, index fingerprint, scan ID, and the drive and item IDs. |
@@ -22,11 +24,15 @@ The **Token usage** page also includes a **Content Safety** tab for requests, ou
 
 The Indexed files and Attachment files lists both offer **View Markdown**. The API converts the source file with MarkItDown when opened; the resizable popup shows plain text and rendered Markdown tabs.
 
+Browse (`/browse?folder=…`) reads the configured document library directly through `/api/browse`; changes reach the search index through the existing background synchronization. Uploads accept multiple files, up to 100 MB each, and reject duplicate names without replacing existing content. Reverse proxies must also allow the desired request size. Uploads are staged on disk and larger files use Graph upload sessions. Directory uploads are not supported; use New folder instead. Rename, delete, and move detect stale items using ETags. Delete asks for confirmation and includes a folder's descendants. Copy and move use a folder picker and allow a new destination name. Copy is asynchronous: an accepted message means SharePoint has started the request, not that it has completed; refresh the destination to check the result. Browse mutations require the application's SharePoint write grant described in the root README.
+
 Searches are kept in the URL (`/search?q=…&mode=compare&top=10`), so a result is a link and the
 back button steps through searches. So is the open conversation
 (`/chat?conversation=…&message=…`), which is how the Feedback page links to a particular answer.
 
 ## Running it
+
+The Recycle bin view (`/browse?view=recycle-bin`, API `GET /api/browse/recycle-bin`) uses the Microsoft Graph **beta** [site recycle-bin listing API](https://learn.microsoft.com/en-us/graph/api/recyclebin-list-items?view=graph-rest-beta). Microsoft does not support beta APIs for production use; availability and contracts can change. This endpoint documents `Files.Read.All` or `Sites.Read.All` application permission (or their ReadWrite equivalents) with admin consent; `Sites.Selected` alone is not documented as supported. Existing credentials are reused, and the application does not change tenant permissions. Access failures are shown explicitly. The Graph v1.0 recycle-bin APIs for SharePoint Embedded containers are not interchangeable with this site's API. This view lists metadata only; in-app restore, permanent deletion, content preview, and separate first/second-stage selection are not implemented.
 
 Configure [Entra ID sign-in](../README.md#entra-id-sign-in) on the existing SharePoint app registration first. The frontend reads the tenant/client IDs from `/api/auth/config`; no client secret belongs in frontend configuration. Register `http://localhost:5173/auth-redirect.html` as a **Single-page application** redirect URI and expose the delegated `api://<ClientId>/access_as_user` scope with v2 access tokens.
 

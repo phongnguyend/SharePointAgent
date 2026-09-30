@@ -12,7 +12,7 @@ using SharePointAgent.Domain;
 
 namespace SharePointAgent.Infrastructure;
 
-public sealed class SharePointClient(
+public sealed partial class SharePointClient(
     GraphServiceClient graph,
     IMemoryCache memoryCache,
     IOptions<SharePointOptions> options,

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import {
   FileText,
+  FolderOpen,
   Bot,
   GitBranch,
   LayoutDashboard,
@@ -29,6 +30,7 @@ import { AccountMenu } from './components/AuthGate'
 import { useAppUser, canReadAdministration } from './components/AppUserContext'
 import UsersPage from './pages/UsersPage'
 import TokenUsagePage from './pages/TokenUsagePage'
+import BrowsePage from './pages/BrowsePage'
 
 type Theme = 'system' | 'light' | 'dark'
 
@@ -75,6 +77,7 @@ export default function App() {
             <FileText size={16} />
             Indexed files
           </NavLink>
+          <NavLink to="/browse"><FolderOpen size={16} />Browse</NavLink>
           <NavLink to="/delta">
             <GitBranch size={16} />
             Delta state
@@ -123,6 +126,7 @@ export default function App() {
           <Route path="/" element={<Navigate to={home} replace />} />
           <Route path="/overview" element={canReadAdmin ? <OverviewPage /> : <Navigate to={home} replace />} />
           <Route path="/files" element={canReadAdmin ? <IndexedFilesPage /> : <Navigate to={home} replace />} />
+          <Route path="/browse" element={canReadAdmin ? <BrowsePage /> : <Navigate to={home} replace />} />
           <Route path="/attachment-files" element={<AttachmentFilesPage />} />
           <Route path="/delta" element={canReadAdmin ? <DeltaStatePage /> : <Navigate to={home} replace />} />
           <Route path="/subscriptions" element={canReadAdmin ? <SubscriptionsPage /> : <Navigate to={home} replace />} />

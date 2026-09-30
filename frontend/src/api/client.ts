@@ -39,6 +39,54 @@ import type {
 /** Empty by default, so requests go to the dev server's /api proxy on this same origin. */
 const BASE_URL = API_BASE
 
+export interface BrowseItem {
+  id: string
+  name: string
+  isFolder: boolean
+  size: number | null
+  lastModifiedUtc: string | null
+  webUrl: string | null
+  parentId: string | null
+  eTag: string | null
+}
+
+export interface BrowseListing {
+  folder: BrowseItem
+  breadcrumbs: BrowseItem[]
+  items: BrowseItem[]
+}
+
+export const browseSharePoint = (folderId: string, signal?: AbortSignal) =>
+  request<BrowseListing>(`/api/browse/${query({ folderId })}`, { signal })
+
+export interface RecycleBinItem {
+  id: string
+  name: string
+  size: number | null
+  deletedDateTime: string | null
+  deletedFromLocation: string | null
+}
+
+export const browseRecycleBin = (signal?: AbortSignal) =>
+  request<{ siteName: string; recycleBinUrl: string | null; items: RecycleBinItem[] }>('/api/browse/recycle-bin', { signal })
+
+export const createSharePointFolder = (parentId: string, name: string) =>
+  request<BrowseItem>('/api/browse/folders', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ parentId, name }),
+  })
+
+export const changeSharePointItem = (item: BrowseItem, operation: 'rename' | 'delete' | 'copy' | 'move', name: string, destinationId?: string) =>
+  request<{ completed: boolean }>(`/api/browse/${encodeURIComponent(item.id)}${operation === 'delete' ? query({ etag: item.eTag }) : operation === 'rename' ? '' : `/${operation}`}`, {
+    method: operation === 'delete' ? 'DELETE' : operation === 'rename' ? 'PATCH' : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: operation === 'delete' ? undefined : JSON.stringify({ name, destinationId, eTag: item.eTag }),
+  })
+
+export const uploadSharePointFile = (parentId: string, file: File) =>
+  request<BrowseItem>(`/api/browse/upload${query({ parentId, name: file.name })}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/octet-stream' }, body: file,
+  })
+
 export const getImageDescriptionUsage = (filters: ImageDescriptionUsageFilter, skip: number, signal?: AbortSignal) =>
   request<ImageDescriptionUsageReport>(`/api/usage/image-descriptions${query({ ...filters, userId: filters.userId || undefined, attachmentId: filters.attachmentId || undefined, skip, top: 25 })}`, { signal })
 

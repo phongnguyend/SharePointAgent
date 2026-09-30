@@ -40,6 +40,7 @@ app.MapIndexedFilesEndpoints();
 app.MapDeltaStateEndpoints();
 app.MapAttachmentFilesEndpoints();
 app.MapSubscriptionsEndpoints();
+app.MapBrowseEndpoints();
 app.MapAgentsEndpoints();
 app.MapChatWorkspacesEndpoints();
 app.MapChatEndpoints();

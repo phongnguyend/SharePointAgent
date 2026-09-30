@@ -33,7 +33,7 @@ Create these resources before deploying:
 4. Azure Blob Storage for chat attachments. The Bicep templates create a private `chat-uploads` container.
 5. A MarkItDown service reachable at `MarkItDown:Endpoint`, which converts SharePoint Office files and non-text chat attachments to Markdown.
 6. Azure AI Document Intelligence, unless the SharePoint allow list stays within the formats MarkItDown handles directly. Every other SharePoint format — PDF and images, for example — needs Document Intelligence, or it is indexed using metadata text only.
-7. An Entra application or managed identity with Microsoft Graph application access to the target site/drive. Prefer `Sites.Selected` with an explicit grant to the site; `Sites.Read.All` is the broader alternative. Admin consent is required. Read access covers everything but the chat assistant's [`upload_sharepoint_file`](#uploading-a-file-back) tool, which needs a `write` grant (or `Sites.ReadWrite.All`) — grant it only if the assistant should be able to replace documents.
+7. An Entra application or managed identity with Microsoft Graph application access to the target site/drive. Prefer `Sites.Selected` with an explicit grant to the site; `Sites.Read.All` is the broader alternative. Admin consent is required. The Browse page's create, upload, rename, delete, copy, and move operations and the chat assistant's [`upload_sharepoint_file`](#uploading-a-file-back) tool need a `write` grant (or `Sites.ReadWrite.All`).
 8. A public HTTPS URL for the API. Microsoft Graph must be able to call it during subscription creation. Not needed when `SharePoint:SubscriptionRenewalEnabled` is `false` and the worker polls on its schedule alone.
 
 Assign Azure RBAC appropriate to each process: Service Bus Data Sender, Storage Blob Data Contributor, Search Index Data Contributor, Search Service Contributor, and Cognitive Services OpenAI User to the API; Service Bus Data Receiver, Search Index Data Contributor, Search Service Contributor, and Cognitive Services OpenAI User to the worker. Add Cognitive Services User when Document Intelligence is enabled. The Bicep templates create these assignments. SQL Server permissions are granted inside the database rather than through RBAC: see [Worker state in SQL Server](#worker-state-in-sql-server).
@@ -43,6 +43,8 @@ The GitHub Actions infrastructure workflow provisions Azure resources and defaul
 See [the infrastructure deployment guide](infra/README.md) for settings and the application deployment sequence. The frontend is hosted separately.
 
 ## Configure and run
+
+The frontend's **Browse → Recycle bin** provides a preview, read-only listing of deleted items in the configured SharePoint site. It uses Graph beta and may require broader Graph application permissions than `Sites.Selected`; see the [frontend setup and limitations](frontend/README.md#running-it). Restore remains available through the view's link to SharePoint.
 
 Replace the placeholders in both `appsettings.json` files or use environment variables (recommended in deployments), for example:
 
