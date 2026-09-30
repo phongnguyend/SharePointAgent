@@ -151,6 +151,10 @@ public static class DependencyInjection
         services.AddSingleton<AgentSharePointFiles>();
         services.AddSingleton<AgentFileSystem>();
         services.AddTransient<AgentMarkdownConverter>();
+        services.AddTransient<ImageTextRecognizer>();
+        services.AddOptions<DocumentIntelligenceOptions>().Bind(configuration.GetSection(DocumentIntelligenceOptions.SectionName))
+            .Validate(o => string.IsNullOrWhiteSpace(o.Endpoint) || o.UsedManagedIdentity || !string.IsNullOrWhiteSpace(o.ApiKey), "DocumentIntelligence:ApiKey is required when an endpoint is configured and UsedManagedIdentity is false.").ValidateOnStart();
+        services.AddHttpClient<DocumentIntelligenceClient>();
         services.AddSingleton<IAgentFileBrowser, LocalAgentFileBrowser>();
         services.AddSingleton<ChatAgentContextLoader>();
         services.AddSingleton<ChatAgentService>();

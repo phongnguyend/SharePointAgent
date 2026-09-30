@@ -18,7 +18,7 @@ public sealed class AgentMarkdownConverter(
 
         if (uploads.Value.IsImageFile(source.Name))
         {
-            throw new ArgumentException("Images are not converted to Markdown. Use describe_image_attachment for image attachments.");
+            throw new ArgumentException("Images are not converted to Markdown. Use describe_image for image attachments.");
         }
 
         var destination = string.IsNullOrWhiteSpace(destinationPath)

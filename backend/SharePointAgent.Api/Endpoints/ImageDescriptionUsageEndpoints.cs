@@ -57,11 +57,11 @@ public static class ImageDescriptionUsageEndpoints
         var items = await query.OrderByDescending(x => x.CreatedAtUtc).ThenBy(x => x.Id).Skip(skip).Take(top)
             .Select(x => new
             {
-                x.Id, x.CreatedAtUtc, x.UserId, x.ConversationId, x.QuestionId, x.AttachmentId, x.ModelId,
+                x.Id, x.CreatedAtUtc, x.UserId, x.ConversationId, x.QuestionId, x.AttachmentId, x.FilePath, x.ModelId,
                 x.InputTokens, x.OutputTokens, x.TotalTokens,
                 x.SystemPrompt, x.Prompt, x.Description,
                 UserName = db.Users.Where(u => u.Id == x.UserId).Select(u => u.UserName).FirstOrDefault(),
-                FileName = db.ChatMessageAttachmentFiles.Where(f => f.Id == x.AttachmentId).Select(f => f.FileName).FirstOrDefault()
+                FileName = db.ChatMessageAttachmentFiles.Where(f => f.Id == x.AttachmentId).Select(f => f.FileName).FirstOrDefault() ?? x.FilePath
             }).ToListAsync(ct);
         return Results.Ok(new
         {

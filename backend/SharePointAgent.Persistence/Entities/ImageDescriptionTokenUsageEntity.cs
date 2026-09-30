@@ -17,7 +17,9 @@ public sealed class ImageDescriptionTokenUsageEntity
 
     public Guid QuestionId { get; set; }
 
-    public Guid AttachmentId { get; set; }
+    public Guid? AttachmentId { get; set; }
+
+    public string? FilePath { get; set; }
 
     public string ModelId { get; set; } = "";
 

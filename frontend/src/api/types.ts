@@ -24,7 +24,8 @@ export interface ImageDescriptionUsageReport {
     userName: string | null
     conversationId: string
     questionId: string
-    attachmentId: string
+    attachmentId: string | null
+    filePath: string | null
     fileName: string | null
     modelId: string
     systemPrompt: string | null

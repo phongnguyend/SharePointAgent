@@ -18,6 +18,7 @@ public sealed class ChatAgentSkillsTests
         Assert.Contains(tools, tool => tool.Name == "search_sharepoint_documents");
         Assert.DoesNotContain(tools, tool => tool.Name == "search_documents");
         Assert.Contains(tools, tool => tool.Name == "convert_to_markdown");
+        Assert.Contains(tools, tool => tool.Name == "recognize_text");
         Assert.Contains(tools, tool => tool.Name == "upload_sharepoint_file");
         Assert.DoesNotContain(tools, tool => tool.Name == "refresh_sharepoint_file" || tool.Name == "download_attachment_markdown");
         Assert.All(tools, tool => Assert.False(string.IsNullOrWhiteSpace(tool.Description)));
