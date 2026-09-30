@@ -1255,7 +1255,25 @@ button.ghost:hover:not(:disabled) {
 .modal.sandbox-files-modal { width: min(760px, calc(100vw - 32px)); }
 .agent-capability { padding: 12px 14px; overflow-wrap: anywhere; }
 .agent-capability p { margin: 6px 0 0; color: var(--text-secondary); font-size: 13px; }
-.sandbox-explorer { display: flex; flex-direction: column; gap: 8px; }
+.sandbox-explorer { position: relative; display: flex; flex-direction: column; gap: 8px; }
+.sandbox-dragging { outline: 2px dashed var(--accent); outline-offset: 4px; border-radius: var(--radius-sm); }
+.sandbox-drop-overlay { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--accent-soft) 94%, transparent); color: var(--accent-text); text-align: center; overflow-wrap: anywhere; pointer-events: none; }
+.sandbox-management-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.sandbox-management-content { display: flex; flex-direction: column; gap: 8px; border: 0; padding: 0; margin: 0; min-width: 0; }
+.sandbox-management-field { margin-top: 16px; }
+.sandbox-destination { margin-top: 16px; }
+.sandbox-folder-picker { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px; }
+.sandbox-picker-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin-bottom: 8px; }
+.sandbox-picker-crumbs > span { display: inline-flex; align-items: center; min-width: 0; }
+.sandbox-picker-crumbs button { overflow-wrap: anywhere; white-space: normal; }
+.sandbox-picker-folders { display: flex; flex-direction: column; max-height: 220px; overflow-y: auto; gap: 4px; margin-top: 8px; }
+.sandbox-picker-folders button { justify-content: flex-start; text-align: left; }
+.sandbox-picker-folders button span { flex: 1; overflow-wrap: anywhere; }
+.sandbox-picker-folders button svg { flex-shrink: 0; }
+.sandbox-item-menu { position: fixed; inset: auto; margin: 0; min-width: 170px; padding: 5px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-1); color: var(--text-primary); box-shadow: var(--shadow); }
+.sandbox-item-menu button { display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; padding: 9px 10px; border: 0; background: transparent; text-align: left; }
+.sandbox-item-menu button:hover, .sandbox-item-menu button:focus-visible { background: var(--surface-2); }
+.sandbox-item-menu .sandbox-menu-delete { color: var(--critical); border-top: 1px solid var(--border); border-radius: 0; margin-top: 4px; }
 .sandbox-address-bar { display: flex; align-items: center; gap: 2px; padding: 4px 6px; min-height: 38px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
 .sandbox-address { display: flex; flex: 1; min-width: 0; align-items: center; gap: 8px; }
 .sandbox-address input { flex: 1; min-width: 0; }
@@ -1272,7 +1290,11 @@ button.ghost:hover:not(:disabled) {
 
 /* Name takes the slack; size and modified are as wide as their content needs and no wider. */
 .sandbox-table { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
-.sandbox-row { display: grid; grid-template-columns: minmax(0, 1fr) 90px 130px 62px; align-items: center; gap: 10px; width: 100%; padding: 7px 10px; border: 0; border-bottom: 1px solid var(--border); background: transparent; text-align: left; font-weight: 400; }
+.sandbox-row { display: grid; grid-template-columns: minmax(0, 1fr) 90px 130px 94px; align-items: center; gap: 10px; width: 100%; padding: 7px 10px; border: 0; border-bottom: 1px solid var(--border); background: transparent; text-align: left; font-weight: 400; }
+@media (max-width: 600px) {
+  .sandbox-row { grid-template-columns: minmax(0, 1fr) 60px 94px; gap: 6px; }
+  .sandbox-modified, .sandbox-head > :nth-child(3) { display: none; }
+}
 
 /* A previewable file makes its three cells one button, so the row keeps its column alignment. */
 .sandbox-open { display: contents; border: 0; background: transparent; text-align: left; font-weight: 400; cursor: pointer; }

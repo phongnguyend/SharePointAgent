@@ -279,6 +279,83 @@ public sealed class ChatAgentStreamingTests
     }
 
     [Fact]
+    public async Task HostedFileManagementUsesExistingSessionWithoutCallingModel()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "invocation-manage-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var executor = new StubExecutor((_, _, _, _) => throw new InvalidOperationException("the model was called"));
+            await using var server = await CreateServer(executor, root);
+            using var http = server.GetTestClient();
+            var sessions = Substitute.For<IFoundrySessionRepository>();
+            sessions.GetAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns("sandbox-1");
+            var browser = new FoundryAgentFileBrowser(http, new TestCredential(), sessions,
+                Options.Create(new ChatAgentHostingOptions
+                {
+                    Mode = ChatAgentExecutionMode.Foundry,
+                    Foundry = new() { Endpoint = "http://localhost/invocations" }
+                }));
+            var conversation = Guid.NewGuid();
+            await browser.ManageAsync(conversation, new("mkdir", "folder"), default);
+            await browser.ManageAsync(conversation, new("upload", "folder/data.bin", Content: [1, 2, 255]), default);
+            await browser.ManageAsync(conversation, new("copy", "folder", "copy"), default);
+            await browser.ManageAsync(conversation, new("rename", "copy", "renamed"), default);
+            await browser.ManageAsync(conversation, new("move", "renamed", "folder/renamed"), default);
+            Assert.Equal(new byte[] { 1, 2, 255 }, (await browser.ReadAsync(conversation, "folder/renamed/data.bin", default)).Content);
+            await Assert.ThrowsAsync<ArgumentException>(() => browser.ManageAsync(conversation, new("delete", "../outside"), default));
+            await browser.ManageAsync(conversation, new("delete", "folder"), default);
+            Assert.Empty(Directory.GetFileSystemEntries(root));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public async Task FileManagementDoesNotCreateANewSandbox()
+    {
+        var handler = new ThrowingHandler();
+        using var http = new HttpClient(handler);
+        var browser = new FoundryAgentFileBrowser(http, new TestCredential(), EmptySessions(),
+            Options.Create(new ChatAgentHostingOptions
+            {
+                Mode = ChatAgentExecutionMode.Foundry,
+                Foundry = new() { Endpoint = "https://example.com/invocations" }
+            }));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => browser.ManageAsync(Guid.NewGuid(), new("mkdir", "folder"), default));
+        Assert.False(handler.Called);
+    }
+
+    [Fact]
+    public async Task FileManagementPinsSessionAndRejectsADifferentResponseSession()
+    {
+        using var http = new HttpClient(new StubHttpHandler(async (request, ct) =>
+        {
+            Assert.Contains("agent_session_id=sandbox-1", request.RequestUri!.Query);
+            Assert.Equal(AgentInvocation.ManageFilesOperation, request.Headers.GetValues(AgentInvocation.OperationHeader).Single());
+            var payload = await request.Content!.ReadFromJsonAsync<AgentFileChangeRequest>(cancellationToken: ct);
+            Assert.Equal("mkdir", payload!.Change.Operation);
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new SandboxFileChangeResult("folder"))
+            };
+            response.Headers.Add("x-agent-session-id", "other-session");
+            return response;
+        }));
+        var sessions = Substitute.For<IFoundrySessionRepository>();
+        sessions.GetAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns("sandbox-1");
+        var browser = new FoundryAgentFileBrowser(http, new TestCredential(), sessions,
+            Options.Create(new ChatAgentHostingOptions
+            {
+                Mode = ChatAgentExecutionMode.Foundry,
+                Foundry = new() { Endpoint = "https://example.com/invocations" }
+            }));
+        await Assert.ThrowsAsync<InvalidDataException>(() => browser.ManageAsync(Guid.NewGuid(), new("mkdir", "folder"), default));
+    }
+
+    [Fact]
     public async Task ListingBeforeTheFirstTurnDoesNotStartASandbox()
     {
         var handler = new ThrowingHandler();

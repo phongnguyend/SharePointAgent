@@ -16,7 +16,7 @@ namespace SharePointAgent.Infrastructure;
 /// per-session sandbox shared by a workspace's conversations.
 /// </para>
 /// </summary>
-public sealed class AgentFileSystem(IOptions<LocalWorkingDirectoryOptions> options)
+public sealed partial class AgentFileSystem(IOptions<LocalWorkingDirectoryOptions> options)
 {
     /// <summary>The most entries one listing returns, so a large tree cannot fill the context window.</summary>
     public const int MaxEntries = 500;

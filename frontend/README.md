@@ -32,6 +32,26 @@ back button steps through searches. So is the open conversation
 
 ## Running it
 
+### Sandbox file management
+
+Open a conversation's **Files in the sandbox** dialog. Use **New folder**, **Upload files**, or drag files onto the browser. Each file/folder has a **…** menu with Rename, Copy, Move, and Delete. Copy and Move include a destination folder browser with breadcrumbs, an Up button, and an optional folder address. Browse to the destination, then keep or edit the item name. The destination folder must already exist. Existing items are never overwritten. Delete requires confirmation and is permanent, including all contents of a directory.
+
+Global Admin and conversation owners with the User role can make changes; Global Reader Admin is read-only. Operations run without calling the model in both Local and Foundry modes. Foundry requires an existing session (send a question first). Changes are shared by conversations using the same sandbox; Local mode shares one process directory. Uploads are limited to 5 MB per file, copies to 100 MB, and directory operations to 5,000 entries. Folder drag/drop uploads are not supported. The root, paths outside it, and symbolic links are rejected. Sandbox edits do not update the source SharePoint library or attachment storage.
+
+The management endpoint is `POST /api/chat/conversations/{id}/files/manage` with `operation` (`mkdir`, `upload`, `rename`, `copy`, `move`, `delete`), relative `path`, optional complete `destination`, and base64 `content` for upload. API request bodies are limited to 8 MB. Deploy the API and AgentHost together when using Foundry.
+
+### Frontend startup
+
+### Sandbox file management
+
+Open a conversation's **Files in the sandbox** dialog. Use **New folder**, **Upload files**, or drag files onto the browser. Each file/folder has a **…** menu with Rename, Copy, Move, and Delete. Copy and Move include a destination folder browser with breadcrumbs, an Up button, and an optional folder address. Browse to the destination, then keep or edit the item name. The destination folder must already exist. Existing items are never overwritten. Delete requires confirmation and is permanent, including all contents of a directory.
+
+Global Admin and conversation owners with the User role can make changes; Global Reader Admin is read-only. Operations run without calling the model in both Local and Foundry modes. Foundry requires an existing session (send a question first). Changes are shared by conversations using the same sandbox; Local mode shares one process directory. Uploads are limited to 5 MB per file, copies to 100 MB, and directory operations to 5,000 entries. Folder drag/drop uploads are not supported. The root, paths outside it, and symbolic links are rejected. Sandbox edits do not update the source SharePoint library or attachment storage.
+
+The management endpoint is `POST /api/chat/conversations/{id}/files/manage` with `operation` (`mkdir`, `upload`, `rename`, `copy`, `move`, `delete`), relative `path`, optional complete `destination`, and base64 `content` for upload. API request bodies are limited to 8 MB. Deploy the API and AgentHost together when using Foundry.
+
+### Frontend startup
+
 The Recycle bin view (`/browse?view=recycle-bin`, API `GET /api/browse/recycle-bin`) uses the Microsoft Graph **beta** [site recycle-bin listing API](https://learn.microsoft.com/en-us/graph/api/recyclebin-list-items?view=graph-rest-beta). Microsoft does not support beta APIs for production use; availability and contracts can change. This endpoint documents `Files.Read.All` or `Sites.Read.All` application permission (or their ReadWrite equivalents) with admin consent; `Sites.Selected` alone is not documented as supported. Existing credentials are reused, and the application does not change tenant permissions. Access failures are shown explicitly. The Graph v1.0 recycle-bin APIs for SharePoint Embedded containers are not interchangeable with this site's API. This view lists metadata only; in-app restore, permanent deletion, content preview, and separate first/second-stage selection are not implemented.
 
 Configure [Entra ID sign-in](../README.md#entra-id-sign-in) on the existing SharePoint app registration first. The frontend reads the tenant/client IDs from `/api/auth/config`; no client secret belongs in frontend configuration. Register `http://localhost:5173/auth-redirect.html` as a **Single-page application** redirect URI and expose the delegated `api://<ClientId>/access_as_user` scope with v2 access tokens.

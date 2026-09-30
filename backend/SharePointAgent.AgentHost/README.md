@@ -16,6 +16,8 @@ The API stores `FoundryEndpoint` and `FoundrySessionId` and sends the session ID
 
 ## Workspaces: one sandbox for several conversations
 
+The sandbox file browser also supports create directory, binary upload, rename, recursive copy/delete, and move. The API forwards these using `x-client-agent-operation: manageFiles` and an `AgentFileChangeRequest` to the existing session, without invoking the model or creating a session. Deploy this host together with the API for file management support. The host applies the same filesystem checks and limits as Local mode: 5 MB uploads, 100 MB copies, 5,000 entries per operation, no replacement of existing destinations, and no paths outside the working directory or through symbolic links. Deletes are permanent. Changes affect every conversation sharing this session.
+
 The binding lives on whichever row owns the sandbox. A conversation outside a workspace holds its own on `ChatConversations`, and a new branch of it starts unbound, as before. A conversation in a **workspace** uses the binding on `ChatWorkspaces` instead, so every conversation in that workspace opens onto the same files: a document downloaded in one is already there in the next, and a branch inherits the workspace rather than starting empty.
 
 Membership is optional but **fixed**: it is chosen by the `workspaceId` on `POST /api/chat/conversations` and there is no endpoint that moves an existing conversation. A conversation therefore keeps one sandbox for its whole life, and the set of conversations sharing a sandbox only ever grows. To work in a different workspace, start a new conversation in it.

@@ -51,6 +51,11 @@ export function Modal({
       ref={ref}
       className={className ? `modal ${className}` : 'modal'}
       onCancel={(event) => {
+        // File-picker cancellation bubbles from the input; only the dialog's own
+        // cancel event (Escape) should close this modal.
+        if (event.target !== event.currentTarget) {
+          return
+        }
         event.preventDefault()
         onClose()
       }}

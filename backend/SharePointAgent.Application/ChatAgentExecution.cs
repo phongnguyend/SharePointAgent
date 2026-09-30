@@ -36,6 +36,8 @@ public interface IAgentFileBrowser
     /// <see cref="InvalidOperationException"/> when there is no sandbox to read from yet.
     /// </summary>
     Task<FileContent> ReadAsync(Guid conversationId, string path, CancellationToken cancellationToken);
+
+    Task<SandboxFileChangeResult> ManageAsync(Guid conversationId, SandboxFileChange change, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -55,6 +57,8 @@ public static class AgentInvocation
     public const string ListFilesOperation = "listFiles";
 
     public const string ReadFileOperation = "readFile";
+
+    public const string ManageFilesOperation = "manageFiles";
 }
 
 /// <summary>
@@ -70,6 +74,8 @@ public sealed record AgentFileListingRequest(Guid ConversationId, string? Path, 
 /// never reaches the model.
 /// </summary>
 public sealed record AgentFileReadRequest(Guid ConversationId, string Path);
+
+public sealed record AgentFileChangeRequest(Guid ConversationId, SandboxFileChange Change);
 
 public interface IChatAgentExecutor
 {

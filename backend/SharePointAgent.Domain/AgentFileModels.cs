@@ -24,3 +24,8 @@ public sealed record FileSystemListing(
 /// name by the process holding the file, so the reader does not have to guess it.
 /// </summary>
 public sealed record FileContent(string Path, string Name, string ContentType, byte[] Content);
+
+/// <summary>Explicit paths relative to the sandbox root; destination is the complete new path.</summary>
+public sealed record SandboxFileChange(string Operation, string Path, string? Destination = null, byte[]? Content = null);
+
+public sealed record SandboxFileChangeResult(string Path);

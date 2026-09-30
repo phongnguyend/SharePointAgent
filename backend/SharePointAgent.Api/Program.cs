@@ -44,6 +44,7 @@ app.MapBrowseEndpoints();
 app.MapAgentsEndpoints();
 app.MapChatWorkspacesEndpoints();
 app.MapChatEndpoints();
+app.MapSandboxFileEndpoints();
 
 app.Run();
 

@@ -25,6 +25,7 @@ import {
   Plus,
   Paperclip,
   Download,
+  Upload,
   SendHorizontal,
   Sparkles,
   ThumbsDown,
@@ -65,6 +66,7 @@ import type {
 } from '../api/types'
 import { Empty, ErrorBanner, Field, LoadingBar, Modal } from '../components/ui'
 import { FileTypeIcon } from '../components/FileTypeIcon'
+import { useSandboxFileManagement } from '../components/SandboxFileManagement'
 import { AttachmentDownload } from '../components/AttachmentDownload'
 import { MonthlyTokenUsage } from '../components/MonthlyTokenUsage'
 import { OfficePreview } from '../components/OfficePreview'
@@ -896,7 +898,7 @@ export default function ChatPage() {
               {sandboxFiles.data?.sandboxStarted === false
                 ? 'No sandbox yet.'
                 : `${sandboxFiles.data?.entries.length ?? 0} item${sandboxFiles.data?.entries.length === 1 ? '' : 's'}`}
-              {' · '}Read without running the agent, so it costs nothing.
+              {' · '}File operations run without calling the agent.
             </span>
             <button onClick={sandboxFiles.reload} disabled={sandboxFiles.loading}>
               <RefreshCw size={14} aria-hidden="true" />
@@ -907,6 +909,10 @@ export default function ChatPage() {
         }
       >
         <SandboxFiles
+          key={activeId ?? 'none'}
+          conversationId={activeId ?? ''}
+          writable={!readOnly && !!activeId}
+          onReload={sandboxFiles.reload}
           path={filesPath ?? '.'}
           listing={sandboxFiles.data ?? null}
           loading={sandboxFiles.loading}
@@ -1081,7 +1087,10 @@ function breadcrumbs(path: string): { name: string; path: string }[] {
  * table of what is here. Directories sort above files whichever column is chosen, because a listing
  * that interleaves them is harder to scan than one that does not.
  */
-function SandboxFiles({
+export function SandboxFiles({
+  conversationId,
+  writable,
+  onReload,
   path,
   listing,
   loading,
@@ -1092,6 +1101,9 @@ function SandboxFiles({
   onPreview,
   onDownload,
 }: {
+  conversationId: string
+  writable: boolean
+  onReload: () => void
   path: string
   listing: { path: string; entries: FileSystemEntry[]; truncated: boolean; sandboxStarted: boolean } | null
   loading: boolean
@@ -1105,6 +1117,8 @@ function SandboxFiles({
   const currentPath = !loading && !error && listing ? listing.path : path
   const [address, setAddress] = useState(currentPath)
   const [editingAddress, setEditingAddress] = useState(false)
+  const management = useSandboxFileManagement(conversationId, currentPath,
+    writable && !loading && !error && !!listing?.sandboxStarted, onReload)
 
   useEffect(() => {
     setAddress(currentPath)
@@ -1149,7 +1163,10 @@ function SandboxFiles({
   )
 
   return (
-    <div className="sandbox-explorer">
+    <div className={`sandbox-explorer${management.dragging ? ' sandbox-dragging' : ''}`} {...management.dropHandlers}>
+      {management.dragging && <div className="sandbox-drop-overlay" role="status"><Upload size={24} /><strong>Drop files to upload</strong><span>Into {currentPath === '.' ? 'the working directory' : currentPath}</span></div>}
+      {management.toolbar}
+      <fieldset className="sandbox-management-content" disabled={management.busy}>
       <div className="sandbox-address-bar">
         <button
           type="button"
@@ -1204,6 +1221,7 @@ function SandboxFiles({
       }}>
         <input
           autoFocus
+          type="text"
           aria-label="Folder path"
           placeholder="Paste a folder path"
           value={address}
@@ -1263,16 +1281,10 @@ function SandboxFiles({
               )
               if (entry.isDirectory) {
                 return (
-                  <button
-                    type="button"
-                    className="sandbox-row"
-                    role="row"
-                    key={entry.path}
-                    onClick={() => onOpen(entry.path)}
-                  >
-                    {cells}
-                    <span />
-                  </button>
+                  <div className="sandbox-row" role="row" key={entry.path}>
+                    <button type="button" className="sandbox-open" onClick={() => onOpen(entry.path)}>{cells}</button>
+                    <div className="sandbox-actions">{management.actions(entry)}</div>
+                  </div>
                 )
               }
 
@@ -1291,6 +1303,7 @@ function SandboxFiles({
                     cells
                   )}
                   <div className="sandbox-actions">
+                    {management.actions(entry)}
                     {isSandboxPreviewable(name) ? (
                       <button
                         type="button"
@@ -1322,6 +1335,8 @@ function SandboxFiles({
       {listing?.truncated ? (
         <span className="hint">Only the first 500 entries are shown. Open a folder to narrow it.</span>
       ) : null}
+      </fieldset>
+      {management.dialog}
     </div>
   )
 }

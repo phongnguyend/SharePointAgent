@@ -39,6 +39,25 @@ import type {
 /** Empty by default, so requests go to the dev server's /api proxy on this same origin. */
 const BASE_URL = API_BASE
 
+export type SandboxOperation = 'mkdir' | 'rename' | 'delete' | 'copy' | 'move' | 'upload'
+
+export const manageSandboxFile = (conversationId: string, operation: SandboxOperation, path: string, destination?: string, content?: string) =>
+  request<{ path: string }>(`/api/chat/conversations/${encodeURIComponent(conversationId)}/files/manage`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operation, path, destination, content }),
+  })
+
+export async function uploadSandboxFile(conversationId: string, path: string, file: File) {
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error('Sandbox uploads are limited to 5 MB per file.')
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  let binary = ''
+  for (let offset = 0; offset < bytes.length; offset += 32768) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 32768))
+  }
+  return manageSandboxFile(conversationId, 'upload', path, undefined, btoa(binary))
+}
+
 export interface BrowseItem {
   id: string
   name: string

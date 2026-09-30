@@ -16,6 +16,9 @@ namespace SharePointAgent.Infrastructure;
 /// </summary>
 public sealed class LocalAgentFileBrowser(AgentFileSystem workingDirectory) : IAgentFileBrowser
 {
+    public Task<SandboxFileChangeResult> ManageAsync(Guid conversationId, SandboxFileChange change, CancellationToken cancellationToken) =>
+        workingDirectory.ManageAsync(change, cancellationToken);
+
     public Task<FileSystemListing> ListAsync(
         Guid conversationId,
         string? path,
@@ -42,6 +45,16 @@ public sealed class FoundryAgentFileBrowser(
     private const int TimeoutSeconds = 60;
 
     private readonly FoundryChatAgentOptions _options = options.Value.Foundry;
+
+    public async Task<SandboxFileChangeResult> ManageAsync(Guid conversationId, SandboxFileChange change, CancellationToken cancellationToken)
+    {
+        var sessionId = await sessions.GetAsync(conversationId, _options.Endpoint, cancellationToken)
+            ?? throw new InvalidOperationException("This conversation has no sandbox yet. Send a question first.");
+        return await SendAsync<AgentFileChangeRequest, SandboxFileChangeResult>(sessionId,
+            AgentInvocation.ManageFilesOperation, new(conversationId, change), "application/json",
+            async (response, token) => await response.Content.ReadFromJsonAsync<SandboxFileChangeResult>(ChatStreamWriter<SandboxFileChangeResult>.Json, token)
+                ?? throw new InvalidDataException("The hosted agent returned an empty file operation response."), cancellationToken);
+    }
 
     public async Task<FileSystemListing> ListAsync(
         Guid conversationId,

@@ -23,6 +23,9 @@ public sealed class ChatAgentInvocation(
             case AgentInvocation.ReadFileOperation:
                 await ReadFileAsync(httpRequest, response, token);
                 return;
+            case AgentInvocation.ManageFilesOperation:
+                await ManageFilesAsync(httpRequest, response, token);
+                return;
         }
 
         var request = await httpRequest.ReadFromJsonAsync<ChatAgentRequest>(token);
@@ -61,6 +64,8 @@ public sealed class ChatAgentInvocation(
                 => AgentInvocation.ListFilesOperation,
             var value when string.Equals(value, AgentInvocation.ReadFileOperation, StringComparison.OrdinalIgnoreCase)
                 => AgentInvocation.ReadFileOperation,
+            var value when string.Equals(value, AgentInvocation.ManageFilesOperation, StringComparison.OrdinalIgnoreCase)
+                => AgentInvocation.ManageFilesOperation,
             _ => null,
         };
 
@@ -73,6 +78,30 @@ public sealed class ChatAgentInvocation(
         var request = await httpRequest.ReadFromJsonAsync<AgentFileListingRequest>(token);
         await GuardedAsync(response, token, async () =>
             await response.WriteAsJsonAsync(workingDirectory.List(request?.Path, request?.Recursive ?? false), token));
+    }
+
+    private async Task ManageFilesAsync(HttpRequest httpRequest, HttpResponse response, CancellationToken token)
+    {
+        var limit = httpRequest.HttpContext.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();
+        if (limit is { IsReadOnly: false })
+        {
+            limit.MaxRequestBodySize = 8 * 1024 * 1024;
+        }
+        if (httpRequest.ContentLength > 8 * 1024 * 1024)
+        {
+            response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+            return;
+        }
+        await GuardedAsync(response, token, async () =>
+        {
+            var request = await httpRequest.ReadFromJsonAsync<AgentFileChangeRequest>(token);
+            if (request?.Change is null || request.ConversationId == Guid.Empty)
+            {
+                throw new ArgumentException("A conversation and file operation are required.");
+            }
+            var result = await workingDirectory.ManageAsync(request.Change, token);
+            await response.WriteAsJsonAsync(result, token);
+        });
     }
 
     /// <summary>
