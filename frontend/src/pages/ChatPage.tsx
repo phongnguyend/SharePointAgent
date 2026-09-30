@@ -525,23 +525,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="stack" style={{ gap: 14 }}>
-      <div className="card card-body chat-token-usage">
-        <div className="chat-header-title">
-          <h1>
-            <Sparkles size={20} />
-            Chat
-          </h1>
-          <p>
-            Ask about your documents, with sources.
-          </p>
-        </div>
-        <section className="chat-header-usage" aria-label="My model token usage this month">
-          {tokenUsage.data && <MonthlyTokenUsage user={tokenUsage.data} showDetails />}
-        </section>
-        <button onClick={tokenUsage.reload} disabled={tokenUsage.loading}><RefreshCw size={14} />Refresh</button>
-        {tokenUsage.error && <ErrorBanner message={tokenUsage.error} onRetry={tokenUsage.reload} />}
-      </div>
+    <div className="stack chat-page" style={{ gap: 14 }}>
       {error ? <ErrorBanner message={error} /> : null}
       {agents.error ? <ErrorBanner message={agents.error} onRetry={agents.reload} /> : null}
 
@@ -552,6 +536,13 @@ export default function ChatPage() {
               <MessageSquare size={15} />
               Conversations
             </h2>
+            <button className="ghost icon-only" title="Refresh conversations and token usage" aria-label="Refresh conversations and token usage"
+              disabled={conversations.loading || workspaces.loading || tokenUsage.loading}
+              onClick={() => {
+                conversations.reload()
+                workspaces.reload()
+                tokenUsage.reload()
+              }}><RefreshCw size={14} /></button>
             <div
               className="chat-new-actions"
               ref={agentMenuRef}
@@ -699,6 +690,10 @@ export default function ChatPage() {
               ))
             )}
           </div>
+          <section className="chat-sidebar-usage" aria-label="My model token usage this month">
+            {tokenUsage.data && <MonthlyTokenUsage user={tokenUsage.data} showDetails />}
+            {tokenUsage.error && <ErrorBanner message={tokenUsage.error} onRetry={tokenUsage.reload} />}
+          </section>
         </aside>
 
         <section className="card chat-panel">

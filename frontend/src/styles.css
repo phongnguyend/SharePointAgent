@@ -1221,8 +1221,17 @@ button.ghost:hover:not(:disabled) {
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
   gap: 16px;
-  height: calc(100vh - 235px);
   min-height: 460px;
+}
+
+/* Let the header's actual height determine the space left for chat, including wrapped navigation. */
+@media (min-width: 901px) {
+  .shell:has(.chat-page) { height: 100dvh; min-height: 0; }
+  .shell:has(.chat-page) > .topbar { flex-shrink: 0; }
+  .main:has(> .chat-page) { display: flex; flex-direction: column; min-height: 0; padding-bottom: 26px; }
+  .chat-page { flex: 1; min-height: 0; }
+  .chat-page > .banner { flex-shrink: 0; }
+  .chat-page > .chat-shell { flex: 1; min-height: 0; }
 }
 
 .chat-sidebar,
@@ -1234,6 +1243,13 @@ button.ghost:hover:not(:disabled) {
 }
 
 .chat-sidebar { position: relative; z-index: 1; overflow: visible; }
+.chat-sidebar > .chat-header-title { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.chat-sidebar > .card-head { gap: 6px; }
+.chat-sidebar > .card-head h2 { flex: 1; }
+.chat-sidebar-usage { margin-top: auto; padding: 12px; border-top: 1px solid var(--border); }
+.chat-sidebar-usage .token-usage-heading { gap: 6px; }
+.chat-sidebar-usage .daily-token-usage-button { padding: 5px 8px; }
+.chat-sidebar > .chat-header-title, .chat-sidebar > .card-head, .chat-sidebar-usage { flex-shrink: 0; }
 
 /* Both panes hold a menu that opens past the card edge, so neither may clip its own children. The
    scrolling regions inside them keep their own overflow. */
