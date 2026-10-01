@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react'
-import { Download, ExternalLink, Eye, FilePenLine, FilePlus2, Plus, RefreshCw, Signature, Trash2 } from 'lucide-react'
+import { useId, useRef, useState } from 'react'
+import { Download, ExternalLink, Eye, FilePenLine, FilePlus2, List, Plus, RefreshCw, Signature, Trash2 } from 'lucide-react'
 import { createSignatureRequest, downloadSignatureDocument, getSigningProviders, listSignatureRequests, prepareSignatureRequest, refreshSignatureRequest } from '../api/client'
 import { useAsync } from '../lib/useAsync'
 import { ErrorBanner, LoadingBar, Modal } from './ui'
@@ -19,6 +19,9 @@ export function SignatureRequests({ id, name, readOnly, onClose }: {
   id: string; name: string; readOnly: boolean; onClose: () => void
 }) {
   const providers = useAsync(getSigningProviders, [])
+  const tabId = useId()
+  const [tab, setTab] = useState<'new' | 'requests'>(readOnly ? 'requests' : 'new')
+  const activeTab = readOnly ? 'requests' : tab
   const [revision, setRevision] = useState(0)
   const requests = useAsync(signal => listSignatureRequests(id, signal), [id, revision])
   const [provider, setProvider] = useState('')
@@ -72,15 +75,33 @@ export function SignatureRequests({ id, name, readOnly, onClose }: {
 
   return <><Modal open title={`Signatures — ${name}`} className="signature-requests-modal" onClose={onClose}>
     <LoadingBar active={busy || requests.loading || providers.loading} />
+    <div className="attachment-tabs" role="tablist" aria-label="Signatures" onKeyDown={event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+        return
+      }
+      event.preventDefault()
+      const next = readOnly || event.key === 'End' ? 'requests' : event.key === 'Home' ? 'new' : activeTab === 'new' ? 'requests' : 'new'
+      setTab(next)
+      event.currentTarget.querySelector<HTMLButtonElement>(`[data-tab="${next}"]`)?.focus()
+    }}>
+      {!readOnly && <button type="button" role="tab" id={`${tabId}-new`} data-tab="new"
+        aria-selected={activeTab === 'new'} aria-controls={`${tabId}-new-panel`} tabIndex={activeTab === 'new' ? 0 : -1}
+        onClick={() => setTab('new')}><FilePlus2 size={14} aria-hidden="true" />New request</button>}
+      <button type="button" role="tab" id={`${tabId}-requests`} data-tab="requests"
+        aria-selected={activeTab === 'requests'} aria-controls={`${tabId}-requests-panel`} tabIndex={activeTab === 'requests' ? 0 : -1}
+        onClick={() => setTab('requests')}><List size={14} aria-hidden="true" />Signing requests</button>
+    </div>
     {(error || requests.error || providers.error) && <ErrorBanner message={error || requests.error || providers.error || ''} />}
     {preparationUrl && <p><a className="button-link" href={preparationUrl} target="_blank" rel="noopener noreferrer">
       <ExternalLink size={14} />Open preparation screen
     </a> Place fields and send there, then return here and refresh the request status.</p>}
-    {!readOnly && <form onSubmit={event => {
+    {!readOnly && <div role="tabpanel" id={`${tabId}-new-panel`} aria-labelledby={`${tabId}-new`} hidden={activeTab !== 'new'}>
+    <form onSubmit={event => {
       event.preventDefault()
       void run(async () => {
         const row = await createSignatureRequest(id, { provider: selectedProvider, subject, message, recipients, clientRequestId: clientRequestId.current })
         setCreatedDraft(true)
+        setTab('requests')
         if (!row.externalId) {
           throw new Error('This request needs administrator review in the provider account. Do not create a replacement until it has been checked.')
         }
@@ -111,7 +132,7 @@ export function SignatureRequests({ id, name, readOnly, onClose }: {
         </div>)}
         <div className="row">
           <button type="button" disabled={recipients.length >= 20} onClick={() => setRecipients(values => [...values, { name: '', email: '' }])}><Plus size={14} />Add signer</button>
-          <button type="submit"><FilePlus2 size={14} aria-hidden="true" />Create draft</button>
+          <button type="submit" className="signature-create-draft"><FilePlus2 size={14} aria-hidden="true" />Create draft</button>
         </div>
       </fieldset>
       {createdDraft && <button type="button" disabled={busy} onClick={() => {
@@ -120,11 +141,17 @@ export function SignatureRequests({ id, name, readOnly, onClose }: {
         setPreparationUrl(null)
       }}><Plus size={14} />Start another signing request</button>}
       {providers.data?.length === 0 && <p>No signing providers are enabled. Ask an administrator to configure the shared organization connection.</p>}
-    </form>}
-    <div className="row"><h3>Signing requests</h3><button disabled={busy} onClick={() => setRevision(value => value + 1)}><RefreshCw size={14} />Reload list</button></div>
+    </form></div>}
+    <div role="tabpanel" id={`${tabId}-requests-panel`} aria-labelledby={`${tabId}-requests`} hidden={activeTab !== 'requests'}>
+    <div className="row signature-list-toolbar"><button disabled={busy} onClick={() => setRevision(value => value + 1)}><RefreshCw size={14} />Reload list</button></div>
     {requests.data?.length === 0 && <p>No signing requests yet.</p>}
     {requests.data?.map(row => <section className="signature-request" key={row.id}>
-      <strong>{row.subject}</strong><p><SigningProvider provider={row.provider} /> · {row.status} · {new Date(row.createdAtUtc).toLocaleString()}</p>
+      <strong>{row.subject}</strong>
+      <p className="signature-request-meta">
+        <SigningProvider provider={row.provider} />
+        <span>· {row.status}</span>
+        <span>· <time dateTime={row.createdAtUtc}>{new Date(row.createdAtUtc).toLocaleString()}</time></span>
+      </p>
       {row.status === 'NeedsReview' || row.status === 'Creating' ? <p>Ask an administrator to check the provider account using reference {row.id}. The result of draft creation has not been confirmed.</p> : null}
       <div className="row">
         {!readOnly && row.externalId && <button disabled={busy} onClick={() => void run(async () => { await refreshSignatureRequest(id, row.id) })}><RefreshCw size={14} />Refresh status</button>}
@@ -137,6 +164,7 @@ export function SignatureRequests({ id, name, readOnly, onClose }: {
         </>}
       </div>
     </section>)}
+    </div>
   </Modal>
     {preview && <PdfPreview
       key={`${preview.requestId}:${preview.audit}`}

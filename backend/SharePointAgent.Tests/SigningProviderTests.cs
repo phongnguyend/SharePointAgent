@@ -133,6 +133,41 @@ public sealed class SigningProviderTests
         Assert.Throws<ArgumentException>(() => SignatureRequestService.Validate(Input with { ClientRequestId = Guid.Empty }));
     }
 
+    [Theory]
+    [InlineData("/oauth/v2/refresh", "token refresh")]
+    [InlineData("/api/rest/v6/transientDocuments", "PDF upload")]
+    [InlineData("/api/rest/v6/agreements", "draft creation")]
+    [InlineData("/api/rest/v6/agreements/agreement/views", "preparation screen")]
+    public async Task AdobeForbiddenErrorsIdentifyTheFailedStepWithoutExposingProviderMessages(string failedPath, string step)
+    {
+        using var handler = new Handler(request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path == failedPath)
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden)
+                {
+                    Content = JsonContent.Create(new { code = "PERMISSION_DENIED", message = "private-account-secret" })
+                });
+            }
+            return Task.FromResult(Json(new { access_token = "test-token", transientDocumentId = "uploaded", id = "agreement" }));
+        });
+        using var http = new HttpClient(handler);
+        using var tokenCache = new MemoryCache(new MemoryCacheOptions());
+        var provider = new AdobeSignService(http, Options.Create(new DocumentSigningOptions
+        {
+            AdobeSign = new() { ApiAccessPoint = "https://api.na1.adobesign.com" }
+        }), tokenCache);
+        var error = await Assert.ThrowsAsync<HttpRequestException>(async () =>
+        {
+            var id = await provider.CreateDraftAsync("contract.pdf", "%PDF-test"u8.ToArray(), Input, default);
+            await provider.GetPreparationUrlAsync(id, default);
+        });
+        Assert.Equal(HttpStatusCode.Forbidden, error.StatusCode);
+        Assert.Contains($"Adobe Sign {step} returned HTTP 403 (PERMISSION_DENIED)", error.Message);
+        Assert.DoesNotContain("private-account-secret", error.ToString());
+    }
+
     private static HttpResponseMessage Json(object value) => new(HttpStatusCode.OK) { Content = JsonContent.Create(value) };
 
     private sealed class Handler(Func<HttpRequestMessage, Task<HttpResponseMessage>> respond) : HttpMessageHandler

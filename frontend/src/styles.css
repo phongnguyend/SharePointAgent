@@ -2408,6 +2408,22 @@ button.sandbox-row:hover, button.sandbox-row:focus-visible { background: var(--s
   border-top: 1px solid var(--border);
 }
 
+.signature-list-toolbar {
+  justify-content: flex-end;
+}
+
+.signature-request-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  line-height: 20px;
+}
+
+.signature-create-draft {
+  margin-inline-start: auto;
+}
+
 .signature-request .row,
 .signature-form .row {
   flex-wrap: wrap;

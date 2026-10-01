@@ -28,7 +28,7 @@ public sealed class AdobeSignService(HttpClient http, IOptions<DocumentSigningOp
             {
                 ["grant_type"] = "refresh_token", ["client_id"] = settings.ClientId,
                 ["client_secret"] = settings.ClientSecret, ["refresh_token"] = settings.RefreshToken
-            }), ct);
+            }), ct, "Adobe Sign token refresh");
         var token = result.GetProperty("access_token").GetString()!;
         tokenCache.Set(cacheKey, token, TimeSpan.FromSeconds(result.TryGetProperty("expires_in", out var expiry) ? Math.Max(1, expiry.GetInt32() - 120) : 300));
         return token;
@@ -41,7 +41,7 @@ public sealed class AdobeSignService(HttpClient http, IOptions<DocumentSigningOp
         var content = new ByteArrayContent(pdf);
         content.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
         form.Add(content, "File", fileName);
-        var document = await SigningHttp.JsonAsync(http, HttpMethod.Post, Root + "/transientDocuments", token, form, ct);
+        var document = await SigningHttp.JsonAsync(http, HttpMethod.Post, Root + "/transientDocuments", token, form, ct, "Adobe Sign PDF upload");
         var result = await SigningHttp.JsonAsync(http, HttpMethod.Post, Root + "/agreements", token, JsonContent.Create(new
         {
             name = input.Subject,
@@ -54,27 +54,27 @@ public sealed class AdobeSignService(HttpClient http, IOptions<DocumentSigningOp
             signatureType = "ESIGN",
             state = "AUTHORING",
             externalId = new { id = input.ClientRequestId.ToString() }
-        }), ct);
+        }), ct, "Adobe Sign draft creation");
         return result.GetProperty("id").GetString()!;
     }
 
     public async Task<string> GetPreparationUrlAsync(string externalId, CancellationToken ct)
     {
         var result = await SigningHttp.JsonAsync(http, HttpMethod.Post, $"{Root}/agreements/{Uri.EscapeDataString(externalId)}/views", await TokenAsync(ct),
-            JsonContent.Create(new { name = "AUTHORING", commonViewConfiguration = new { autoLoginUser = true, noChrome = true } }), ct);
+            JsonContent.Create(new { name = "AUTHORING", commonViewConfiguration = new { autoLoginUser = true, noChrome = true } }), ct, "Adobe Sign preparation screen");
         return SigningHttp.PreparationUrl(result.GetProperty("agreementViewList")[0].GetProperty("url").GetString()!);
     }
 
     public async Task<string> GetStatusAsync(string externalId, CancellationToken ct)
     {
-        var result = await SigningHttp.JsonAsync(http, HttpMethod.Get, $"{Root}/agreements/{Uri.EscapeDataString(externalId)}", await TokenAsync(ct), null, ct);
+        var result = await SigningHttp.JsonAsync(http, HttpMethod.Get, $"{Root}/agreements/{Uri.EscapeDataString(externalId)}", await TokenAsync(ct), null, ct, "Adobe Sign status refresh");
         return result.GetProperty("status").GetString()!;
     }
 
     public async Task<byte[]> DownloadAsync(string externalId, bool audit, CancellationToken ct)
     {
         using var response = await SigningHttp.SendAsync(http, HttpMethod.Get,
-            $"{Root}/agreements/{Uri.EscapeDataString(externalId)}/{(audit ? "auditTrail" : "combinedDocument")}", await TokenAsync(ct), null, ct);
+            $"{Root}/agreements/{Uri.EscapeDataString(externalId)}/{(audit ? "auditTrail" : "combinedDocument")}", await TokenAsync(ct), null, ct, "Adobe Sign document download");
         return await response.Content.ReadAsByteArrayAsync(ct);
     }
 }
