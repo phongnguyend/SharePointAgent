@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using NSubstitute;
 using SharePointAgent.Application;
 using SharePointAgent.Infrastructure;
+using SharePointAgent.Infrastructure.DocumentSigning;
 using SharePointAgent.Persistence;
 using Xunit;
 

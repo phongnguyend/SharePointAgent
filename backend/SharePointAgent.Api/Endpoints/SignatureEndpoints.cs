@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SharePointAgent.Infrastructure;
+using SharePointAgent.Infrastructure.DocumentSigning;
 
 namespace SharePointAgent.Api;
 

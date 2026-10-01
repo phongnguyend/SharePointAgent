@@ -2355,6 +2355,43 @@ button.sandbox-row:hover, button.sandbox-row:focus-visible { background: var(--s
   min-width: 0;
 }
 
+.signature-provider-field {
+  display: grid;
+  gap: 6px;
+}
+
+.signature-provider-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.signature-provider-options button[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.signature-provider-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  vertical-align: middle;
+}
+
+.signature-provider-icon {
+  flex-shrink: 0;
+}
+
+.signature-provider-icon.docusign {
+  color: #7356d8;
+}
+
+.signature-provider-icon.adobe-sign {
+  color: #e53935;
+}
+
 .signature-recipient {
   display: flex;
   flex-wrap: wrap;

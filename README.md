@@ -1,4 +1,4 @@
-﻿# SharePointAgent
+# SharePointAgent
 
 This .NET 10 solution keeps a permission-aware Azure AI Search vector index synchronized with a SharePoint document library.
 
@@ -25,6 +25,8 @@ The webhook is intentionally only a signal. Microsoft Graph drive notifications 
 
 ## Shared organization signing
 
+The configuration section is `DocumentSigning`. When upgrading from `Signing`, rename existing user-secret keys from `Signing:...` to `DocumentSigning:...` and deployment environment variables from `Signing__...` to `DocumentSigning__...`; the old section is no longer read.
+
 You can first upload PDFs directly on **Attachment files** using the file picker or drag-and-drop. These uploads are stored as orphan files without indexing, so signing does not require Document Intelligence or embedding calls. The storage-only API is `POST /api/attachment-files?index=false` with multipart `file`; omitting the flag preserves the existing chat upload/indexing behavior. Storage quotas and upload validation apply in either mode.
 
 On **Attachment files**, choose **Signatures** on a PDF (also available in its preview header). Select DocuSign or Adobe Acrobat Sign, enter a subject/message and 1–20 signers in signing order, then choose **Create draft**. This uploads the original PDF without sending invitations. **Open preparation screen** opens a new tab where the sender places fields, reviews recipients, and sends. Users do not connect personal provider accounts.
@@ -35,19 +37,19 @@ Configure **SharePointAgent.Api only**, using environment variables, local user 
 
 | Setting | Value |
 | --- | --- |
-| `Signing__ReturnUrl` | Frontend `/attachment-files` URL for the DocuSign return redirect; HTTPS in production |
-| `Signing__DocuSign__Enabled` | `true` after configuration |
-| `Signing__DocuSign__Demo` | `true` for developer accounts, `false` for production |
-| `Signing__DocuSign__ApiBaseUrl` | Account REST base URL ending `/restapi/v2.1/`; demo: `https://demo.docusign.net/restapi/v2.1/` |
-| `Signing__DocuSign__AccountId` | Shared sender's API account ID |
-| `Signing__DocuSign__ClientId` | Integration key/client ID |
-| `Signing__DocuSign__SenderUserId` | Dedicated sender's API user GUID |
-| `Signing__DocuSign__PrivateKeyPem` | Registered RSA private key PEM |
-| `Signing__AdobeSign__Enabled` | `true` after configuration |
-| `Signing__AdobeSign__ApiAccessPoint` | Regional API origin from OAuth, e.g. `https://api.na1.adobesign.com`, without `/api/rest/v6` |
-| `Signing__AdobeSign__ClientId` | OAuth application client ID |
-| `Signing__AdobeSign__ClientSecret` | OAuth client secret |
-| `Signing__AdobeSign__RefreshToken` | Refresh token authorized by the dedicated shared sender |
+| `DocumentSigning__ReturnUrl` | Frontend `/attachment-files` URL for the DocuSign return redirect; HTTPS in production |
+| `DocumentSigning__DocuSign__Enabled` | `true` after configuration |
+| `DocumentSigning__DocuSign__Demo` | `true` for developer accounts, `false` for production |
+| `DocumentSigning__DocuSign__ApiBaseUrl` | Account REST base URL ending `/restapi/v2.1/`; demo: `https://demo.docusign.net/restapi/v2.1/` |
+| `DocumentSigning__DocuSign__AccountId` | Shared sender's API account ID |
+| `DocumentSigning__DocuSign__ClientId` | Integration key/client ID |
+| `DocumentSigning__DocuSign__SenderUserId` | Dedicated sender's API user GUID |
+| `DocumentSigning__DocuSign__PrivateKeyPem` | Registered RSA private key PEM |
+| `DocumentSigning__AdobeSign__Enabled` | `true` after configuration |
+| `DocumentSigning__AdobeSign__ApiAccessPoint` | Regional API origin from OAuth, e.g. `https://api.na1.adobesign.com`, without `/api/rest/v6` |
+| `DocumentSigning__AdobeSign__ClientId` | OAuth application client ID |
+| `DocumentSigning__AdobeSign__ClientSecret` | OAuth client secret |
+| `DocumentSigning__AdobeSign__RefreshToken` | Refresh token authorized by the dedicated shared sender |
 
 For DocuSign, register an integration and RSA key, then obtain the sender's consent to `signature` and `impersonation`. The backend exchanges signed JWT assertions for access tokens. After production activation, configure the account-specific production API URI; changing `Demo` alone does not change that URI. See [shared-system-user authentication](https://www.docusign.com/blog/developers/the-trenches-authenticate-without-user-interaction-system-user) and [embedded sender views](https://www.docusign.com/blog/developers/esignature-embedded-views-update).
 

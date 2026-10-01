@@ -520,8 +520,8 @@ export const prepareSignatureRequest = (id: string, requestId: string) => reques
   `${signaturesPath(id)}/${encodeURIComponent(requestId)}/prepare`, { method: 'POST' })
 export const refreshSignatureRequest = (id: string, requestId: string) => request<SignatureRequest>(
   `${signaturesPath(id)}/${encodeURIComponent(requestId)}/refresh`, { method: 'POST' })
-export const downloadSignatureDocument = (id: string, requestId: string, audit: boolean) => downloadBlob(
-  `${signaturesPath(id)}/${encodeURIComponent(requestId)}/download?audit=${audit}`)
+export const downloadSignatureDocument = (id: string, requestId: string, audit: boolean, signal?: AbortSignal) => downloadBlob(
+  `${signaturesPath(id)}/${encodeURIComponent(requestId)}/download?audit=${audit}`, signal)
 
 export function listAgents(signal?: AbortSignal): Promise<AgentDefinition[]> {
   return request<AgentDefinition[]>('/api/agents', { signal })

@@ -6,9 +6,9 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Caching.Memory;
 using SharePointAgent.Application;
 
-namespace SharePointAgent.Infrastructure;
+namespace SharePointAgent.Infrastructure.DocumentSigning;
 
-public sealed class DocuSignService(HttpClient http, IOptions<SigningOptions> options, IMemoryCache tokenCache) : ISignatureProvider
+public sealed class DocuSignService(HttpClient http, IOptions<DocumentSigningOptions> options, IMemoryCache tokenCache) : ISignatureProvider
 {
     private readonly DocuSignOptions settings = options.Value.DocuSign;
 

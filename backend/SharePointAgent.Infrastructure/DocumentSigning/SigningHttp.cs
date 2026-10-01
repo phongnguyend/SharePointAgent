@@ -2,7 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 
-namespace SharePointAgent.Infrastructure;
+namespace SharePointAgent.Infrastructure.DocumentSigning;
 
 internal static class SigningHttp
 {

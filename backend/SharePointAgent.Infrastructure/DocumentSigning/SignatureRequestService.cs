@@ -3,7 +3,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using SharePointAgent.Persistence;
 
-namespace SharePointAgent.Infrastructure;
+namespace SharePointAgent.Infrastructure.DocumentSigning;
 
 public sealed class SignatureRequestService(
     IEnumerable<ISignatureProvider> providers,

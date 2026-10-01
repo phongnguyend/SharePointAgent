@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Caching.Memory;
 using SharePointAgent.Application;
 using SharePointAgent.Infrastructure;
+using SharePointAgent.Infrastructure.DocumentSigning;
 using Xunit;
 
 namespace SharePointAgent.Tests;
@@ -19,7 +20,7 @@ public sealed class SigningProviderTests
     public async Task DocuSignCreatesDraftWithSequentialRecipientsAndObtainsSenderView()
     {
         using var rsa = RSA.Create(2048);
-        var settings = Options.Create(new SigningOptions
+        var settings = Options.Create(new DocumentSigningOptions
         {
             ReturnUrl = "https://app.example.com/attachments",
             DocuSign = new() { Enabled = true, PrivateKeyPem = rsa.ExportRSAPrivateKeyPem(), AccountId = "company", ClientId = "client", SenderUserId = "sender" }
@@ -89,7 +90,7 @@ public sealed class SigningProviderTests
         });
         using var http = new HttpClient(handler);
         using var tokenCache = new MemoryCache(new MemoryCacheOptions());
-        var provider = new AdobeSignService(http, Options.Create(new SigningOptions
+        var provider = new AdobeSignService(http, Options.Create(new DocumentSigningOptions
         {
             AdobeSign = new() { Enabled = true, ApiAccessPoint = "https://api.na1.adobesign.com", RefreshToken = "shared-refresh" }
         }), tokenCache);
@@ -107,7 +108,7 @@ public sealed class SigningProviderTests
             ? Json(new { access_token = "test" }) : Json(new { agreementViewList = new[] { new { url } } })));
         using var http = new HttpClient(handler);
         using var tokenCache = new MemoryCache(new MemoryCacheOptions());
-        var provider = new AdobeSignService(http, Options.Create(new SigningOptions { AdobeSign = new() { ApiAccessPoint = "https://api.na1.adobesign.com" } }), tokenCache);
+        var provider = new AdobeSignService(http, Options.Create(new DocumentSigningOptions { AdobeSign = new() { ApiAccessPoint = "https://api.na1.adobesign.com" } }), tokenCache);
         await Assert.ThrowsAsync<InvalidOperationException>(() => provider.GetPreparationUrlAsync("id", default));
     }
 
@@ -117,7 +118,7 @@ public sealed class SigningProviderTests
         using var handler = new Handler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Unauthorized) { Content = new StringContent("secret-token") }));
         using var http = new HttpClient(handler);
         using var tokenCache = new MemoryCache(new MemoryCacheOptions());
-        var provider = new AdobeSignService(http, Options.Create(new SigningOptions { AdobeSign = new() { ApiAccessPoint = "https://api.na1.adobesign.com" } }), tokenCache);
+        var provider = new AdobeSignService(http, Options.Create(new DocumentSigningOptions { AdobeSign = new() { ApiAccessPoint = "https://api.na1.adobesign.com" } }), tokenCache);
         var error = await Assert.ThrowsAsync<HttpRequestException>(() => provider.GetStatusAsync("id", default));
         Assert.DoesNotContain("secret-token", error.Message);
     }

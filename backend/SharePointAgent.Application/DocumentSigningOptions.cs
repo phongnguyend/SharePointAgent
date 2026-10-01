@@ -1,8 +1,8 @@
 namespace SharePointAgent.Application;
 
-public sealed class SigningOptions
+public sealed class DocumentSigningOptions
 {
-    public const string SectionName = "Signing";
+    public const string SectionName = "DocumentSigning";
 
     public string ReturnUrl { get; set; } = "";
 

@@ -1,4 +1,4 @@
-namespace SharePointAgent.Infrastructure;
+namespace SharePointAgent.Infrastructure.DocumentSigning;
 
 public sealed record SignatureRecipient(string Name, string Email);
 

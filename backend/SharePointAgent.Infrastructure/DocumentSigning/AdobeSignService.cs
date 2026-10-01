@@ -4,9 +4,9 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Caching.Memory;
 using SharePointAgent.Application;
 
-namespace SharePointAgent.Infrastructure;
+namespace SharePointAgent.Infrastructure.DocumentSigning;
 
-public sealed class AdobeSignService(HttpClient http, IOptions<SigningOptions> options, IMemoryCache tokenCache) : ISignatureProvider
+public sealed class AdobeSignService(HttpClient http, IOptions<DocumentSigningOptions> options, IMemoryCache tokenCache) : ISignatureProvider
 {
     private readonly AdobeSignOptions settings = options.Value.AdobeSign;
 
