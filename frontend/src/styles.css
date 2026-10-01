@@ -2249,6 +2249,180 @@ button.sandbox-row:hover, button.sandbox-row:focus-visible { background: var(--s
   height: min(850px, calc(100dvh - 32px));
 }
 
+.modal.pdf-preview-modal {
+  width: min(1200px, calc(100vw - 32px));
+  height: min(900px, calc(100dvh - 32px));
+  min-width: min(360px, calc(100vw - 24px));
+  min-height: min(260px, calc(100dvh - 24px));
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+  resize: both;
+  container-type: inline-size;
+}
+
+.pdf-preview-modal .modal-head h2 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pdf-preview-modal[open] {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.pdf-preview-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.pdf-viewer-switch {
+  display: flex;
+  gap: 8px;
+}
+
+@container (max-width: 700px) {
+  .pdf-preview-modal .modal-head,
+  .pdf-preview-actions {
+    flex-wrap: wrap;
+  }
+
+  .pdf-preview-actions {
+    flex-shrink: 1;
+  }
+}
+
+.pdf-preview-modal .modal-body {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.pdf-preview-modal .modal-body > object {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+}
+
+.pdf-viewer-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.pdf-thumbnail-toggle {
+  justify-self: start;
+}
+
+.pdf-page-navigation,
+.pdf-zoom-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.pdf-zoom-control {
+  justify-self: end;
+}
+
+@container (max-width: 800px) {
+  .pdf-viewer-controls {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .pdf-page-navigation {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: center;
+  }
+}
+
+.pdf-viewer-controls button[aria-pressed="true"],
+.pdf-viewer-switch button[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border-color: var(--accent);
+}
+
+.pdf-js-viewer {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.pdf-js-pages {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+  background: var(--surface-2);
+}
+
+.pdf-js-document {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pdf-js-document .pdf-js-pages {
+  min-width: 0;
+}
+
+.pdf-thumbnail-list {
+  flex: 0 0 148px;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.pdf-thumbnail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: calc(100% - 12px);
+  height: 166px;
+  margin: 4px 6px;
+  padding: 6px;
+  background: transparent;
+}
+
+.pdf-thumbnail[aria-current="page"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.pdf-thumbnail-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 110px;
+  height: 132px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.pdf-thumbnail-preview .react-pdf__Page canvas {
+  max-height: 132px;
+  object-fit: contain;
+}
+
+.pdf-preview-modal .modal-body p,
+.pdf-preview-modal .modal-body > .error-banner {
+  margin: 16px;
+}
+
 .modal::backdrop {
   background: rgb(0 0 0 / 0.45);
 }

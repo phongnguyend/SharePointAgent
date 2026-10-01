@@ -19,6 +19,7 @@ import { FileTypeIcon } from '../components/FileTypeIcon'
 import { AttachmentDownload } from '../components/AttachmentDownload'
 import { OfficePreview } from '../components/OfficePreview'
 import { ImagePreview } from '../components/ImagePreview'
+import { PdfPreview } from '../components/PdfPreview'
 import { MarkdownPreview } from '../components/MarkdownPreview'
 import { AttachmentStorageUsage } from '../components/AttachmentStorageUsage'
 import { SystemAttachmentStorage } from '../components/SystemAttachmentStorage'
@@ -53,6 +54,7 @@ export default function AttachmentFilesPage() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [preview, setPreview] = useState<{ id: string; name: string } | null>(null)
   const [imagePreview, setImagePreview] = useState<{ id: string; name: string } | null>(null)
+  const [pdfPreview, setPdfPreview] = useState<{ id: string; name: string } | null>(null)
   const [markdownFile, setMarkdownFile] = useState<{ id: string; name: string; mode: 'indexed' | 'convert' } | null>(null)
   const [imageDescriptionResult, setImageDescriptionResult] = useState<AttachmentTextResult | null>(null)
   const imageDescriptionRequest = useRef<AbortController | null>(null)
@@ -242,6 +244,9 @@ export default function AttachmentFilesPage() {
                           {isPreviewableOfficeFile(file.fileName) ? (
                             <button onClick={() => setPreview({ id: file.id, name: file.fileName })}><Eye size={13} />Preview</button>
                           ) : null}
+                          {file.fileName.toLowerCase().endsWith('.pdf') ? (
+                            <button onClick={() => setPdfPreview({ id: file.id, name: file.fileName })}><Eye size={13} />Preview</button>
+                          ) : null}
                           <button disabled={file.status !== 'Indexed'} title="View the saved text used for indexing. Reindex to update it."
                             onClick={() => setMarkdownFile({ id: file.id, name: file.fileName, mode: 'indexed' })}>
                             <FileText size={13} />View indexed text
@@ -318,6 +323,15 @@ export default function AttachmentFilesPage() {
           sourceKey={imagePreview.id}
           load={(signal) => downloadAttachmentFile(imagePreview.id, signal)}
           onClose={() => setImagePreview(null)}
+        />
+      ) : null}
+      {pdfPreview ? (
+        <PdfPreview
+          key={pdfPreview.id}
+          name={pdfPreview.name}
+          sourceKey={pdfPreview.id}
+          load={(signal) => downloadAttachmentFile(pdfPreview.id, signal)}
+          onClose={() => setPdfPreview(null)}
         />
       ) : null}
     </div>

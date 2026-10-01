@@ -24,6 +24,7 @@ export function Modal({
   onClose,
   children,
   footer,
+  headerActions,
 }: {
   open: boolean
   title: string
@@ -32,6 +33,7 @@ export function Modal({
   onClose: () => void
   children: ReactNode
   footer?: ReactNode
+  headerActions?: ReactNode
 }) {
   const ref = useRef<HTMLDialogElement>(null)
 
@@ -65,9 +67,9 @@ export function Modal({
           {icon}
           {title}
         </h2>
-        <button className="ghost icon-only" onClick={onClose} aria-label="Close">
+        {headerActions ?? <button className="ghost icon-only" onClick={onClose} aria-label="Close">
           <X size={15} />
-        </button>
+        </button>}
       </div>
       <div className="modal-body">{children}</div>
       {footer ? <div className="modal-foot">{footer}</div> : null}

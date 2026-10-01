@@ -21,6 +21,7 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-markdown": "^10.1.0",
+    "react-pdf": "^11.0.0",
     "react-router-dom": "^7.6.0",
     "remark-gfm": "^4.0.1",
     "ssf": "0.11.2"
@@ -30,6 +31,7 @@
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^4.4.0",
     "typescript": "^5.8.0",
-    "vite": "^6.3.0"
+    "vite": "^6.3.0",
+    "vite-plugin-static-copy": "^4.1.1"
   }
 }
