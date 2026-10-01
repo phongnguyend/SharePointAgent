@@ -41,7 +41,7 @@ public sealed class UploadTooLargeException(long maximumBytes)
     : InvalidOperationException($"The file exceeds the {maximumBytes:N0}-byte upload limit.");
 
 public sealed class AttachmentFileIsLinkedException()
-    : InvalidOperationException("Only orphan attachment files can be deleted.");
+    : InvalidOperationException("Only attachment files without chat links or signing requests can be deleted.");
 
 /// <summary>One indexed chunk of a conversation attachment, as the upload index stores it.</summary>
 public sealed class UploadChunkDocument

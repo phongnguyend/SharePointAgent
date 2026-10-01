@@ -44,7 +44,7 @@ public sealed class ChatMessageAttachmentFileService(
         string? contentType,
         long sizeBytes,
         Stream content,
-        CancellationToken cancellationToken, Guid? createdById = null)
+        CancellationToken cancellationToken, Guid? createdById = null, bool indexAfterUpload = true)
     {
         _uploads.ValidateFileName(fileName);
         if (sizeBytes <= 0)
@@ -56,19 +56,17 @@ public sealed class ChatMessageAttachmentFileService(
             throw new UploadTooLargeException(_uploads.MaxFileBytes);
         }
 
-        var id = Guid.NewGuid();
+        var id = Guid.Empty;
         var safeName = Path.GetFileName(fileName);
-        var blobName = $"{id:N}/{safeName}";
+        var blobName = string.Empty;
         var now = DateTimeOffset.UtcNow;
         var uploadStarted = false;
         await using (var context = await contextFactory.CreateDbContextAsync(cancellationToken))
         {
             var row = new ChatMessageAttachmentFileEntity
             {
-                Id = id,
                 CreatedById = createdById,
                 FileName = safeName,
-                BlobName = blobName,
                 ContentType = contentType,
                 SizeBytes = sizeBytes,
                 Status = UploadIndexStatus.NotStarted,
@@ -79,6 +77,11 @@ public sealed class ChatMessageAttachmentFileService(
             {
                 await AttachmentStorageQuota.StoreAsync(context, row, async ct =>
                 {
+                    // StoreAsync has inserted the row and obtained its database-generated ID.
+                    id = row.Id;
+                    blobName = $"{id:N}/{safeName}";
+                    row.BlobName = blobName;
+                    await context.SaveChangesAsync(ct);
                     await Container.CreateIfNotExistsAsync(cancellationToken: ct);
                     uploadStarted = true;
                     await Container.GetBlobClient(blobName).UploadAsync(content,
@@ -102,6 +105,12 @@ public sealed class ChatMessageAttachmentFileService(
                 }
                 throw;
             }
+        }
+
+        if (!indexAfterUpload)
+        {
+            return new AttachmentFileRecord(id, safeName, contentType, sizeBytes, UploadIndexStatus.NotStarted,
+                0, null, null, now, now, null, null, null, null, null, true);
         }
 
         using var embeddingOperation = EmbeddingUsageScope.Begin(new(Operation: "AttachmentIndex", UserId: createdById));
@@ -237,7 +246,8 @@ public sealed class ChatMessageAttachmentFileService(
             return false;
         }
         if (row.ChatMessageAttachmentId is not null
-            || await context.ChatMessageAttachments.AnyAsync(x => x.AttachmentFileId == id, cancellationToken))
+            || await context.ChatMessageAttachments.AnyAsync(x => x.AttachmentFileId == id, cancellationToken)
+            || await context.SignatureRequests.AnyAsync(x => x.AttachmentFileId == id, cancellationToken))
         {
             throw new AttachmentFileIsLinkedException();
         }

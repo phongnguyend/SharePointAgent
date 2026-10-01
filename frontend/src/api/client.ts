@@ -467,11 +467,17 @@ export function describeAttachmentImage(id: string, signal?: AbortSignal): Promi
   return request(`/api/attachment-files/${encodeURIComponent(id)}/describe-image`, { method: 'POST', signal })
 }
 
+export async function uploadOrphanAttachmentFile(file: File, signal?: AbortSignal): Promise<AttachmentFileRecord> {
+  const body = new FormData()
+  body.append('file', file)
+  return request<AttachmentFileRecord>('/api/attachment-files?index=false', { method: 'POST', body, signal })
+}
+
 export function extractAttachmentText(id: string, signal?: AbortSignal): Promise<{ text: string }> {
   return request(`/api/attachment-files/${encodeURIComponent(id)}/extract-text`, { method: 'POST', signal })
 }
 
-export function getAttachmentOptions(signal?: AbortSignal): Promise<{ allowedFileExtensions: string[]; textFileExtensions: string[]; imageFileExtensions: string[]; imageDescriptionExtensions: string[]; imageTextExtensions: string[] }> {
+export function getAttachmentOptions(signal?: AbortSignal): Promise<{ allowedFileExtensions: string[]; maxFileBytes: number; textFileExtensions: string[]; imageFileExtensions: string[]; imageDescriptionExtensions: string[]; imageTextExtensions: string[] }> {
   return request('/api/attachment-files/options', { signal })
 }
 
@@ -491,6 +497,31 @@ export function deleteOrphanAttachmentFile(id: string): Promise<{ deleted: strin
     method: 'DELETE',
   })
 }
+
+export interface SignatureRequest {
+  id: string
+  provider: string
+  subject: string
+  status: string
+  externalId: string | null
+  createdAtUtc: string
+}
+
+const signaturesPath = (id: string) => `/api/attachment-files/${encodeURIComponent(id)}/signatures`
+
+export const getSigningProviders = (signal?: AbortSignal) => request<string[]>('/api/attachment-files/signing-options', { signal })
+export const listSignatureRequests = (id: string, signal?: AbortSignal) => request<SignatureRequest[]>(signaturesPath(id), { signal })
+export const createSignatureRequest = (id: string, input: {
+  provider: string; subject: string; message: string; recipients: { name: string; email: string }[]; clientRequestId: string
+}) => request<SignatureRequest>(signaturesPath(id), {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+})
+export const prepareSignatureRequest = (id: string, requestId: string) => request<{ url: string }>(
+  `${signaturesPath(id)}/${encodeURIComponent(requestId)}/prepare`, { method: 'POST' })
+export const refreshSignatureRequest = (id: string, requestId: string) => request<SignatureRequest>(
+  `${signaturesPath(id)}/${encodeURIComponent(requestId)}/refresh`, { method: 'POST' })
+export const downloadSignatureDocument = (id: string, requestId: string, audit: boolean) => downloadBlob(
+  `${signaturesPath(id)}/${encodeURIComponent(requestId)}/download?audit=${audit}`)
 
 export function listAgents(signal?: AbortSignal): Promise<AgentDefinition[]> {
   return request<AgentDefinition[]>('/api/agents', { signal })

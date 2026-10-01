@@ -800,9 +800,67 @@ input[readonly] {
   font-size: 12px;
 }
 
-@media (max-width: 800px) {
-  .attachment-page-header > div:first-child { flex-basis: calc(100% - 130px); }
-  .attachment-header-storage { order: 1; flex: 1 1 100%; }
+.main > .attachment-files-page,
+.attachment-files-page > [role='tabpanel'] > .stack {
+  gap: 8px;
+}
+
+.attachment-page-header {
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px 16px;
+  padding: 8px 12px;
+}
+
+.attachment-page-header > div:first-child {
+  flex: 0 0 auto;
+}
+
+.attachment-page-header .attachment-tabs {
+  border: 0;
+  padding: 0;
+  gap: 4px;
+}
+
+.attachment-page-header .attachment-header-storage {
+  margin-left: auto;
+  flex: 0 1 240px;
+}
+
+.attachment-page-header .attachment-storage-usage {
+  gap: 3px;
+}
+
+.attachment-files-page .orphan-upload {
+  padding: 8px 12px;
+  border-width: 1px;
+}
+
+.orphan-upload-hint {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.orphan-upload-toolbar .attachment-file-filter {
+  margin-left: auto;
+  width: min(260px, 100%);
+}
+
+.attachment-filter-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 700px) {
+  .attachment-page-header .attachment-header-storage {
+    flex: 1 1 180px;
+  }
+
+  .orphan-upload-toolbar .attachment-file-filter {
+    flex: 1 1 100%;
+    width: 100%;
+    margin-left: 0;
+  }
 }
 
 .attachment-tabs [role='tab'][aria-selected='true'] {
@@ -2259,6 +2317,63 @@ button.sandbox-row:hover, button.sandbox-row:focus-visible { background: var(--s
   overflow: auto;
   resize: both;
   container-type: inline-size;
+}
+
+.modal.signature-requests-modal {
+  width: min(850px, calc(100vw - 32px));
+}
+
+.orphan-upload {
+  padding: 16px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+}
+
+.orphan-upload.is-dragging {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.orphan-upload .row {
+  flex-wrap: wrap;
+}
+
+.signature-form {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.signature-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.signature-recipient {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+}
+
+.signature-recipient label {
+  flex: 1 1 180px;
+}
+
+.signature-request {
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.signature-request .row,
+.signature-form .row {
+  flex-wrap: wrap;
 }
 
 .pdf-preview-modal .modal-head h2 {

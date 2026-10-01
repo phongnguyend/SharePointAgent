@@ -15,6 +15,7 @@ public static class AttachmentFilesEndpoints
             Results.Ok(new
             {
                 allowedFileExtensions = options.Value.GetAllowedFileExtensions(),
+                maxFileBytes = options.Value.MaxFileBytes,
                 textFileExtensions = options.Value.GetTextFileExtensions(),
                 imageFileExtensions = options.Value.GetImageFileExtensions(),
                 imageDescriptionExtensions = options.Value.GetImageFileExtensions().Intersect(AttachmentImageService.DescriptionExtensions),
@@ -24,7 +25,8 @@ public static class AttachmentFilesEndpoints
         app.MapPost("/api/attachment-files", async (
             HttpRequest request,
             ChatMessageAttachmentFileService files,
-            CancellationToken cancellationToken) =>
+            CancellationToken cancellationToken,
+            bool index = true) =>
         {
             if (!request.HasFormContentType)
             {
@@ -39,7 +41,7 @@ public static class AttachmentFilesEndpoints
             try
             {
                 await using var content = file.OpenReadStream();
-                var created = await files.CreateAsync(file.FileName, file.ContentType, file.Length, content, cancellationToken, request.HttpContext.AppUser().Id);
+                var created = await files.CreateAsync(file.FileName, file.ContentType, file.Length, content, cancellationToken, request.HttpContext.AppUser().Id, indexAfterUpload: index);
                 return Results.Created($"/api/attachment-files/{created.Id}", created);
             }
             catch (Exception ex) when (ex is UploadTooLargeException or ArgumentException)

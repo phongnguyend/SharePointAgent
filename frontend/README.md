@@ -38,6 +38,14 @@ back button steps through searches. So is the open conversation
 
 ## Running it
 
+The **Attachment files** page supports multi-file uploads through **Upload files** or its highlighted drag-and-drop area. These uploads are stored as owned orphan attachments with **Not started** status and are **not indexed**: no extraction, OCR, vision description, embeddings, or search indexing runs. Existing file-type, size, and user storage limits still apply. Per-file errors do not discard successful uploads. Use **Reindex** explicitly when indexing is wanted. Chat uploads keep their existing automatic indexing behavior.
+
+### Shared-account signing
+
+PDF rows and PDF preview headers include **Signatures**. Choose a configured provider, enter recipients in signing order, and create a draft. Open the preparation link in a new tab to place fields and send. Return and use **Refresh status**; completed requests offer signed PDF and audit-record downloads. Creating the draft uploads the PDF without emailing recipients.
+
+DocuSign and Adobe Acrobat Sign use administrator-configured company senders. See [backend setup and limitations](../README.md#shared-organization-signing). Status synchronization is manual and completed copies are downloaded from the provider. Read-only users cannot create or prepare requests. Signing requests preserve their source attachment by preventing its deletion.
+
 ### Sandbox file management
 
 Open a conversation's **Workspace** tab, placed before **Chat**. It shows the workspace name, instructions, sandbox session information, and an inline **Files in the sandbox** browser. Switching tabs preserves the chat draft. Use **New folder**, **Upload files**, or drag files onto the browser. Each file/folder has a **…** menu with Rename, Copy, Move, and Delete. Copy and Move include a destination folder browser with breadcrumbs, an Up button, and an optional folder address. Browse to the destination, then keep or edit the item name. The destination folder must already exist. Existing items are never overwritten. Delete requires confirmation and is permanent, including all contents of a directory.

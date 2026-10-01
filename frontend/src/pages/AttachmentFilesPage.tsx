@@ -20,6 +20,8 @@ import { AttachmentDownload } from '../components/AttachmentDownload'
 import { OfficePreview } from '../components/OfficePreview'
 import { ImagePreview } from '../components/ImagePreview'
 import { PdfPreview } from '../components/PdfPreview'
+import { SignatureRequests } from '../components/SignatureRequests'
+import { OrphanAttachmentUpload } from '../components/OrphanAttachmentUpload'
 import { MarkdownPreview } from '../components/MarkdownPreview'
 import { AttachmentStorageUsage } from '../components/AttachmentStorageUsage'
 import { SystemAttachmentStorage } from '../components/SystemAttachmentStorage'
@@ -55,6 +57,7 @@ export default function AttachmentFilesPage() {
   const [preview, setPreview] = useState<{ id: string; name: string } | null>(null)
   const [imagePreview, setImagePreview] = useState<{ id: string; name: string } | null>(null)
   const [pdfPreview, setPdfPreview] = useState<{ id: string; name: string } | null>(null)
+  const [signatureFile, setSignatureFile] = useState<{ id: string; name: string } | null>(null)
   const [markdownFile, setMarkdownFile] = useState<{ id: string; name: string; mode: 'indexed' | 'convert' } | null>(null)
   const [imageDescriptionResult, setImageDescriptionResult] = useState<AttachmentTextResult | null>(null)
   const imageDescriptionRequest = useRef<AbortController | null>(null)
@@ -144,22 +147,15 @@ export default function AttachmentFilesPage() {
     }
   }
 
-  return (
-    <div className="stack">
-      <div className="page-head attachment-page-header">
-        <div>
-          <h1><Paperclip size={20} />Attachment files</h1>
-          <p>Manage chat attachments, indexing status, and storage usage.</p>
-        </div>
-        <section className="attachment-header-storage" aria-label="My attachment storage">
-          <strong>My attachment storage</strong>
-          {storage.data && <AttachmentStorageUsage used={storage.data.attachmentStorageUsedBytes} limit={storage.data.attachmentStorageLimitBytes} />}
-          <LoadingBar active={storage.loading} />
-          {storage.error && <ErrorBanner message={storage.error} onRetry={storage.reload} />}
-        </section>
-        <button onClick={() => { page.reload(); storage.reload() }}><RefreshCw size={14} />Refresh</button>
-      </div>
+  const fileFilter = <input type="search" className="attachment-file-filter" aria-label="Filter attachment files"
+    placeholder="Filter by file name" value={search} onChange={event => {
+      setSearch(event.target.value)
+      setSkip(0)
+    }} />
 
+  return (
+    <div className="stack attachment-files-page">
+      <div className="page-head attachment-page-header">
       {canReadSystemStorage && <div className="attachment-tabs" role="tablist" aria-label="Attachment files views" onKeyDown={event => {
         if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
         event.preventDefault()
@@ -175,6 +171,17 @@ export default function AttachmentFilesPage() {
         </button>
       </div>}
 
+        <section className="attachment-header-storage" aria-label="My attachment storage" title="My attachment storage">
+          {storage.data && <AttachmentStorageUsage used={storage.data.attachmentStorageUsedBytes} limit={storage.data.attachmentStorageLimitBytes} />}
+          <LoadingBar active={storage.loading} />
+          {storage.error && <ErrorBanner message={storage.error} onRetry={storage.reload} />}
+        </section>
+        <button onClick={() => {
+          page.reload()
+          storage.reload()
+        }}><RefreshCw size={14} />Refresh</button>
+      </div>
+
       {canReadSystemStorage && <div role="tabpanel" id={`${tabId}-usage-panel`} aria-labelledby={`${tabId}-usage-tab`} hidden={tab !== 'usage'} tabIndex={0}>
       <div className="stack">
       {tab === 'usage' && canReadSystemStorage && <SystemAttachmentStorage refreshKey={page.data} />}
@@ -182,15 +189,15 @@ export default function AttachmentFilesPage() {
       </div>}
       <div role={canReadSystemStorage ? 'tabpanel' : undefined} id={`${tabId}-files-panel`} aria-labelledby={canReadSystemStorage ? `${tabId}-files-tab` : undefined} hidden={canReadSystemStorage && tab !== 'files'} tabIndex={0}>
       <div className="stack">
-      <div className="card"><div className="card-body">
-        <input
-          type="search"
-          aria-label="Filter attachment files"
-          placeholder="Filter by file name"
-          value={search}
-          onChange={(event) => { setSearch(event.target.value); setSkip(0) }}
-        />
-      </div></div>
+      {!readOnly && attachmentOptions.data ? <OrphanAttachmentUpload
+        extensions={attachmentOptions.data.allowedFileExtensions} maxFileBytes={attachmentOptions.data.maxFileBytes}
+        onUploaded={() => {
+          setSearch('')
+          setSkip(0)
+          page.reload()
+          storage.reload()
+        }}>{fileFilter}</OrphanAttachmentUpload> : <div className="attachment-filter-toolbar">{fileFilter}</div>}
+      {attachmentOptions.error && <ErrorBanner message={attachmentOptions.error} onRetry={attachmentOptions.reload} />}
 
       <LoadingBar active={page.loading || working !== null} />
       {page.error ? <ErrorBanner message={page.error} onRetry={page.reload} /> : null}
@@ -245,7 +252,10 @@ export default function AttachmentFilesPage() {
                             <button onClick={() => setPreview({ id: file.id, name: file.fileName })}><Eye size={13} />Preview</button>
                           ) : null}
                           {file.fileName.toLowerCase().endsWith('.pdf') ? (
-                            <button onClick={() => setPdfPreview({ id: file.id, name: file.fileName })}><Eye size={13} />Preview</button>
+                            <>
+                              <button onClick={() => setPdfPreview({ id: file.id, name: file.fileName })}><Eye size={13} />Preview</button>
+                              <button onClick={() => setSignatureFile({ id: file.id, name: file.fileName })}><FileText size={13} />Signatures</button>
+                            </>
                           ) : null}
                           <button disabled={file.status !== 'Indexed'} title="View the saved text used for indexing. Reindex to update it."
                             onClick={() => setMarkdownFile({ id: file.id, name: file.fileName, mode: 'indexed' })}>
@@ -284,7 +294,7 @@ export default function AttachmentFilesPage() {
             <Pagination skip={skip} top={25} total={page.data.totalCount} onSkip={setSkip} />
           </>
         ) : page.loading ? <Empty title="Loading…" /> : (
-          <Empty title="No attachment files" icon={<SearchX size={26} strokeWidth={1.5} />} detail="Files attached in chat will appear here." />
+          <Empty title="No attachment files" icon={<SearchX size={26} strokeWidth={1.5} />} detail="Upload files here or attach them in chat." />
         )}
       </div>
       </div>
@@ -331,9 +341,15 @@ export default function AttachmentFilesPage() {
           name={pdfPreview.name}
           sourceKey={pdfPreview.id}
           load={(signal) => downloadAttachmentFile(pdfPreview.id, signal)}
+          onSignatures={() => {
+            setSignatureFile(pdfPreview)
+            setPdfPreview(null)
+          }}
           onClose={() => setPdfPreview(null)}
         />
       ) : null}
+      {signatureFile && <SignatureRequests key={signatureFile.id} id={signatureFile.id} name={signatureFile.name}
+        readOnly={readOnly} onClose={() => setSignatureFile(null)} />}
     </div>
   )
 }

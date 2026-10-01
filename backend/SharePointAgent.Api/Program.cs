@@ -1,4 +1,5 @@
 using SharePointAgent.Infrastructure;
+using SharePointAgent.Infrastructure.Signing;
 using SharePointAgent.Api;
 
 const string FrontendCorsPolicy = "frontend";
@@ -10,6 +11,7 @@ builder.Services.AddSearchQueryServices(builder.Configuration);
 builder.Services.AddIndexStateServices(builder.Configuration);
 builder.Services.AddChatServices(builder.Configuration);
 builder.Services.AddAttachmentFileServices(builder.Configuration);
+builder.Services.AddSigningServices(builder.Configuration);
 builder.Services.AddIndexedFileReindexServices(builder.Configuration);
 builder.Services.AddAppIdentity();
 
@@ -39,6 +41,7 @@ app.MapSearchEndpoints();
 app.MapIndexedFilesEndpoints();
 app.MapDeltaStateEndpoints();
 app.MapAttachmentFilesEndpoints();
+app.MapSignatureEndpoints();
 app.MapSubscriptionsEndpoints();
 app.MapBrowseEndpoints();
 app.MapAgentsEndpoints();

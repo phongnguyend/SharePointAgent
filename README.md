@@ -23,7 +23,47 @@ Embeddings go through `Microsoft.Extensions.AI`'s `IEmbeddingGenerator<string, E
 
 The webhook is intentionally only a signal. Microsoft Graph drive notifications do not contain a complete, durable list of item-level changes. A delta link is checkpointed in SQL Server only after every returned page is indexed successfully, making retries idempotent and allowing expired delta tokens to trigger a full reconciliation. Those reconciliations are why file metadata is tracked in the same database: the delta feed then returns every file in the library, and without a record of what was already indexed each one would be extracted and embedded again. See [Worker state in SQL Server](#worker-state-in-sql-server).
 
+## Shared organization signing
+
+You can first upload PDFs directly on **Attachment files** using the file picker or drag-and-drop. These uploads are stored as orphan files without indexing, so signing does not require Document Intelligence or embedding calls. The storage-only API is `POST /api/attachment-files?index=false` with multipart `file`; omitting the flag preserves the existing chat upload/indexing behavior. Storage quotas and upload validation apply in either mode.
+
+On **Attachment files**, choose **Signatures** on a PDF (also available in its preview header). Select DocuSign or Adobe Acrobat Sign, enter a subject/message and 1–20 signers in signing order, then choose **Create draft**. This uploads the original PDF without sending invitations. **Open preparation screen** opens a new tab where the sender places fields, reviews recipients, and sends. Users do not connect personal provider accounts.
+
+The API uses one dedicated shared sender per provider. Existing attachment ownership and application roles apply: users manage their own requests; Global Admin manages all; Global Reader Admin can read records and download completed files. Records retain the initiating application user, provider ID, original recipient input, and timestamps. Changes made in the provider's preparation screen remain authoritative in its audit trail; local recipient input is not a live mirror. The preparation session acts as the shared sender, so use a dedicated account and grant application sending access only to people trusted to act as that sender. Hiding provider navigation is not an account isolation boundary.
+
+Configure **SharePointAgent.Api only**, using environment variables, local user secrets, or Container Apps secret references. Never commit keys or tokens. Both providers default to disabled.
+
+| Setting | Value |
+| --- | --- |
+| `Signing__ReturnUrl` | Frontend `/attachment-files` URL for the DocuSign return redirect; HTTPS in production |
+| `Signing__DocuSign__Enabled` | `true` after configuration |
+| `Signing__DocuSign__Demo` | `true` for developer accounts, `false` for production |
+| `Signing__DocuSign__ApiBaseUrl` | Account REST base URL ending `/restapi/v2.1/`; demo: `https://demo.docusign.net/restapi/v2.1/` |
+| `Signing__DocuSign__AccountId` | Shared sender's API account ID |
+| `Signing__DocuSign__ClientId` | Integration key/client ID |
+| `Signing__DocuSign__SenderUserId` | Dedicated sender's API user GUID |
+| `Signing__DocuSign__PrivateKeyPem` | Registered RSA private key PEM |
+| `Signing__AdobeSign__Enabled` | `true` after configuration |
+| `Signing__AdobeSign__ApiAccessPoint` | Regional API origin from OAuth, e.g. `https://api.na1.adobesign.com`, without `/api/rest/v6` |
+| `Signing__AdobeSign__ClientId` | OAuth application client ID |
+| `Signing__AdobeSign__ClientSecret` | OAuth client secret |
+| `Signing__AdobeSign__RefreshToken` | Refresh token authorized by the dedicated shared sender |
+
+For DocuSign, register an integration and RSA key, then obtain the sender's consent to `signature` and `impersonation`. The backend exchanges signed JWT assertions for access tokens. After production activation, configure the account-specific production API URI; changing `Demo` alone does not change that URI. See [shared-system-user authentication](https://www.docusign.com/blog/developers/the-trenches-authenticate-without-user-interaction-system-user) and [embedded sender views](https://www.docusign.com/blog/developers/esignature-embedded-views-update).
+
+For Adobe, authorize the dedicated sender using an OAuth application with `agreement_write:self`, `agreement_send:self`, `agreement_read:self`, and `user_login:self` scopes. Store the resulting refresh token and regional API access point in API secrets. The backend renews access tokens using `/oauth/v2/refresh`; tokens are cached in memory until shortly before expiry. Adobe refresh tokens expire after 60 days of inactivity; reauthorize after a long shutdown. Verify account/API entitlements and auto-login permissions with Adobe. See [OAuth setup and renewal](https://developer.adobe.com/acrobat-sign/docs/overview/developer_guide/oauth) and [agreement views](https://github.com/adobe-sign/AdobeSign-OpenAPI/blob/master/json/agreements.json).
+
+The `AddSignatureRequests` EF migration runs through the existing migration startup flow. IDs are database-generated. Attachments referenced by signing requests cannot be deleted. Deployment does not send or modify existing files.
+
+After sending, return and choose **Refresh status** on the request. Once completed, download **Signed PDF** and **Audit record**. **Reload list** reads local records only. This version shows the latest 100 requests per attachment, uses manual status refresh, and downloads artifacts from the provider. Webhook synchronization and automatic archiving/indexing of signed copies are not implemented. Manage cancellations and recipient corrections in the provider account.
+
+An interrupted create may leave `NeedsReview` or `Creating`. Retries with the same client request ID never automatically create another draft. An administrator must inspect the provider account before creating a replacement. The local client request ID is sent as DocuSign's transaction ID or Adobe's external ID for reconciliation. Preparation links are generated on demand and not stored. If Adobe is still processing a PDF, retry **Prepare and send** on the existing request.
+
+Automated tests mock provider HTTP calls. Before production, verify draft creation, field placement, sending, completion, and both downloads in each provider's test account. No live requests have been sent by implementing this feature.
+
 ## Prerequisites
+
+PDF attachments support shared-organization DocuSign and Adobe Acrobat Sign requests, with provider preparation screens for placing fields. Both integrations are disabled by default. See [signing setup](#shared-organization-signing) for credentials and operational limits.
 
 Create these resources before deploying:
 

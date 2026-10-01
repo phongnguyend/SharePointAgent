@@ -1,14 +1,15 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { Download, FileText, Globe, X } from 'lucide-react'
+import { Download, FileText, Globe, PenLine, X } from 'lucide-react'
 import { ErrorBanner, Modal } from './ui'
 
 const PdfJsViewer = lazy(() => import('./PdfJsViewer'))
 
-export function PdfPreview({ name, sourceKey, load, onClose }: {
+export function PdfPreview({ name, sourceKey, load, onClose, onSignatures }: {
   name: string
   sourceKey: string
   load: (signal: AbortSignal) => Promise<Blob>
   onClose: () => void
+  onSignatures?: () => void
 }) {
   const [url, setUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -46,6 +47,7 @@ export function PdfPreview({ name, sourceKey, load, onClose }: {
           aria-pressed={viewer === 'browser'} onClick={() => setViewer('browser')}><Globe size={14} aria-hidden="true" />Browser</button>
       </div>
       {url && <a className="button-link" href={url} download={name}><Download size={14} />Download</a>}
+      {onSignatures && <button onClick={onSignatures}><PenLine size={14} />Signatures</button>}
       <button className="ghost" onClick={onClose}><X size={15} />Close</button>
     </div>}>
     {error ? <ErrorBanner message={error} /> : !url ? <p role="status">Downloading PDF…</p> : viewer === 'in-app' ? (
