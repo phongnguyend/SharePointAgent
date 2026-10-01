@@ -150,6 +150,22 @@ public sealed class DocumentIntelligenceOptions
     public string? ApiKey { get; set; }
 }
 
+/// <summary>Which service extracts text for a file type: Document Intelligence or MarkItDown.</summary>
+public enum ContentExtractionMethod
+{
+    DocumentIntelligence,
+    MarkItDown,
+}
+
+public sealed class ContentExtractionOptions
+{
+    public const string SectionName = "ContentExtraction";
+    public ContentExtractionMethod Pdf { get; set; } = ContentExtractionMethod.DocumentIntelligence;
+    public ContentExtractionMethod Docx { get; set; } = ContentExtractionMethod.MarkItDown;
+    public ContentExtractionMethod Pptx { get; set; } = ContentExtractionMethod.MarkItDown;
+    public ContentExtractionMethod Xlsx { get; set; } = ContentExtractionMethod.MarkItDown;
+}
+
 public sealed class MarkItDownOptions
 {
     public string? ApiKey { get; set; }

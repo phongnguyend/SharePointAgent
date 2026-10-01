@@ -16,6 +16,36 @@ public interface IContentExtractor
     Task<string> ExtractAsync(DriveItemChange item, byte[] content, CancellationToken cancellationToken);
 }
 
+/// <summary>Extracts text from a PDF, per <see cref="ContentExtractionOptions.Pdf"/>.</summary>
+public interface IPdfExtractor
+{
+    Task<string> ExtractAsync(DriveItemChange item, byte[] content, CancellationToken cancellationToken);
+}
+
+/// <summary>Extracts text from a DOCX, per <see cref="ContentExtractionOptions.Docx"/>.</summary>
+public interface IDocxExtractor
+{
+    Task<string> ExtractAsync(DriveItemChange item, byte[] content, CancellationToken cancellationToken);
+}
+
+/// <summary>Extracts text from a PPTX, per <see cref="ContentExtractionOptions.Pptx"/>.</summary>
+public interface IPptxExtractor
+{
+    Task<string> ExtractAsync(DriveItemChange item, byte[] content, CancellationToken cancellationToken);
+}
+
+/// <summary>Extracts text from an XLSX, per <see cref="ContentExtractionOptions.Xlsx"/>.</summary>
+public interface IXlsxExtractor
+{
+    Task<string> ExtractAsync(DriveItemChange item, byte[] content, CancellationToken cancellationToken);
+}
+
+/// <summary>Extracts text from an image by combining an OCR pass with a vision model description.</summary>
+public interface IImageExtractor
+{
+    Task<string> ExtractAsync(DriveItemChange item, byte[] content, CancellationToken cancellationToken);
+}
+
 public interface ISearchIndexStore
 {
     Task EnsureIndexAsync(CancellationToken cancellationToken);

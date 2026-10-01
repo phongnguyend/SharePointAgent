@@ -50,8 +50,10 @@ public sealed class AttachmentImageIndexingTests
             var openAi = new AzureOpenAIClient(new Uri("https://vision.test"), new AzureKeyCredential("test"),
                 new AzureOpenAIClientOptions { Transport = new HttpClientPipelineTransport(http) });
             var ocr = Options.Create(new DocumentIntelligenceOptions { Endpoint = ocrConfigured ? "https://ocr.test" : null, ApiKey = "test" });
-            var service = new AttachmentImageService(cache, openAi, new DocumentIntelligenceClient(http, ocr),
-                Options.Create(new OpenAiOptions { ChatDeployment = "vision" }), ocr, uploads, factory);
+            var documentIntelligence = new DocumentIntelligenceClient(http, ocr);
+            var openAiOptions = Options.Create(new OpenAiOptions { ChatDeployment = "vision" });
+            var imageExtractor = new ImageExtractor(documentIntelligence, openAi, openAiOptions, ocr, factory);
+            var service = new AttachmentImageService(cache, imageExtractor, openAi, documentIntelligence, openAiOptions, ocr, uploads, factory);
             if (!visionExpected && !ocrExpected)
             {
                 var error = await Assert.ThrowsAsync<InvalidOperationException>(() => service.ConvertForIndexAsync(file, default));

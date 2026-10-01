@@ -221,6 +221,7 @@ public static class DependencyInjection
                 : new AzureOpenAIClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!));
         });
         services.AddTransient<AttachmentImageService>();
+        AddImageExtractor(services);
         services.AddTransient<AttachmentPdfService>();
         services.AddOptions<DocumentIntelligenceOptions>().Bind(configuration.GetSection(DocumentIntelligenceOptions.SectionName))
             .Validate(o => string.IsNullOrWhiteSpace(o.Endpoint) || o.UsedManagedIdentity || !string.IsNullOrWhiteSpace(o.ApiKey), "DocumentIntelligence:ApiKey is required when an endpoint is configured and UsedManagedIdentity is false.").ValidateOnStart();
@@ -249,7 +250,21 @@ public static class DependencyInjection
         services.AddOptions<ProcessorOptions>().Bind(configuration.GetSection(ProcessorOptions.SectionName)).ValidateDataAnnotations()
             .Validate(o => o.ChunkOverlapCharacters < o.ChunkSizeCharacters, "Chunk overlap must be smaller than chunk size.")
             .Validate(o => o.AllowedFileExtensions.Any(x => !string.IsNullOrWhiteSpace(x)), "Processor:AllowedFileExtensions must list at least one file extension.").ValidateOnStart();
+        services.AddOptions<ContentExtractionOptions>().Bind(configuration.GetSection(ContentExtractionOptions.SectionName));
+        AddOpenAiOptions(services, configuration);
+        services.TryAddSingleton(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<OpenAiOptions>>().Value;
+            return options.UsedManagedIdentity
+                ? new AzureOpenAIClient(new Uri(options.Endpoint), CreateManagedIdentityCredential())
+                : new AzureOpenAIClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!));
+        });
         services.AddHttpClient<DocumentIntelligenceClient>();
+        services.AddSingleton<IPdfExtractor, PdfExtractor>();
+        services.AddSingleton<IDocxExtractor, DocxExtractor>();
+        services.AddSingleton<IPptxExtractor, PptxExtractor>();
+        services.AddSingleton<IXlsxExtractor, XlsxExtractor>();
+        AddImageExtractor(services);
         services.AddSingleton<IContentExtractor, ContentExtractor>();
         services.AddSingleton<ISearchIndexStore, AzureSearchIndexStore>();
         services.AddSingleton<ISharePointChangeProcessor, SharePointChangeProcessor>();
@@ -288,6 +303,14 @@ public static class DependencyInjection
         services.AddOptions<ProcessorOptions>().Bind(configuration.GetSection(ProcessorOptions.SectionName)).ValidateDataAnnotations()
             .Validate(o => o.ChunkOverlapCharacters < o.ChunkSizeCharacters, "Chunk overlap must be smaller than chunk size.")
             .Validate(o => o.AllowedFileExtensions.Any(x => !string.IsNullOrWhiteSpace(x)), "Processor:AllowedFileExtensions must list at least one file extension.").ValidateOnStart();
+        services.AddOptions<ContentExtractionOptions>().Bind(configuration.GetSection(ContentExtractionOptions.SectionName));
+        services.TryAddSingleton(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<OpenAiOptions>>().Value;
+            return options.UsedManagedIdentity
+                ? new AzureOpenAIClient(new Uri(options.Endpoint), CreateManagedIdentityCredential())
+                : new AzureOpenAIClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!));
+        });
         services.AddMemoryCache();
         services.AddSingleton<SharePointClient>();
         services.AddSingleton<SubscriptionManager>();
@@ -297,6 +320,11 @@ public static class DependencyInjection
         // rather than the 100 second default.
         services.AddHttpClient<MarkItDownClient>((sp, client) =>
             client.Timeout = TimeSpan.FromSeconds(sp.GetRequiredService<IOptions<MarkItDownOptions>>().Value.TimeoutSeconds));
+        services.AddSingleton<IPdfExtractor, PdfExtractor>();
+        services.AddSingleton<IDocxExtractor, DocxExtractor>();
+        services.AddSingleton<IPptxExtractor, PptxExtractor>();
+        services.AddSingleton<IXlsxExtractor, XlsxExtractor>();
+        AddImageExtractor(services);
         services.AddSingleton<IContentExtractor, ContentExtractor>();
         AddEmbeddingGenerator(services);
 
@@ -342,6 +370,16 @@ public static class DependencyInjection
         services.AddOptions<OpenAiOptions>().Bind(configuration.GetSection(OpenAiOptions.SectionName)).ValidateDataAnnotations()
             .Validate(o => o.UsedManagedIdentity || !string.IsNullOrWhiteSpace(o.ApiKey), "AzureOpenAI:ApiKey is required when UsedManagedIdentity is false.")
             .Validate(o => IsResourceRootEndpoint(o.Endpoint), "AzureOpenAI:Endpoint must be the resource endpoint without an API path, for example https://<resource>.services.ai.azure.com; the SDK appends the deployment path itself, so a base URL ending in /openai/v1 returns 404.").ValidateOnStart();
+    }
+
+    /// <summary>
+    /// Registers the concrete <see cref="ImageExtractor"/> alongside <see cref="IImageExtractor"/>, so the
+    /// SharePoint pipeline and the attachment service share one instance.
+    /// </summary>
+    private static void AddImageExtractor(IServiceCollection services)
+    {
+        services.TryAddSingleton<ImageExtractor>();
+        services.TryAddSingleton<IImageExtractor>(sp => sp.GetRequiredService<ImageExtractor>());
     }
 
     /// <summary>

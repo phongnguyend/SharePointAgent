@@ -33,7 +33,9 @@ public sealed class PdfIndexingTests
         });
         var client = new DocumentIntelligenceClient(http, options);
         // No MarkItDown client: PDF extraction must use Document Intelligence exclusively.
-        var extractor = new ContentExtractor(client, options, null!, NullLogger<ContentExtractor>.Instance);
+        var contentExtractionOptions = Options.Create(new ContentExtractionOptions());
+        var pdfExtractor = new PdfExtractor(client, null!, contentExtractionOptions);
+        var extractor = new ContentExtractor(pdfExtractor, null!, null!, null!, null!, client, options, NullLogger<ContentExtractor>.Instance);
         var item = new DriveItemChange("id", name, null, "application/pdf", bytes.Length, null, null, null, true, false, null);
         var root = Path.Combine(Path.GetTempPath(), "pdf-index-" + Guid.NewGuid().ToString("N"));
         var working = Options.Create(new LocalWorkingDirectoryOptions { Directory = root });

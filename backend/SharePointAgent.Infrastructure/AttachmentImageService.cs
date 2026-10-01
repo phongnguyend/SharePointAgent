@@ -3,13 +3,14 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
 using SharePointAgent.Application;
-using SharePointAgent.Persistence;
 using SharePointAgent.Domain;
+using SharePointAgent.Persistence;
 
 namespace SharePointAgent.Infrastructure;
 
 public sealed class AttachmentImageService(
     AttachmentContentCache contentCache,
+    ImageExtractor imageExtractor,
     AzureOpenAIClient openAi,
     DocumentIntelligenceClient documentIntelligence,
     IOptions<OpenAiOptions> openAiOptions,
@@ -87,32 +88,16 @@ public sealed class AttachmentImageService(
     public async Task<string> ConvertForIndexAsync(ChatMessageAttachmentFileEntity file, CancellationToken ct)
     {
         var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-        var sections = new List<string>();
-        if (DescriptionExtensions.Contains(extension))
+        if (TextExtensions.Contains(extension)
+            && !DescriptionExtensions.Contains(extension)
+            && string.IsNullOrWhiteSpace(documentOptions.Value.Endpoint))
         {
-            var description = await DescribeAsync(file.Id, EmbeddingUsageScope.Current.UserId ?? file.CreatedById, ct);
-            if (!string.IsNullOrWhiteSpace(description))
-            {
-                sections.Add("## Image description\n\n" + description);
-            }
+            throw new InvalidOperationException("Configure DocumentIntelligence:Endpoint to extract image text.");
         }
 
-        if (TextExtensions.Contains(extension) &&
-            (!string.IsNullOrWhiteSpace(documentOptions.Value.Endpoint) || !DescriptionExtensions.Contains(extension)))
-        {
-            var text = await ExtractTextAsync(file.Id, ct);
-            if (!string.IsNullOrWhiteSpace(text))
-            {
-                sections.Add("## Extracted text\n\n" + text);
-            }
-        }
-
-        if (sections.Count == 0)
-        {
-            throw new InvalidOperationException("No searchable content could be extracted from this image. Check the image format and image processing configuration.");
-        }
-
-        return string.Join("\n\n", sections);
+        var cached = await contentCache.DownloadAsync(file, ct);
+        var bytes = await File.ReadAllBytesAsync(cached.LocalPath, ct);
+        return await imageExtractor.ExtractAsync(file, bytes, ct);
     }
 
     private async Task<AttachmentFileDownload?> DownloadAsync(Guid id, CancellationToken ct)
