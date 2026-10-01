@@ -1,5 +1,5 @@
-name: Deploy infrastructure
-run-name: Deploy infrastructure (${{ inputs.environment }})
+name: Deploy Infrastructure
+run-name: Deploy Infrastructure (${{ inputs.environment }})
 
 on:
   workflow_dispatch:

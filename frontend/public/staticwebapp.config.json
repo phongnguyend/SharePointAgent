@@ -1,6 +1,6 @@
 {
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/assets/*", "/api/*", "/auth-redirect.html"]
+    "exclude": ["/assets/*", "/api/*", "/auth-redirect.html", "/adobe-sign-callback.html"]
   }
 }

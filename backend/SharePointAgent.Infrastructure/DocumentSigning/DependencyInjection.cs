@@ -30,6 +30,8 @@ public static class DependencyInjection
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
         services.AddHttpClient<AdobeSignService>(client => client.Timeout = TimeSpan.FromMinutes(2))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+        services.AddHttpClient<AdobeSignAuthorizationService>(client => client.Timeout = TimeSpan.FromMinutes(1))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
         services.AddTransient<ISignatureProvider>(sp => sp.GetRequiredService<DocuSignService>());
         services.AddTransient<ISignatureProvider>(sp => sp.GetRequiredService<AdobeSignService>());
         services.AddTransient<SignatureRequestService>();

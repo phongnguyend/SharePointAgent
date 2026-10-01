@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
       })),
     })],
     build: {
-      rollupOptions: { input: { app: 'index.html', auth: 'auth-redirect.html' } },
+      rollupOptions: { input: { app: 'index.html', auth: 'auth-redirect.html', adobe: 'adobe-sign-callback.html' } },
     },
     server: {
       port: 5173,

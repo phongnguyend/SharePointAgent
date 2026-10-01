@@ -46,6 +46,11 @@ public static class SignatureEndpoints
             Results.Ok(await signing.ListAsync(id, context.AppUser().Id, AppAccess.CanReadAdministration(context.AppUser().Roles), ct)));
         group.MapPost("", async (Guid id, SignatureInput input, HttpContext context, SignatureRequestService signing, CancellationToken ct) =>
             Results.Ok(await signing.CreateAsync(id, context.AppUser().Id, input, ct)));
+        group.MapDelete("/{requestId:guid}", async (Guid id, Guid requestId, HttpContext context, SignatureRequestService signing, CancellationToken ct) =>
+        {
+            await signing.DeleteNeedsReviewAsync(id, requestId, context.AppUser().Id, AppAccess.CanReadAdministration(context.AppUser().Roles), ct);
+            return Results.Ok(new { deleted = true });
+        });
         group.MapPost("/{requestId:guid}/prepare", async (Guid id, Guid requestId, HttpContext context, SignatureRequestService signing, CancellationToken ct) =>
         {
             var row = await signing.FindAsync(id, requestId, context.AppUser().Id, AppAccess.CanReadAdministration(context.AppUser().Roles), ct);

@@ -16,14 +16,22 @@ public sealed class SigningProviderTests
 {
     private static SignatureInput Input => new("DocuSign", "Contract", "Please review", [new("Signer", "signer@example.com"), new("Second", "second@example.com")], Guid.NewGuid());
 
-    [Fact]
-    public async Task DocuSignCreatesDraftWithSequentialRecipientsAndObtainsSenderView()
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task DocuSignCreatesDraftWithSequentialRecipientsAndObtainsSenderView(bool escaped, bool pkcs8)
     {
         using var rsa = RSA.Create(2048);
+        var pem = pkcs8 ? rsa.ExportPkcs8PrivateKeyPem() : rsa.ExportRSAPrivateKeyPem();
+        if (escaped)
+        {
+            pem = pem.ReplaceLineEndings("\n").Replace("\n", "\\n");
+        }
         var settings = Options.Create(new DocumentSigningOptions
         {
             ReturnUrl = "https://app.example.com/attachments",
-            DocuSign = new() { Enabled = true, PrivateKeyPem = rsa.ExportRSAPrivateKeyPem(), AccountId = "company", ClientId = "client", SenderUserId = "sender" }
+            DocuSign = new() { Enabled = true, PrivateKeyPem = pem, AccountId = "company", ClientId = "client", SenderUserId = "sender" }
         });
         var requests = new List<string>();
         using var handler = new Handler(async request =>
@@ -96,6 +104,21 @@ public sealed class SigningProviderTests
         }), tokenCache);
         Assert.Equal("agreement", await provider.CreateDraftAsync("contract.pdf", "%PDF-test"u8.ToArray(), Input, default));
         Assert.Equal("https://secure.na1.adobesign.com/prepare", await provider.GetPreparationUrlAsync("agreement", default));
+    }
+
+    [Fact]
+    public async Task InvalidDocuSignKeyIdentifiesConfigurationWithoutExposingKeyOrCallingProvider()
+    {
+        using var handler = new Handler(_ => throw new InvalidOperationException("Provider must not be called."));
+        using var http = new HttpClient(handler);
+        using var tokenCache = new MemoryCache(new MemoryCacheOptions());
+        var provider = new DocuSignService(http, Options.Create(new DocumentSigningOptions
+        {
+            DocuSign = new() { PrivateKeyPem = "private-invalid-key-value" }
+        }), tokenCache);
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => provider.GetStatusAsync("id", default));
+        Assert.Contains("DOCUMENTSIGNING__DOCUSIGN__PRIVATEKEYPEM", error.Message);
+        Assert.DoesNotContain("private-invalid-key-value", error.ToString());
     }
 
     [Theory]

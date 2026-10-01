@@ -36,6 +36,8 @@ $secrets = @(
   @{ name = 'markitdown-api-key'; value = $env:MARKITDOWN_API_KEY }
 )
 if ($Component -eq 'Api') {
+  . "$PSScriptRoot/document-signing-settings.ps1"
+  $signing = Get-DocumentSigningSettings
   $apiValues = @{
     AZURE_CLIENT_ID = $hosting.apiClientId
     SqlServer__ConnectionString = "Server=tcp:$($hosting.sqlServerFqdn),1433;Database=$($hosting.sqlDatabaseName);Authentication=Active Directory Managed Identity;User Id=$($hosting.apiClientId);Encrypt=True;TrustServerCertificate=False;"
@@ -53,6 +55,8 @@ if ($Component -eq 'Api') {
     ContentSafety__ManagedIdentityClientId = $hosting.apiClientId
   }
   $apiEnvironment = $commonEnvironment + @($apiValues.GetEnumerator() | ForEach-Object { @{ name = $_.Key; value = [string]$_.Value } })
+  $apiEnvironment += $signing.Environment
+  $secrets += $signing.Secrets
   Grant-Role $hosting.apiPrincipalId '53ca6127-db72-4b80-b1b0-d745d6d5456d' $hosting.foundryProjectId
   Update-ContainerApp $outputs.apiContainerAppName.value 'api' $apiEnvironment $secrets 8080
   Wait-ContainerApp $outputs.apiContainerAppName.value

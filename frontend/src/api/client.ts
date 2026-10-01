@@ -510,7 +510,39 @@ export interface SignatureRequest {
 const signaturesPath = (id: string) => `/api/attachment-files/${encodeURIComponent(id)}/signatures`
 
 export const getSigningProviders = (signal?: AbortSignal) => request<string[]>('/api/attachment-files/signing-options', { signal })
+export interface AdobeAuthorizationTokens {
+  accessToken: string
+  refreshToken: string
+  apiAccessPoint: string
+  expiresIn: number | null
+  tokenType: string | null
+  webAccessPoint: string | null
+  accessTokenUrl: string
+  clientId: string
+  clientSecret: string
+  timestamp: number
+  authUrl: string
+  redirectUri: string
+  requestedScope: string
+  providerResponse: Record<string, unknown>
+}
+export const getAdobeAuthorizationConfiguration = (signal?: AbortSignal) => request<{
+  configured: boolean
+  redirectUri: string
+  clientId: string
+  clientSecretConfigured: boolean
+  authUrl: string
+  accessTokenUrl: string
+}>(
+  '/api/admin/document-signing/adobe', { signal, cache: 'no-store' })
+export const beginAdobeAuthorization = () => request<{ state: string; url: string }>(
+  '/api/admin/document-signing/adobe/authorize', { method: 'POST', cache: 'no-store' })
+export const exchangeAdobeAuthorization = (input: { state: string; code: string; apiAccessPoint: string | null }, signal?: AbortSignal) => request<AdobeAuthorizationTokens>(
+  '/api/admin/document-signing/adobe/exchange', { method: 'POST', cache: 'no-store', signal,
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
 export const listSignatureRequests = (id: string, signal?: AbortSignal) => request<SignatureRequest[]>(signaturesPath(id), { signal })
+export const deleteSignatureRequest = (id: string, requestId: string) => request<{ deleted: boolean }>(
+  `${signaturesPath(id)}/${encodeURIComponent(requestId)}`, { method: 'DELETE' })
 export const createSignatureRequest = (id: string, input: {
   provider: string; subject: string; message: string; recipients: { name: string; email: string }[]; clientRequestId: string
 }) => request<SignatureRequest>(signaturesPath(id), {

@@ -4,7 +4,7 @@ import {
   FileText,
   FolderOpen,
   Bot,
-  GitBranch,
+  Settings,
   LayoutDashboard,
   Monitor,
   Moon,
@@ -12,22 +12,20 @@ import {
   Search,
   Sparkles,
   Sun,
-  Webhook,
   Upload,
   Users,
   ChartNoAxesCombined,
 } from 'lucide-react'
 import OverviewPage from './pages/OverviewPage'
 import IndexedFilesPage from './pages/IndexedFilesPage'
-import DeltaStatePage from './pages/DeltaStatePage'
+import AdminPage from './pages/AdminPage'
 import SearchPage from './pages/SearchPage'
-import SubscriptionsPage from './pages/SubscriptionsPage'
 import ChatPage from './pages/ChatPage'
 import FeedbackPage from './pages/FeedbackPage'
 import AgentsPage from './pages/AgentsPage'
 import AttachmentFilesPage from './pages/AttachmentFilesPage'
 import { AccountMenu } from './components/AuthGate'
-import { useAppUser, canReadAdministration } from './components/AppUserContext'
+import { useAppUser, canReadAdministration, canManageAdministration } from './components/AppUserContext'
 import UsersPage from './pages/UsersPage'
 import TokenUsagePage from './pages/TokenUsagePage'
 import BrowsePage from './pages/BrowsePage'
@@ -78,14 +76,6 @@ export default function App() {
             Indexed files
           </NavLink>
           <NavLink to="/browse"><FolderOpen size={16} />Browse</NavLink>
-          <NavLink to="/delta">
-            <GitBranch size={16} />
-            Delta state
-          </NavLink>
-          <NavLink to="/subscriptions">
-            <Webhook size={16} />
-            Subscriptions
-          </NavLink>
           </>}
           <NavLink to="/search">
             <Search size={16} />
@@ -109,6 +99,7 @@ export default function App() {
           </NavLink>}
           {canReadAdmin && <NavLink to="/users"><Users size={16} />Users</NavLink>}
           {canReadAdmin && <NavLink to="/token-usage"><ChartNoAxesCombined size={16} />Token usage</NavLink>}
+          {canReadAdmin && <NavLink to="/admin"><Settings size={16} />Admin</NavLink>}
         </nav>
         <button
           className="ghost"
@@ -128,14 +119,16 @@ export default function App() {
           <Route path="/files" element={canReadAdmin ? <IndexedFilesPage /> : <Navigate to={home} replace />} />
           <Route path="/browse" element={canReadAdmin ? <BrowsePage /> : <Navigate to={home} replace />} />
           <Route path="/attachment-files" element={<AttachmentFilesPage />} />
-          <Route path="/delta" element={canReadAdmin ? <DeltaStatePage /> : <Navigate to={home} replace />} />
-          <Route path="/subscriptions" element={canReadAdmin ? <SubscriptionsPage /> : <Navigate to={home} replace />} />
+          <Route path="/admin" element={canReadAdmin ? <AdminPage /> : <Navigate to={home} replace />} />
+          <Route path="/delta" element={<Navigate to={canReadAdmin ? '/admin?tab=delta' : home} replace />} />
+          <Route path="/subscriptions" element={<Navigate to={canReadAdmin ? '/admin?tab=subscriptions' : home} replace />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/feedback" element={canReadAdmin ? <FeedbackPage /> : <Navigate to={home} replace />} />
           <Route path="/agents" element={canReadAdmin ? <AgentsPage /> : <Navigate to={home} replace />} />
           <Route path="/users" element={canReadAdmin ? <UsersPage /> : <Navigate to={home} replace />} />
           <Route path="/token-usage" element={canReadAdmin ? <TokenUsagePage /> : <Navigate to={home} replace />} />
+          <Route path="/document-signing" element={<Navigate to={canManageAdministration(user) ? '/admin?tab=document-signing-configuration' : home} replace />} />
           <Route path="/embedding-usage" element={<Navigate to="/token-usage?tab=embeddings" replace />} />
           <Route path="*" element={<Navigate to={home} replace />} />
         </Routes>

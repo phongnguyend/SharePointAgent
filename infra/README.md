@@ -145,6 +145,35 @@ Create matching GitHub environments with these settings:
 | `SQL_ENTRA_ADMINISTRATOR_PRINCIPAL_TYPE` | Optional variable | `Application` (default), `Group` or `User`; use `Application` for a managed identity or service principal |
 | `SQL_ENTRA_ADMIN_OBJECT_ID` | Variable | Object ID of the SQL administrator matching the configured principal type, not its application/client ID |
 
+### Document signing configuration mapping
+
+Use the following names under **Settings → Environments → dev/test → Environment variables / Environment secrets** for document signing. These settings apply to **API only**; Background, AgentHost, and Frontend do not need provider credentials.
+
+**Deployment support:** run **Release API**, or select API in **Release services**, after configuring these GitHub settings. The workflow validates required values for enabled providers before building and deploys credentials through Container Apps secrets and secret references. Missing enable flags default to `false`, explicitly disabling those providers; DocuSign `Demo` defaults to `true`. Disabled providers need no credentials. Existing unused Container Apps secrets are retained. `main.bicep` does not configure signing; rerun Release API after infrastructure deployment to reapply these settings. No signing credentials are passed to Background, AgentHost, or Frontend.
+
+| GitHub environment name | Kind | API runtime environment key | Value / example |
+| --- | --- | --- | --- |
+| `DOCUMENTSIGNING__RETURNURL` | Variable | `DocumentSigning__ReturnUrl` | `https://YOUR_FRONTEND/attachment-files`; required for the DocuSign return redirect |
+| `DOCUMENTSIGNING__DOCUSIGN__ENABLED` | Variable | `DocumentSigning__DocuSign__Enabled` | `false` by default; set `true` once all DocuSign settings are configured |
+| `DOCUMENTSIGNING__DOCUSIGN__DEMO` | Variable | `DocumentSigning__DocuSign__Demo` | `true` for developer accounts; `false` for production |
+| `DOCUMENTSIGNING__DOCUSIGN__APIBASEURL` | Variable | `DocumentSigning__DocuSign__ApiBaseUrl` | Developer: `https://demo.docusign.net/restapi/v2.1/`; production: account-specific REST base URL ending `/restapi/v2.1/` |
+| `DOCUMENTSIGNING__DOCUSIGN__ACCOUNTID` | Variable | `DocumentSigning__DocuSign__AccountId` | Shared sender's API account GUID |
+| `DOCUMENTSIGNING__DOCUSIGN__CLIENTID` | Variable | `DocumentSigning__DocuSign__ClientId` | Integration key / application client GUID |
+| `DOCUMENTSIGNING__DOCUSIGN__SENDERUSERID` | Variable | `DocumentSigning__DocuSign__SenderUserId` | Shared sender's API user GUID |
+| `DOCUMENTSIGNING__DOCUSIGN__PRIVATEKEYPEM` | Secret | `DocumentSigning__DocuSign__PrivateKeyPem` | Full RSA private key PEM, including BEGIN/END lines and actual line breaks |
+| `DOCUMENTSIGNING__ADOBESIGN__ENABLED` | Variable | `DocumentSigning__AdobeSign__Enabled` | `false` by default; set `true` once all Adobe settings are configured |
+| `DOCUMENTSIGNING__ADOBESIGN__OAUTHREDIRECTURI` | Optional variable | `DocumentSigning__AdobeSign__OAuthRedirectUri` | `https://YOUR_FRONTEND/adobe-sign-callback.html`; register this exact URL in Adobe to use the Global Admin token page |
+| `DOCUMENTSIGNING__ADOBESIGN__AUTHURL` | Variable | `DocumentSigning__AdobeSign__AuthUrl` | Required when Adobe signing is enabled or OAuth setup is configured. No deployment fallback. For Singapore use `https://secure.sg1.adobesign.com/public/oauth/v2`. |
+| `DOCUMENTSIGNING__ADOBESIGN__ACCESSTOKENURL` | Required for OAuth setup | `DocumentSigning__AdobeSign__AccessTokenUrl` | Initial OAuth token exchange URL, e.g. `https://api.sg1.adobesign.com/oauth/v2/token`. Always used for token exchange, with no callback endpoint fallback. The token response's `api_access_point` takes precedence for the displayed API origin. Does not change the configured API origin or refresh-token endpoint used for signing. |
+| `DOCUMENTSIGNING__ADOBESIGN__APIACCESSPOINT` | Variable | `DocumentSigning__AdobeSign__ApiAccessPoint` | Actual regional `api_access_point` from OAuth, e.g. `https://api.na1.adobesign.com`; omit `/api/rest/v6`. Always forwarded during API release, including when signing is disabled for OAuth setup; required when Adobe signing is enabled. |
+| `DOCUMENTSIGNING__ADOBESIGN__CLIENTID` | Variable | `DocumentSigning__AdobeSign__ClientId` | Adobe OAuth application ID |
+| `DOCUMENTSIGNING__ADOBESIGN__CLIENTSECRET` | Secret | `DocumentSigning__AdobeSign__ClientSecret` | Active OAuth application client secret |
+| `DOCUMENTSIGNING__ADOBESIGN__REFRESHTOKEN` | Secret | `DocumentSigning__AdobeSign__RefreshToken` | Refresh token authorized by the shared sender with `agreement_read:self agreement_write:self agreement_send:self user_login:self` |
+
+Configure each provider independently; keep an unused provider disabled and omit its credentials. Use separate test and production credentials. Local user secrets use colons instead of double underscores, for example `DocumentSigning:AdobeSign:RefreshToken`. The old `Signing` section is no longer read. See [shared organization signing](../README.md#shared-organization-signing) for provider authorization and token renewal details.
+
+For initial Adobe authorization without Postman, set `DOCUMENTSIGNING__ADOBESIGN__AUTHURL`, `DOCUMENTSIGNING__ADOBESIGN__OAUTHREDIRECTURI`, `DOCUMENTSIGNING__ADOBESIGN__CLIENTID`, and the `DOCUMENTSIGNING__ADOBESIGN__CLIENTSECRET` secret. Keep Adobe `ENABLED=false` until tokens are obtained. The API release forwards those four settings even with signing disabled; no refresh token or API origin is required for this setup mode. Release both API and Frontend, then open **Admin → Document signing** as a Global Admin and authorize the shared sender. Copy the displayed refresh token and regional API origin into the matching GitHub secret/variable, set Adobe `ENABLED=true`, and release API. The page does not save tokens or change configuration. Subsequent authorization follows the same flow; removing the callback variable disables the token-generation page's action on the next API release.
+
 Configure the deployment principal's federated credential with issuer `https://token.actions.githubusercontent.com`, audience `api://AzureADTokenExchange`, and subject `repo:<owner>/<repository>:environment:<environment>`. It needs deployment and role-assignment permissions at the resource-group scope; creating a resource group requires subscription permission.
 
 Parameter files are `infra/parameters.<environment>.json`. Each supplied environment file sets `sqlLocation` to `southeastasia`. The template defaults SQL and other resources to the environment's `location` unless overridden. Configure `sqlLocation`, `foundryLocation` or `contentSafetyLocation` in the parameter files where needed. Confirm regional model/Foundry availability and quota. The chat model, version and capacity are configurable.

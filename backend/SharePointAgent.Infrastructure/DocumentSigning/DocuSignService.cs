@@ -31,7 +31,15 @@ public sealed class DocuSignService(HttpClient http, IOptions<DocumentSigningOpt
         var unsigned = Encode(JsonSerializer.SerializeToUtf8Bytes(new { alg = "RS256", typ = "JWT" })) + "." +
             Encode(JsonSerializer.SerializeToUtf8Bytes(new { iss = settings.ClientId, sub = settings.SenderUserId, aud = host, iat = now, exp = now + 3600, scope = "signature impersonation" }));
         using var rsa = RSA.Create();
-        rsa.ImportFromPem(settings.PrivateKeyPem);
+        var pem = settings.PrivateKeyPem.Replace("\\r\\n", "\n").Replace("\\n", "\n").Trim();
+        try
+        {
+            rsa.ImportFromPem(pem);
+        }
+        catch (Exception error) when (error is ArgumentException or CryptographicException)
+        {
+            throw new InvalidOperationException("DocumentSigning:DocuSign:PrivateKeyPem must contain the complete unencrypted RSA private key PEM, including BEGIN and END PRIVATE KEY (or RSA PRIVATE KEY) lines. Set the GitHub environment secret DOCUMENTSIGNING__DOCUSIGN__PRIVATEKEYPEM to the key contents, not a file path, and release API again.");
+        }
         var assertion = unsigned + "." + Encode(rsa.SignData(Encoding.UTF8.GetBytes(unsigned), HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1));
         var result = await SigningHttp.JsonAsync(http, HttpMethod.Post, $"https://{host}/oauth/token", null,
             new FormUrlEncodedContent(new Dictionary<string, string>

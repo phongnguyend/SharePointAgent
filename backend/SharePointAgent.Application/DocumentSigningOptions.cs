@@ -30,6 +30,12 @@ public sealed class DocuSignOptions
 
 public sealed class AdobeSignOptions
 {
+    public string AuthUrl { get; set; } = "https://secure.adobesign.com/public/oauth/v2";
+
+    public string AccessTokenUrl { get; set; } = "";
+
+    public string OAuthRedirectUri { get; set; } = "";
+
     public bool Enabled { get; set; }
 
     public string ApiAccessPoint { get; set; } = "";

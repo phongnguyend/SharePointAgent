@@ -99,6 +99,20 @@ public sealed class SignatureRequestService(
             ?? throw new KeyNotFoundException("Signing request not found.");
     }
 
+    public async Task DeleteNeedsReviewAsync(Guid attachmentId, Guid requestId, Guid userId, bool admin, CancellationToken ct)
+    {
+        await FindAsync(attachmentId, requestId, userId, admin, ct);
+        await using var db = await contextFactory.CreateDbContextAsync(ct);
+        var deleted = await db.SignatureRequests
+            .Where(x => x.Id == requestId && x.AttachmentFileId == attachmentId &&
+                (admin || x.CreatedById == userId) && x.Status == "NeedsReview")
+            .ExecuteDeleteAsync(ct);
+        if (deleted == 0)
+        {
+            throw new InvalidOperationException("Only NeedsReview signing records can be deleted. Refresh the list and try again.");
+        }
+    }
+
     public async Task<SignatureRequestEntity> RefreshAsync(SignatureRequestEntity row, CancellationToken ct)
     {
         if (row.ExternalId is null)

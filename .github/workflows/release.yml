@@ -1,5 +1,5 @@
-name: Release services
-run-name: Release services (${{ inputs.environment }})
+name: Release Services
+run-name: Release Services (${{ inputs.environment }})
 
 on:
   workflow_dispatch:

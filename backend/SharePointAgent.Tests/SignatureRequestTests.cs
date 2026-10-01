@@ -55,6 +55,36 @@ public sealed class SignatureRequestTests
         await fixture.Provider.DidNotReceive().CreateDraftAsync(Arg.Any<string>(), Arg.Any<byte[]>(), Arg.Any<SignatureInput>(), Arg.Any<CancellationToken>());
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NeedsReviewCanBeDeletedByOwnerOrAdminOnly(bool admin)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        fixture.Provider.CreateDraftAsync(Arg.Any<string>(), Arg.Any<byte[]>(), Arg.Any<SignatureInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<string>(new HttpRequestException("Lost response")));
+        await Assert.ThrowsAsync<HttpRequestException>(() => fixture.Service.CreateAsync(fixture.File.Id, fixture.User.Id, fixture.Input, default));
+        var row = await fixture.Service.CreateAsync(fixture.File.Id, fixture.User.Id, fixture.Input, default);
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => fixture.Service.DeleteNeedsReviewAsync(fixture.File.Id, row.Id, Guid.NewGuid(), false, default));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => fixture.Service.DeleteNeedsReviewAsync(Guid.NewGuid(), row.Id, fixture.User.Id, true, default));
+        fixture.Provider.ClearReceivedCalls();
+        await fixture.Service.DeleteNeedsReviewAsync(fixture.File.Id, row.Id, admin ? Guid.NewGuid() : fixture.User.Id, admin, default);
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => fixture.Service.FindAsync(fixture.File.Id, row.Id, fixture.User.Id, true, default));
+        Assert.Empty(fixture.Provider.ReceivedCalls());
+    }
+
+    [Fact]
+    public async Task DraftAndCompletedRecordsCannotBeDeleted()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var row = await fixture.Service.CreateAsync(fixture.File.Id, fixture.User.Id, fixture.Input, default);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.DeleteNeedsReviewAsync(fixture.File.Id, row.Id, fixture.User.Id, true, default));
+        fixture.Provider.GetStatusAsync("external-id", Arg.Any<CancellationToken>()).Returns("completed");
+        await fixture.Service.RefreshAsync(row, default);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.DeleteNeedsReviewAsync(fixture.File.Id, row.Id, fixture.User.Id, true, default));
+        Assert.Equal("completed", (await fixture.Service.FindAsync(fixture.File.Id, row.Id, fixture.User.Id, true, default)).Status);
+    }
+
     private sealed class Fixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection = new("Data Source=:memory:");

@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from 'react'
 import { Download, ExternalLink, Eye, FilePenLine, FilePlus2, List, Plus, RefreshCw, Signature, Trash2 } from 'lucide-react'
-import { createSignatureRequest, downloadSignatureDocument, getSigningProviders, listSignatureRequests, prepareSignatureRequest, refreshSignatureRequest } from '../api/client'
+import { createSignatureRequest, deleteSignatureRequest, downloadSignatureDocument, getSigningProviders, listSignatureRequests, prepareSignatureRequest, refreshSignatureRequest } from '../api/client'
 import { useAsync } from '../lib/useAsync'
 import { ErrorBanner, LoadingBar, Modal } from './ui'
 import { PdfPreview } from './PdfPreview'
@@ -32,6 +32,7 @@ export function SignatureRequests({ id, name, readOnly, onClose }: {
   const [error, setError] = useState<string | null>(null)
   const [preparationUrl, setPreparationUrl] = useState<string | null>(null)
   const [createdDraft, setCreatedDraft] = useState(false)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
   const [preview, setPreview] = useState<{ requestId: string; audit: boolean } | null>(null)
   const clientRequestId = useRef(crypto.randomUUID())
   const pending = useRef(false)
@@ -154,6 +155,7 @@ export function SignatureRequests({ id, name, readOnly, onClose }: {
       </p>
       {row.status === 'NeedsReview' || row.status === 'Creating' ? <p>Ask an administrator to check the provider account using reference {row.id}. The result of draft creation has not been confirmed.</p> : null}
       <div className="row">
+        {!readOnly && row.status === 'NeedsReview' && <button className="danger" disabled={busy} onClick={() => setDeleteId(row.id)}><Trash2 size={14} />Delete record</button>}
         {!readOnly && row.externalId && <button disabled={busy} onClick={() => void run(async () => { await refreshSignatureRequest(id, row.id) })}><RefreshCw size={14} />Refresh status</button>}
         {!readOnly && row.externalId && ['Draft', 'created', 'DRAFT', 'AUTHORING'].includes(row.status) && <button disabled={busy} onClick={() => void run(() => prepare(row.id))}><ExternalLink size={14} />Prepare and send</button>}
         {['completed', 'SIGNED'].includes(row.status) && <>
@@ -166,6 +168,22 @@ export function SignatureRequests({ id, name, readOnly, onClose }: {
     </section>)}
     </div>
   </Modal>
+    {deleteId && <Modal open title="Delete signing record" onClose={() => {
+      if (!busy) {
+        setDeleteId(null)
+      }
+    }}>
+      <p>Delete this NeedsReview record? This removes the local record only. It does not cancel or delete an agreement in DocuSign or Adobe. Check the provider account before creating a replacement.</p>
+      <div className="row signature-list-toolbar">
+        <button disabled={busy} onClick={() => setDeleteId(null)}>Cancel</button>
+        <button className="danger" disabled={busy} onClick={() => void run(async () => {
+          await deleteSignatureRequest(id, deleteId)
+          setDeleteId(null)
+          clientRequestId.current = crypto.randomUUID()
+        })}><Trash2 size={14} />Delete record</button>
+      </div>
+      {error && <ErrorBanner message={error} />}
+    </Modal>}
     {preview && <PdfPreview
       key={`${preview.requestId}:${preview.audit}`}
       name={`${preview.audit ? 'audit' : 'signed'}-${name}`}

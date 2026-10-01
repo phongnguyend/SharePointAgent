@@ -35,6 +35,8 @@ The API uses one dedicated shared sender per provider. Existing attachment owner
 
 Configure **SharePointAgent.Api only**, using environment variables, local user secrets, or Container Apps secret references. Never commit keys or tokens. Both providers default to disabled.
 
+See the [GitHub environment variable/secret mapping](infra/README.md#document-signing-configuration-mapping) for storage types, example values, and corresponding API runtime keys. Release API forwards these settings to the API Container App, including when selected through Release services; credentials use Container Apps secret references.
+
 | Setting | Value |
 | --- | --- |
 | `DocumentSigning__ReturnUrl` | Frontend `/attachment-files` URL for the DocuSign return redirect; HTTPS in production |
@@ -46,6 +48,9 @@ Configure **SharePointAgent.Api only**, using environment variables, local user 
 | `DocumentSigning__DocuSign__SenderUserId` | Dedicated sender's API user GUID |
 | `DocumentSigning__DocuSign__PrivateKeyPem` | Registered RSA private key PEM |
 | `DocumentSigning__AdobeSign__Enabled` | `true` after configuration |
+| `DocumentSigning__AdobeSign__OAuthRedirectUri` | Optional HTTPS frontend `/adobe-sign-callback.html` URL, registered in Adobe for the Global Admin token page |
+| `DocumentSigning__AdobeSign__AuthUrl` | Adobe authorization URL; default `https://secure.adobesign.com/public/oauth/v2`. For Singapore use `https://secure.sg1.adobesign.com/public/oauth/v2`. |
+| `DocumentSigning__AdobeSign__AccessTokenUrl` | Required for OAuth authorization: initial token exchange URL, e.g. `https://api.sg1.adobesign.com/oauth/v2/token`. No callback endpoint fallback. Signing and token refresh still use `ApiAccessPoint`. |
 | `DocumentSigning__AdobeSign__ApiAccessPoint` | Regional API origin from OAuth, e.g. `https://api.na1.adobesign.com`, without `/api/rest/v6` |
 | `DocumentSigning__AdobeSign__ClientId` | OAuth application client ID |
 | `DocumentSigning__AdobeSign__ClientSecret` | OAuth client secret |
@@ -56,6 +61,8 @@ For DocuSign, register an integration and RSA key, then obtain the sender's cons
 For Adobe, authorize the dedicated sender using an OAuth application with `agreement_write:self`, `agreement_send:self`, `agreement_read:self`, and `user_login:self` scopes. Store the resulting refresh token and regional API access point in API secrets. The backend renews access tokens using `/oauth/v2/refresh`; tokens are cached in memory until shortly before expiry. Adobe refresh tokens expire after 60 days of inactivity; reauthorize after a long shutdown. Verify account/API entitlements and auto-login permissions with Adobe. See [OAuth setup and renewal](https://developer.adobe.com/acrobat-sign/docs/overview/developer_guide/oauth) and [agreement views](https://github.com/adobe-sign/AdobeSign-OpenAPI/blob/master/json/agreements.json).
 
 The `AddSignatureRequests` EF migration runs through the existing migration startup flow. IDs are database-generated. Attachments referenced by signing requests cannot be deleted. Deployment does not send or modify existing files.
+
+Global Admins can obtain Adobe tokens without Postman on **Admin → Document signing** (`/admin?tab=document-signing-configuration`). Configure Adobe `ClientId`, `ClientSecret`, and `OAuthRedirectUri` first; signing may remain disabled during initial setup. Register the exact HTTPS callback URL in Adobe and enable `agreement_read:self agreement_write:self agreement_send:self user_login:self`. Open the page on the callback's frontend origin, allow the authorization popup, sign in as the shared sender, and approve access. The page displays the access token, refresh token, regional API origin, and access-token lifetime, with reveal/copy/clear controls. Copy the refresh token and API origin to configuration yourself, enable Adobe, then restart or release API. Tokens exist only in the response and page memory, are cleared when leaving, and are never written to the database, browser storage, or application settings. Clipboard contents remain until replaced. Global Reader Admins and ordinary users cannot access these endpoints. OAuth attempts expire after ten minutes and are bound to the initiating administrator; Adobe codes can be exchanged only once. No new database migration is needed for this page.
 
 After sending, return and choose **Refresh status** on the request. Once completed, download **Signed PDF** and **Audit record**. **Reload list** reads local records only. This version shows the latest 100 requests per attachment, uses manual status refresh, and downloads artifacts from the provider. Webhook synchronization and automatic archiving/indexing of signed copies are not implemented. Manage cancellations and recipient corrections in the provider account.
 
