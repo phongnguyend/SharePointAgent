@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SharePointAgent.Persistence;
 
@@ -11,9 +12,11 @@ using SharePointAgent.Persistence;
 namespace SharePointAgent.Persistence.Migrations
 {
     [DbContext(typeof(SharePointIndexDbContext))]
-    partial class SharePointIndexDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261001232453_AddInAppSigning")]
+    partial class AddInAppSigning
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1041,10 +1044,6 @@ namespace SharePointAgent.Persistence.Migrations
 
                     b.Property<string>("FieldsJson")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Message")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<string>("OriginalSha256")
                         .HasMaxLength(64)

@@ -16,8 +16,8 @@ import {
 } from 'lucide-react'
 import { downloadIndexedFile, getIndexedFileMarkdown, getSensitivityLabels, listIndexedFiles, reindexIndexedFile } from '../api/client'
 import { FileTypeIcon } from '../components/FileTypeIcon'
-import { OfficePreview } from '../components/OfficePreview'
-import { MarkdownPreview } from '../components/MarkdownPreview'
+import { OfficeViewer } from '../components/OfficeViewer'
+import { MarkdownViewer } from '../components/MarkdownViewer'
 import { isPreviewableOfficeFile } from '../lib/officeFiles'
 import type { IndexedFileRow, SortKey } from '../api/types'
 import { CopyButton, Empty, ErrorBanner, Field, LoadingBar, Pagination } from '../components/ui'
@@ -303,7 +303,7 @@ export default function IndexedFilesPage() {
         {selected ? <FileDetail file={selected} labelNames={labelNames} onClose={() => setSelected(null)} onPreview={() => setPreview(selected)} /> : null}
       </div>
       {preview ? (
-        <OfficePreview
+        <OfficeViewer
           key={`${preview.driveId}:${preview.itemId}`}
           name={preview.name}
           sourceKey={`${preview.driveId}:${preview.itemId}`}
@@ -312,7 +312,7 @@ export default function IndexedFilesPage() {
         />
       ) : null}
       {markdownFile ? (
-        <MarkdownPreview
+        <MarkdownViewer
           title="Convert to Markdown"
           key={`${markdownFile.driveId}:${markdownFile.itemId}`}
           name={markdownFile.name}

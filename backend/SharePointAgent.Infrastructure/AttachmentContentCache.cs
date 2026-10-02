@@ -78,6 +78,22 @@ public sealed class AttachmentContentCache(
         return new(path, false);
     }
 
+    public int MaxFileBytes => settings.MaxFileBytes;
+
+    public async Task<string> StoreSignedDocumentAsync(Guid requestId, string sha256, byte[] pdf, CancellationToken ct)
+    {
+        // Content-addressed, so a retried completion rewrites the same blob instead of leaving a duplicate.
+        var name = $"signed-documents/{requestId:N}/{sha256}.pdf";
+        await Container.GetBlobClient(name).UploadAsync(BinaryData.FromBytes(pdf), overwrite: true, cancellationToken: ct);
+        return name;
+    }
+
+    public async Task<byte[]> DownloadSignedDocumentAsync(string blobName, CancellationToken ct)
+    {
+        var response = await Container.GetBlobClient(blobName).DownloadContentAsync(ct);
+        return response.Value.Content.ToArray();
+    }
+
     public async Task<string> ConvertForIndexAsync(ChatMessageAttachmentFileEntity file, CancellationToken ct)
     {
         RejectImageMarkdown(file);

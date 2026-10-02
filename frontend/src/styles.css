@@ -3034,3 +3034,352 @@ button.sandbox-row:hover, button.sandbox-row:focus-visible { background: var(--s
   max-height: 150px;
   overflow: auto;
 }
+
+.signature-provider-icon.in-app {
+  color: var(--accent);
+}
+
+/* Full screen, so fields can be placed and signed on the largest possible page. */
+.modal.in-app-signing-modal {
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.in-app-signing-modal[open] {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.in-app-signing-modal .modal-head {
+  flex-wrap: wrap;
+}
+
+.in-app-signing-modal .modal-head h2 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.in-app-signing-modal .modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.in-app-signing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.in-app-signing-layout {
+  display: flex;
+  flex: 1;
+  gap: 12px;
+  min-height: 0;
+}
+
+.signing-notice {
+  margin: 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  background: var(--accent-soft);
+}
+
+.signing-palette {
+  display: flex;
+  flex: 0 0 180px;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.signing-palette p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.signing-palette-item {
+  justify-content: flex-start;
+  cursor: grab;
+}
+
+.signing-palette-item:active {
+  cursor: grabbing;
+}
+
+.signing-palette .signing-palette-count {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.signing-pages {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  padding: 16px;
+  overflow: auto;
+  /* Reserve the scrollbar so its appearance does not change the page width and redraw every page. */
+  scrollbar-gutter: stable;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.signing-pages .react-pdf__Document {
+  display: contents;
+}
+
+.signing-page {
+  position: relative;
+  flex-shrink: 0;
+  background: #ffffff;
+  box-shadow: 0 1px 6px rgb(0 0 0 / 0.18);
+}
+
+.signing-page > p {
+  padding: 16px;
+  color: #52514e;
+}
+
+.signing-page-overlay {
+  position: absolute;
+  inset: 0;
+  touch-action: pan-y;
+}
+
+.signing-field {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border: 1.5px dashed #2a78d6;
+  border-radius: 3px;
+  background: rgb(42 120 214 / 0.12);
+  color: #1c5ba6;
+  font-size: 12px;
+  box-shadow: none;
+}
+
+.signing-field.is-filled {
+  border-style: solid;
+  border-color: rgb(42 120 214 / 0.45);
+  background: rgb(42 120 214 / 0.04);
+}
+
+.signing-field.is-selected,
+.signing-field:focus-visible {
+  outline: 2px solid #2a78d6;
+  outline-offset: 1px;
+}
+
+.signing-field.is-missing {
+  border-color: #e34948;
+  background: rgb(227 73 72 / 0.14);
+}
+
+.signing-field-signature,
+.signing-field-initials {
+  background-color: rgb(237 161 0 / 0.16);
+  border-color: #c98a00;
+  color: #7a5400;
+}
+
+.is-placing .signing-field {
+  cursor: move;
+  touch-action: none;
+  user-select: none;
+}
+
+button.signing-field:hover:not(:disabled) {
+  background: rgb(237 161 0 / 0.26);
+}
+
+input.signing-field {
+  justify-content: flex-start;
+  padding: 0 4px;
+  color: #111111;
+  font-size: max(10px, 1.1em);
+}
+
+input.signing-field::placeholder {
+  color: #7b7a74;
+}
+
+.signing-field img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.signing-field-label,
+.signing-field-prompt {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.signing-field-value {
+  width: 100%;
+  padding: 0 4px;
+  overflow: hidden;
+  color: #111111;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+button.signing-field-remove {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  display: none;
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  padding: 0;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid #c4c4bc;
+  background: #ffffff;
+  color: #e34948;
+  cursor: pointer;
+}
+
+.signing-field-resize {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  display: none;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #ffffff;
+  border-radius: 2px;
+  background: #2a78d6;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.signing-field.is-selected .signing-field-remove,
+.signing-field.is-selected .signing-field-resize,
+.signing-field:hover .signing-field-remove,
+.signing-field:hover .signing-field-resize {
+  display: flex;
+}
+
+.modal.signature-pad-modal {
+  width: min(680px, calc(100vw - 32px));
+}
+
+.signature-pad-help {
+  margin: 0 0 8px;
+  color: var(--text-secondary);
+}
+
+.signature-pad-canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 1;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm, 6px);
+  background: #ffffff;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.signature-pad-surface {
+  position: relative;
+}
+
+.signature-pad-baseline {
+  position: absolute;
+  right: 6%;
+  bottom: 26%;
+  left: 6%;
+  border-bottom: 1px dashed #c4c4bc;
+  pointer-events: none;
+}
+
+.signature-pad-actions {
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.signature-pad-spacer {
+  flex: 1;
+}
+
+@media (max-width: 700px) {
+  .in-app-signing-layout {
+    flex-direction: column;
+  }
+
+  .signing-palette {
+    flex: 0 0 auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .signing-palette p {
+    flex-basis: 100%;
+  }
+
+  .signing-pages {
+    padding: 8px;
+  }
+}
+
+.signature-request-details {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 6px 0 10px;
+  font-size: 13px;
+}
+
+.signature-request-details dt {
+  color: var(--text-secondary);
+}
+
+.signature-request-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.signature-request-details ol {
+  margin: 0;
+  padding-left: 18px;
+}
+
+/* Preview popups toggled to full screen. !important overrides the inline size left by drag-resizing. */
+.modal.is-maximized,
+.office-dialog.is-maximized[open] {
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  resize: none;
+}

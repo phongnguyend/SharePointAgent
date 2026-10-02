@@ -48,6 +48,8 @@ The **Attachment files** page supports multi-file uploads through **Upload files
 
 PDF rows and PDF preview headers include **Signatures**. Choose a configured provider, enter recipients in signing order, and create a draft. Open the preparation link in a new tab to place fields and send. Return and use **Refresh status**; completed requests offer signed PDF and audit-record downloads. Creating the draft uploads the PDF without emailing recipients.
 
+**In-App Signature** opens a full-screen editor instead (`InAppSigningEditor`, lazy-loaded with pdf-lib). In **Place fields**, drag fields from the palette onto pages or click one to add it to the visible page; drag to move, use the corner handle to resize, arrow keys to nudge, and Delete to remove. **Save fields** stores the layout. In **Sign**, signature and initials fields open `SignaturePad`; date fields default to today. **Preview** builds the same flattened PDF from the current fields, including unsaved changes and leaving out empty fields, and opens it without saving or uploading anything. **Finish** flattens the values into the PDF in the browser, uploads it, and opens the signed preview. Unfinished drafts appear in **Signing requests** with **Continue signing** and **Discard draft**.
+
 DocuSign and Adobe Acrobat Sign use administrator-configured company senders. See [backend setup and limitations](../README.md#shared-organization-signing). Status synchronization is manual and completed copies are downloaded from the provider. Read-only users cannot create or prepare requests. Signing requests preserve their source attachment by preventing its deletion.
 
 ### Sandbox file management

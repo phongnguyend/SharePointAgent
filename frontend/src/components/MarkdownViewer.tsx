@@ -1,11 +1,11 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { Download, X } from 'lucide-react'
 import DOMPurify from 'dompurify'
-import { ErrorBanner } from './ui'
+import { ErrorBanner, MaximizeButton, useViewerMaximized } from './ui'
 
 type View = 'plain' | 'rendered'
 
-export function MarkdownPreview({
+export function MarkdownViewer({
   name,
   sourceKey,
   load,
@@ -26,6 +26,7 @@ export function MarkdownPreview({
   const [view, setView] = useState<View>('plain')
   const dialogRef = useRef<HTMLDialogElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
+  const [maximized, toggleMaximized] = useViewerMaximized()
   const plainRef = useRef<HTMLButtonElement>(null)
   const renderedRef = useRef<HTMLButtonElement>(null)
   const tabId = useId()
@@ -100,7 +101,7 @@ export function MarkdownPreview({
   return (
     <dialog
       ref={dialogRef}
-      className="office-dialog markdown-dialog"
+      className={maximized ? 'office-dialog markdown-dialog is-maximized' : 'office-dialog markdown-dialog'}
       aria-label={`${title} for ${name}`}
       onCancel={(event) => { event.preventDefault(); onClose() }}
     >
@@ -108,6 +109,7 @@ export function MarkdownPreview({
         <strong title={name}>{title}: {name}</strong>
         <div className="row">
           {downloadUrl ? <a className="button-link" href={downloadUrl} download={downloadName}><Download size={14} />Download</a> : null}
+          <MaximizeButton maximized={maximized} onToggle={toggleMaximized} />
           <button className="ghost" ref={closeRef} onClick={onClose}><X size={15} />Close</button>
         </div>
       </div>

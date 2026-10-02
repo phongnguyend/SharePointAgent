@@ -18,7 +18,7 @@ import {
 } from 'lucide-react'
 import { downloadIndexedFile, timedSearch } from '../api/client'
 import { FileTypeIcon } from '../components/FileTypeIcon'
-import { OfficePreview } from '../components/OfficePreview'
+import { OfficeViewer } from '../components/OfficeViewer'
 import { isPreviewableOfficeFile } from '../lib/officeFiles'
 import {
   SEARCH_MODES,
@@ -359,7 +359,7 @@ function Hit({
         {highlight(hit.content, terms)}
       </div>
       {preview ? (
-        <OfficePreview
+        <OfficeViewer
           name={hit.name}
           sourceKey={`${hit.driveId}:${hit.itemId}`}
           load={(signal) => downloadIndexedFile(hit, signal)}

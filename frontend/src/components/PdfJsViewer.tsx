@@ -1,17 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
-import { Document, Page, pdfjs } from 'react-pdf'
+import { Document, Page } from 'react-pdf'
 import { ErrorBanner } from './ui'
+import { pdfDocumentOptions as documentOptions } from '../lib/pdfjs'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
-
-pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
-
-const documentOptions = {
-  cMapUrl: `${import.meta.env.BASE_URL}pdfjs/cmaps/`,
-  standardFontDataUrl: `${import.meta.env.BASE_URL}pdfjs/standard_fonts/`,
-  wasmUrl: `${import.meta.env.BASE_URL}pdfjs/wasm/`,
-}
 
 export default function PdfJsViewer({ url }: { url: string }) {
   const [pages, setPages] = useState(0)
@@ -55,7 +48,7 @@ export default function PdfJsViewer({ url }: { url: string }) {
   }, [page, pages, showThumbnails])
 
   return <div className="pdf-js-viewer">
-      <Document className="pdf-js-document" file={url} options={documentOptions} onLoadSuccess={({ numPages }) => setPages(numPages)}
+      <Document className="pdf-js-document" file={url} options={documentOptions} suspense={false} onLoadSuccess={({ numPages }) => setPages(numPages)}
         loading={<p role="status">Loading PDF…</p>}
         error={<ErrorBanner message="Could not render this PDF. Try the Browser option or download the file." />}>
         {showThumbnails && <div ref={thumbnails} className="pdf-thumbnail-list" aria-label="PDF page thumbnails"

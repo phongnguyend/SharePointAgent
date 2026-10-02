@@ -1,10 +1,10 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { Download, FileText, Globe, PenLine, X } from 'lucide-react'
-import { ErrorBanner, Modal } from './ui'
+import { ErrorBanner, MaximizeButton, Modal, useViewerMaximized } from './ui'
 
 const PdfJsViewer = lazy(() => import('./PdfJsViewer'))
 
-export function PdfPreview({ name, sourceKey, load, onClose, onSignatures }: {
+export function PdfViewer({ name, sourceKey, load, onClose, onSignatures }: {
   name: string
   sourceKey: string
   load: (signal: AbortSignal) => Promise<Blob>
@@ -14,6 +14,7 @@ export function PdfPreview({ name, sourceKey, load, onClose, onSignatures }: {
   const [url, setUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [viewer, setViewer] = useState<'browser' | 'in-app'>('in-app')
+  const [maximized, toggleMaximized] = useViewerMaximized()
 
   useEffect(() => {
     const controller = new AbortController()
@@ -39,7 +40,7 @@ export function PdfPreview({ name, sourceKey, load, onClose, onSignatures }: {
     // sourceKey identifies the PDF; capture the loader for this request.
   }, [sourceKey])
 
-  return <Modal open title={`Preview ${name}`} className="pdf-preview-modal" onClose={onClose}
+  return <Modal open title={`Preview ${name}`} className={maximized ? 'pdf-preview-modal is-maximized' : 'pdf-preview-modal'} onClose={onClose}
     headerActions={<div className="pdf-preview-actions">
       <div className="pdf-viewer-switch" role="group" aria-label="PDF viewer">
         <button aria-pressed={viewer === 'in-app'} onClick={() => setViewer('in-app')}><FileText size={14} aria-hidden="true" />In-app</button>
@@ -48,6 +49,7 @@ export function PdfPreview({ name, sourceKey, load, onClose, onSignatures }: {
       </div>
       {url && <a className="button-link" href={url} download={name}><Download size={14} />Download</a>}
       {onSignatures && <button onClick={onSignatures}><PenLine size={14} />Signatures</button>}
+      <MaximizeButton maximized={maximized} onToggle={toggleMaximized} />
       <button className="ghost" onClick={onClose}><X size={15} />Close</button>
     </div>}>
     {error ? <ErrorBanner message={error} /> : !url ? <p role="status">Downloading PDF…</p> : viewer === 'in-app' ? (

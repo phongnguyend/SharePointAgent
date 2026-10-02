@@ -69,9 +69,9 @@ import { FileTypeIcon } from '../components/FileTypeIcon'
 import { useSandboxFileManagement } from '../components/SandboxFileManagement'
 import { AttachmentDownload } from '../components/AttachmentDownload'
 import { MonthlyTokenUsage } from '../components/MonthlyTokenUsage'
-import { OfficePreview } from '../components/OfficePreview'
-import { ImagePreview } from '../components/ImagePreview'
-import { MarkdownPreview } from '../components/MarkdownPreview'
+import { OfficeViewer } from '../components/OfficeViewer'
+import { ImageViewer } from '../components/ImageViewer'
+import { MarkdownViewer } from '../components/MarkdownViewer'
 import { isPreviewableOfficeFile } from '../lib/officeFiles'
 import {
   folderLabel,
@@ -1028,17 +1028,17 @@ function SandboxPreview({
   const load = (signal: AbortSignal) => downloadConversationFile(conversationId, path, false, signal)
 
   if (isPreviewableOfficeFile(name)) {
-    return <OfficePreview name={name} sourceKey={sourceKey} load={load} onClose={onClose} />
+    return <OfficeViewer name={name} sourceKey={sourceKey} load={load} onClose={onClose} />
   }
 
   if (PREVIEWABLE_IMAGE.test(name)) {
-    return <ImagePreview name={name} sourceKey={sourceKey} load={load} onClose={onClose} />
+    return <ImageViewer name={name} sourceKey={sourceKey} load={load} onClose={onClose} />
   }
 
   // Everything else previewable here is text. The Markdown viewer renders it and offers the raw text,
   // which is the right treatment for a .md file and a serviceable one for .csv or .json.
   return (
-    <MarkdownPreview
+    <MarkdownViewer
       name={name}
       sourceKey={sourceKey}
       load={async (signal) => ({ markdown: await (await load(signal)).text() })}
@@ -1525,7 +1525,7 @@ function MessageBubble({
         {message.citations.length > 0 ? <Citations citations={message.citations} /> : null}
       </div>
       {preview ? (
-        <OfficePreview
+        <OfficeViewer
           key={preview.id}
           name={preview.fileName}
           sourceKey={preview.id}

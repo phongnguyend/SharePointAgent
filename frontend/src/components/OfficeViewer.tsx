@@ -3,7 +3,7 @@ import type { RefObject } from 'react'
 import type { Workbook } from 'exceljs'
 import type { PptxViewer } from '@aiden0z/pptx-renderer'
 import { ChevronLeft, ChevronRight, Download, X } from 'lucide-react'
-import { ErrorBanner } from './ui'
+import { ErrorBanner, MaximizeButton, useViewerMaximized } from './ui'
 import { normalizePptxXml } from '../lib/normalizePptx'
 import { cellDisplayText, cellStyle, columnWidthPx, fontStyle, rowHeightPx, themeColors, visibleMerges } from '../lib/excelPreview'
 import type { NumberFormatter } from '../lib/excelPreview'
@@ -14,7 +14,7 @@ function officeKind(name: string): OfficeKind {
   return name.split('.').pop()!.toLowerCase() as OfficeKind
 }
 
-export function OfficePreview({
+export function OfficeViewer({
   name,
   sourceKey,
   load,
@@ -30,6 +30,7 @@ export function OfficePreview({
   const [error, setError] = useState<string | null>(null)
   const dialogRef = useRef<HTMLDialogElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
+  const [maximized, toggleMaximized] = useViewerMaximized()
   const kind = officeKind(name)
 
   useEffect(() => {
@@ -67,7 +68,7 @@ export function OfficePreview({
   return (
       <dialog
         ref={dialogRef}
-        className={`office-dialog office-dialog--${kind}`}
+        className={`office-dialog office-dialog--${kind}${maximized ? ' is-maximized' : ''}`}
         aria-label={`Preview ${name}`}
         onCancel={(event) => { event.preventDefault(); onClose() }}
       >
@@ -75,21 +76,22 @@ export function OfficePreview({
           <strong title={name}>{name}</strong>
           <div className="row">
             {url ? <a className="button-link" href={url} download={name}><Download size={14} />Download</a> : null}
+            <MaximizeButton maximized={maximized} onToggle={toggleMaximized} />
             <button className="ghost" ref={closeRef} onClick={onClose}><X size={15} />Close</button>
           </div>
         </div>
         <div className="office-content">
           {error ? <ErrorBanner message={error} /> : null}
           {!blob && !error ? <div className="office-message">Downloading file…</div> : null}
-          {blob && kind === 'docx' ? <WordPreview blob={blob} /> : null}
-          {blob && kind === 'xlsx' ? <ExcelPreview blob={blob} /> : null}
-          {blob && kind === 'pptx' ? <PowerPointPreview blob={blob} /> : null}
+          {blob && kind === 'docx' ? <WordViewer blob={blob} /> : null}
+          {blob && kind === 'xlsx' ? <ExcelViewer blob={blob} /> : null}
+          {blob && kind === 'pptx' ? <PowerPointViewer blob={blob} /> : null}
         </div>
       </dialog>
   )
 }
 
-function WordPreview({ blob }: { blob: Blob }) {
+function WordViewer({ blob }: { blob: Blob }) {
   const container = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -110,7 +112,7 @@ function WordPreview({ blob }: { blob: Blob }) {
   return <>{error ? <ErrorBanner message={error} /> : null}<div className="office-word" ref={container} /></>
 }
 
-function PowerPointPreview({ blob }: { blob: Blob }) {
+function PowerPointViewer({ blob }: { blob: Blob }) {
   const container = useRef<HTMLDivElement>(null)
   const thumbnailList = useRef<HTMLElement>(null)
   const viewer = useRef<PptxViewer | null>(null)
@@ -278,7 +280,7 @@ function columnLabel(index: number): string {
   return label
 }
 
-function ExcelPreview({ blob }: { blob: Blob }) {
+function ExcelViewer({ blob }: { blob: Blob }) {
   const [workbook, setWorkbook] = useState<Workbook | null>(null)
   const [formatNumber, setFormatNumber] = useState<NumberFormatter | null>(null)
   const [error, setError] = useState<string | null>(null)

@@ -58,7 +58,11 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
             entity.Property(x => x.Provider).HasMaxLength(30);
             entity.Property(x => x.ExternalId).HasMaxLength(200);
             entity.Property(x => x.Subject).HasMaxLength(100);
+            entity.Property(x => x.Message).HasMaxLength(2000);
             entity.Property(x => x.Status).HasMaxLength(60);
+            entity.Property(x => x.SignedDocumentBlobName).HasMaxLength(200);
+            entity.Property(x => x.OriginalSha256).HasMaxLength(64);
+            entity.Property(x => x.SignedSha256).HasMaxLength(64);
             entity.HasIndex(x => new { x.CreatedById, x.ClientRequestId }).IsUnique();
             entity.HasIndex(x => new { x.AttachmentFileId, x.CreatedAtUtc });
             entity.HasOne<ChatMessageAttachmentFileEntity>().WithMany().HasForeignKey(x => x.AttachmentFileId).OnDelete(DeleteBehavior.Restrict);

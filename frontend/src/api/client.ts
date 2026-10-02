@@ -502,6 +502,8 @@ export interface SignatureRequest {
   id: string
   provider: string
   subject: string
+  message: string | null
+  recipientsJson: string
   status: string
   externalId: string | null
   createdAtUtc: string
@@ -554,6 +556,31 @@ export const refreshSignatureRequest = (id: string, requestId: string) => reques
   `${signaturesPath(id)}/${encodeURIComponent(requestId)}/refresh`, { method: 'POST' })
 export const downloadSignatureDocument = (id: string, requestId: string, audit: boolean, signal?: AbortSignal) => downloadBlob(
   `${signaturesPath(id)}/${encodeURIComponent(requestId)}/download?audit=${audit}`, signal)
+
+export type SigningFieldType = 'signature' | 'initials' | 'date' | 'text'
+
+/** Coordinates are fractions of the displayed page, measured from its top-left corner. */
+export interface SigningField {
+  id: string
+  type: SigningFieldType
+  page: number
+  x: number
+  y: number
+  width: number
+  height: number
+  value: string | null
+}
+
+export const getSigningFields = (id: string, requestId: string, signal?: AbortSignal) => request<{ status: string; fields: SigningField[] }>(
+  `${signaturesPath(id)}/${encodeURIComponent(requestId)}/fields`, { signal, cache: 'no-store' })
+export const saveSigningFields = (id: string, requestId: string, fields: SigningField[]) => request<{ status: string; fields: SigningField[] }>(
+  `${signaturesPath(id)}/${encodeURIComponent(requestId)}/fields`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fields }),
+  })
+export const completeInAppSigning = (id: string, requestId: string, pdf: Blob) => request<SignatureRequest>(
+  `${signaturesPath(id)}/${encodeURIComponent(requestId)}/complete`, {
+    method: 'POST', headers: { 'Content-Type': 'application/pdf' }, body: pdf,
+  })
 
 export function listAgents(signal?: AbortSignal): Promise<AgentDefinition[]> {
   return request<AgentDefinition[]>('/api/agents', { signal })

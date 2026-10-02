@@ -17,12 +17,12 @@ import type { UploadIndexStatus } from '../api/types'
 import { CopyButton, Empty, ErrorBanner, LoadingBar, Modal, Pagination } from '../components/ui'
 import { FileTypeIcon } from '../components/FileTypeIcon'
 import { AttachmentDownload } from '../components/AttachmentDownload'
-import { OfficePreview } from '../components/OfficePreview'
-import { ImagePreview } from '../components/ImagePreview'
-import { PdfPreview } from '../components/PdfPreview'
+import { OfficeViewer } from '../components/OfficeViewer'
+import { ImageViewer } from '../components/ImageViewer'
+import { PdfViewer } from '../components/PdfViewer'
 import { SignatureRequests } from '../components/SignatureRequests'
 import { OrphanAttachmentUpload } from '../components/OrphanAttachmentUpload'
-import { MarkdownPreview } from '../components/MarkdownPreview'
+import { MarkdownViewer } from '../components/MarkdownViewer'
 import { AttachmentStorageUsage } from '../components/AttachmentStorageUsage'
 import { SystemAttachmentStorage } from '../components/SystemAttachmentStorage'
 import { canReadAdministration } from '../components/AppUserContext'
@@ -306,7 +306,7 @@ export default function AttachmentFilesPage() {
         processingMessage={extractTextResult?.name.toLowerCase().endsWith('.pdf') ? 'Processing PDF?' : 'Processing image?'}
         onClose={closeExtractText} />
       {preview ? (
-        <OfficePreview
+        <OfficeViewer
           key={preview.id}
           name={preview.name}
           sourceKey={preview.id}
@@ -315,7 +315,7 @@ export default function AttachmentFilesPage() {
         />
       ) : null}
       {markdownFile ? (
-        <MarkdownPreview
+        <MarkdownViewer
           key={`${markdownFile.id}:${markdownFile.mode}`}
           name={markdownFile.name}
           title={markdownFile.mode === 'indexed' ? 'View indexed text' : 'Convert to Markdown'}
@@ -327,7 +327,7 @@ export default function AttachmentFilesPage() {
         />
       ) : null}
       {imagePreview ? (
-        <ImagePreview
+        <ImageViewer
           key={imagePreview.id}
           name={imagePreview.name}
           sourceKey={imagePreview.id}
@@ -336,7 +336,7 @@ export default function AttachmentFilesPage() {
         />
       ) : null}
       {pdfPreview ? (
-        <PdfPreview
+        <PdfViewer
           key={pdfPreview.id}
           name={pdfPreview.name}
           sourceKey={pdfPreview.id}

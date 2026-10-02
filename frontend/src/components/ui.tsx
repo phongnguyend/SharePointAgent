@@ -7,6 +7,8 @@ import {
   ChevronsLeft,
   Copy,
   Inbox,
+  Maximize2,
+  Minimize2,
   RefreshCw,
   TriangleAlert,
   X,
@@ -75,6 +77,36 @@ export function Modal({
       {footer ? <div className="modal-foot">{footer}</div> : null}
     </dialog>
   )
+}
+
+const PREVIEW_MAXIMIZED_KEY = 'preview-maximized'
+
+/** Whether preview popups fill the window. The choice is remembered for this browser. */
+export function useViewerMaximized() {
+  const [maximized, setMaximized] = useState(() => {
+    try {
+      return localStorage.getItem(PREVIEW_MAXIMIZED_KEY) === 'true'
+    } catch {
+      return false
+    }
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(PREVIEW_MAXIMIZED_KEY, String(maximized))
+    } catch {
+      // Storage can be unavailable (private windows, blocked site data); the toggle still works.
+    }
+  }, [maximized])
+
+  return [maximized, () => setMaximized(value => !value)] as const
+}
+
+export function MaximizeButton({ maximized, onToggle }: { maximized: boolean; onToggle: () => void }) {
+  const label = maximized ? 'Restore size' : 'Full screen'
+  return <button type="button" className="ghost icon-only" aria-pressed={maximized} aria-label={label} title={label} onClick={onToggle}>
+    {maximized ? <Minimize2 size={15} aria-hidden="true" /> : <Maximize2 size={15} aria-hidden="true" />}
+  </button>
 }
 
 export function StatTile({

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Download, X } from 'lucide-react'
-import { ErrorBanner } from './ui'
+import { ErrorBanner, MaximizeButton, useViewerMaximized } from './ui'
 
-export function ImagePreview({ name, sourceKey, load, onClose }: {
+export function ImageViewer({ name, sourceKey, load, onClose }: {
   name: string
   sourceKey: string
   load: (signal: AbortSignal) => Promise<Blob>
@@ -10,6 +10,7 @@ export function ImagePreview({ name, sourceKey, load, onClose }: {
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
+  const [maximized, toggleMaximized] = useViewerMaximized()
   const [url, setUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -44,7 +45,7 @@ export function ImagePreview({ name, sourceKey, load, onClose }: {
     // sourceKey identifies the image; capture the loader for this request.
   }, [sourceKey])
 
-  return <dialog ref={dialogRef} className="office-dialog" aria-label={`Preview ${name}`} onCancel={event => {
+  return <dialog ref={dialogRef} className={maximized ? 'office-dialog is-maximized' : 'office-dialog'} aria-label={`Preview ${name}`} onCancel={event => {
     event.preventDefault()
     onClose()
   }}>
@@ -52,6 +53,7 @@ export function ImagePreview({ name, sourceKey, load, onClose }: {
       <strong title={name}>{name}</strong>
       <div className="row">
         {url ? <a className="button-link" href={url} download={name}><Download size={14} />Download</a> : null}
+        <MaximizeButton maximized={maximized} onToggle={toggleMaximized} />
         <button className="ghost" ref={closeRef} onClick={onClose}><X size={15} />Close</button>
       </div>
     </div>

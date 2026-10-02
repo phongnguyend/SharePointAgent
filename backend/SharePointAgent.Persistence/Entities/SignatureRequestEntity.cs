@@ -16,6 +16,8 @@ public sealed class SignatureRequestEntity
 
     public string Subject { get; set; } = "";
 
+    public string? Message { get; set; }
+
     public string RecipientsJson { get; set; } = "[]";
 
     public string Status { get; set; } = "Creating";
@@ -23,4 +25,14 @@ public sealed class SignatureRequestEntity
     public DateTimeOffset CreatedAtUtc { get; set; }
 
     public DateTimeOffset UpdatedAtUtc { get; set; }
+
+    public string? FieldsJson { get; set; }
+
+    public string? SignedDocumentBlobName { get; set; }
+
+    public string? OriginalSha256 { get; set; }
+
+    public string? SignedSha256 { get; set; }
+
+    public DateTimeOffset? CompletedAtUtc { get; set; }
 }

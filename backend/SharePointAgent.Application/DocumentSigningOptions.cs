@@ -9,6 +9,13 @@ public sealed class DocumentSigningOptions
     public DocuSignOptions DocuSign { get; set; } = new();
 
     public AdobeSignOptions AdobeSign { get; set; } = new();
+
+    public InAppSigningOptions InApp { get; set; } = new();
+}
+
+public sealed class InAppSigningOptions
+{
+    public bool Enabled { get; set; } = true;
 }
 
 public sealed class DocuSignOptions
