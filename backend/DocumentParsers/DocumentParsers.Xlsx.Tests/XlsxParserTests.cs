@@ -18,6 +18,74 @@ namespace DocumentParsers.Tests;
 public sealed class XlsxParserTests
 {
     [Fact]
+    public void WideTablesOmitRowsEmptyWithinEachColumnGroupAndUnusedColumns()
+    {
+        var result = new XlsxParseResult();
+        var first = Enumerable.Range(0, 50).Select(column => new SpreadsheetCell(CellReference.Format(0, column), "Value", null)).ToArray();
+        result.Worksheets.Add(new(1, "Wide", new SpreadsheetElement
+        {
+            SheetName = "Wide",
+            Rows = [new(1, first), new(2, [new("AY2", "Other group", null), new("HZ2", "", null)])]
+        }, []));
+        var markdown = new XlsxDocumentParser().ConvertToMarkdown(result).Replace("\r\n", "\n");
+        Assert.Contains("## A1:AX1", markdown);
+        Assert.Contains("## AY2:AY2", markdown);
+        Assert.DoesNotContain("HZ", markdown);
+        Assert.DoesNotContain("| 2 |", markdown[..markdown.IndexOf("## AY2:AY2", StringComparison.Ordinal)]);
+        Assert.DoesNotContain("| 1 |", markdown[markdown.IndexOf("## AY2:AY2", StringComparison.Ordinal)..]);
+        Assert.DoesNotMatch(@"(?m)^\| \d+ \|(?:\s*\|)+\s*$", markdown);
+    }
+
+    [Fact]
+    public void MarkdownOmitsEmptyRowsBeforeChunkingButPreservesDataAndImages()
+    {
+        var rows = new SpreadsheetRow[]
+        {
+            new(1, []),
+            new(2, [new("A2", null, null)]),
+            new(3, [new("A3", " \t", null), new("B3", "", null)]),
+            new(4, [new("A4", "0", null)]),
+            new(5, [new("A5", "FALSE", null)]),
+            new(6, [new("A6", null, "1+1")]),
+            new(7, [new("A7", "", "IF(TRUE,\"\",\"x\")")])
+        };
+        var result = new XlsxParseResult();
+        result.Worksheets.Add(new(1, "Data", new SpreadsheetElement { SheetName = "Data", Rows = rows },
+            [new ImageElement { Data = [1], ContentType = "image/png", Anchor = "A2", Caption = "Kept image" }]));
+        var markdown = new XlsxDocumentParser(new ParserOptions { MarkdownRowsPerRegion = 2 }).ConvertToMarkdown(result);
+        Assert.DoesNotContain("| 1 |", markdown);
+        Assert.DoesNotContain("| 2 |", markdown);
+        Assert.DoesNotContain("| 3 |", markdown);
+        Assert.Contains("## A4:A5", markdown);
+        Assert.Contains("## A6:A7", markdown);
+        Assert.Contains("| 4 | 0 |", markdown);
+        Assert.Contains("| 5 | FALSE |", markdown);
+        Assert.Contains("| 6 | =1+1 |", markdown);
+        Assert.Contains("| 7 |", markdown);
+        Assert.Contains("=IF(TRUE,\"\",\"x\")", markdown);
+        Assert.Contains("Anchor: A2", markdown);
+        Assert.Contains("Kept image", markdown);
+        Assert.Same(rows, result.Worksheets[0].Data.Rows);
+        Assert.Equal(7, rows.Length);
+    }
+
+    [Fact]
+    public void EmptyWorksheetKeepsHeadingAndImagesWithoutEmptyTable()
+    {
+        var result = new XlsxParseResult();
+        result.Worksheets.Add(new(1, "Empty", new SpreadsheetElement
+        {
+            SheetName = "Empty",
+            Rows = [new(1, [new("A1", "", null)])]
+        }, [new ImageElement { Data = [1], ContentType = "image/png", Anchor = "A1" }]));
+        var parser = new XlsxDocumentParser();
+        Assert.Equal("# Empty", parser.ConvertToMarkdown(result, skipImages: true));
+        var markdown = parser.ConvertToMarkdown(result);
+        Assert.Contains("Anchor: A1", markdown);
+        Assert.DoesNotContain("| Row |", markdown);
+    }
+
+    [Fact]
     public async Task XlsxRetainsSparseCellsTypesFormulasDatesAnchorsAndEmptySheets()
     {
         using var stream = CreateWorkbook();

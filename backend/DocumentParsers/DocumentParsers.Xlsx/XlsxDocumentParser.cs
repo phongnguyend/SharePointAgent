@@ -161,28 +161,48 @@ public sealed class XlsxDocumentParser : IXlsxDocumentParser
             cancellationToken.ThrowIfCancellationRequested();
             output.AppendLine($"# {sheet.SheetName}").AppendLine();
             var pendingImages = (skipImages ? Enumerable.Empty<ImageElement>() : sheet.Images).OrderBy(image => image.Anchor is null ? int.MaxValue : CellReference.Parse(image.Anchor).Row).ToList();
-            foreach (var region in sheet.Data.Rows.OrderBy(row => row.RowIndex).Chunk(_options.MarkdownRowsPerRegion))
+            var nonEmptyRows = sheet.Data.Rows.Where(row =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var columns = region.SelectMany(row => row.Cells).Select(cell => CellReference.Parse(cell.Reference).Column).Distinct().Order().ToArray();
+                return row.Cells.Any(cell => !string.IsNullOrWhiteSpace(cell.Value) || !string.IsNullOrWhiteSpace(cell.Formula));
+            });
+            foreach (var region in nonEmptyRows.OrderBy(row => row.RowIndex).Chunk(_options.MarkdownRowsPerRegion))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var columns = region.SelectMany(row => row.Cells)
+                    .Where(cell => !string.IsNullOrWhiteSpace(CellText(cell)))
+                    .Select(cell => CellReference.Parse(cell.Reference).Column).Distinct().Order().ToArray();
                 if (columns.Length > 0)
                 {
                     // Keep sparse columns sparse and bound both table dimensions.
                     foreach (var columnRegion in columns.Chunk(50))
                     {
                         cancellationToken.ThrowIfCancellationRequested();
-                        output.AppendLine($"## {CellReference.Format(region[0].RowIndex - 1, columnRegion[0])}:{CellReference.Format(region[^1].RowIndex - 1, columnRegion[^1])}").AppendLine();
                         var tableRows = new List<IEnumerable<string>>
                         {
                             new[] { "Row" }.Concat(columnRegion.Select(column => CellReference.Format(0, column).TrimEnd('1')))
                         };
+                        int? firstRow = null;
+                        var lastRow = 0;
                         foreach (var row in region)
                         {
                             cancellationToken.ThrowIfCancellationRequested();
                             var values = row.Cells.ToDictionary(cell => CellReference.Parse(cell.Reference).Column);
-                            tableRows.Add(new[] { row.RowIndex.ToString(CultureInfo.InvariantCulture) }.Concat(columnRegion.Select(column =>
-                                values.TryGetValue(column, out var cell) ? cell.Value ?? (cell.Formula is null ? string.Empty : "=" + cell.Formula) : string.Empty)));
+                            var renderedCells = columnRegion.Select(column =>
+                                values.TryGetValue(column, out var cell) ? CellText(cell) : string.Empty).ToArray();
+                            if (renderedCells.All(string.IsNullOrWhiteSpace))
+                            {
+                                continue;
+                            }
+                            firstRow ??= row.RowIndex;
+                            lastRow = row.RowIndex;
+                            tableRows.Add(new[] { row.RowIndex.ToString(CultureInfo.InvariantCulture) }.Concat(renderedCells));
                         }
+                        if (firstRow is null)
+                        {
+                            continue;
+                        }
+                        output.AppendLine($"## {CellReference.Format(firstRow.Value - 1, columnRegion[0])}:{CellReference.Format(lastRow - 1, columnRegion[^1])}").AppendLine();
                         output.AppendLine(Markdown.Table(tableRows)).AppendLine();
                     }
                 }
@@ -197,4 +217,7 @@ public sealed class XlsxDocumentParser : IXlsxDocumentParser
         }
         return output.ToString().TrimEnd();
     }
+
+    private static string CellText(SpreadsheetCell cell) => !string.IsNullOrWhiteSpace(cell.Value)
+        ? cell.Value : !string.IsNullOrWhiteSpace(cell.Formula) ? "=" + cell.Formula : string.Empty;
 }

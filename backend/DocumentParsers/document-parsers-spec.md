@@ -502,6 +502,16 @@ Implement `XlsxDocumentParser : IXlsxDocumentParser` with
 Do not convert every cell into an independent `TextElement`, and do not
 turn a huge worksheet into one giant Markdown table.
 
+During Markdown conversion, omit rows whose cell values are all null,
+empty or whitespace and which have no formulas. Filter before dividing
+rows into bounded regions. Preserve original row numbers, zero/false
+values, formula rows and images anchored to omitted rows. Do not modify
+the parsed rows; empty worksheets still retain their worksheet headings.
+Exclude columns with no rendered content in the region. After splitting
+columns into bounded tables, omit rows empty within that particular table
+and omit empty tables. Use the formula text when its cached value is blank,
+and derive each table's row bounds from the rows actually emitted.
+
 ``` csharp
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;

@@ -145,8 +145,14 @@ Omitting the optional processor produces Markdown using existing image captions/
   No formulas are evaluated. Custom/time/duration formats retain their stored values with warnings;
   percentages/currency are not formatted. Merged cells retain stored coordinates with warnings.
   Hidden content is included. Charts, pivots, named ranges and comments are not rendered.
-  Markdown tables are bounded to the configured row count and at most 50 populated columns;
-  images follow their corresponding row region with their cell reference retained.
+  Markdown tables are bounded to the configured row count and at most 50 populated columns.
+  Rows with only missing, empty or whitespace values and no formulas are omitted before
+  forming regions. Original row numbers, formula rows, zero/false values and image anchors
+  are retained, and the parsed worksheet data is unchanged.
+  Unused columns are excluded, and rows are checked again within each column group so
+  wide worksheets cannot produce blank rows in split tables. Formulas are shown when
+  their cached values are blank, so retained formula rows have visible content.
+  Images follow their corresponding row region with their cell reference retained.
 - Input bytes, expanded ZIP bytes/entry count, table cells, extracted image count and total image
   bytes have configurable limits in `ParserOptions`. ZIP contents are validated before SDK parsing.
   Image resizing and decorative-image detection are not implemented yet; the image provider may
