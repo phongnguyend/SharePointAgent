@@ -1,0 +1,13 @@
+<Solution>
+  <Project Path="DocumentParsers.Demo/DocumentParsers.Demo.csproj" />
+  <Project Path="DocumentParsers.Shared/DocumentParsers.Shared.csproj" />
+  <Project Path="DocumentParsers.Shared.Tests/DocumentParsers.Shared.Tests.csproj" />
+  <Project Path="DocumentParsers.Pdf/DocumentParsers.Pdf.csproj" />
+  <Project Path="DocumentParsers.Pdf.Tests/DocumentParsers.Pdf.Tests.csproj" />
+  <Project Path="DocumentParsers.Docx/DocumentParsers.Docx.csproj" />
+  <Project Path="DocumentParsers.Docx.Tests/DocumentParsers.Docx.Tests.csproj" />
+  <Project Path="DocumentParsers.Pptx/DocumentParsers.Pptx.csproj" />
+  <Project Path="DocumentParsers.Pptx.Tests/DocumentParsers.Pptx.Tests.csproj" />
+  <Project Path="DocumentParsers.Xlsx/DocumentParsers.Xlsx.csproj" />
+  <Project Path="DocumentParsers.Xlsx.Tests/DocumentParsers.Xlsx.Tests.csproj" />
+</Solution>
