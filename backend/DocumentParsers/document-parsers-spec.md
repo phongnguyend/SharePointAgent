@@ -422,7 +422,19 @@ limitation: table cells may contain nested tables, images, lists and
 hyperlinks. A later semantic model should allow
 `Table -> Row -> Cell -> DocumentElement[]`.
 
-Explicit TODOs: numbering/lists, hyperlinks, headers/footers,
+Preserve bold runs as `**text**`, resolving document defaults, paragraph
+styles, character styles and direct bold overrides. Heading semantics take precedence over list
+numbering: render a numbered Heading 2 as `## Business Objectives`, without
+its automatic list marker or redundant bold delimiters. Still advance the
+underlying numbering sequence for subsequent list paragraphs. Merge adjacent bold
+runs and keep whitespace outside the emphasis delimiters. Resolve list
+markers from paragraph/style numbering properties and numbering definitions;
+preserve indentation, per-instance counters and start overrides. Normalize
+bullets to hyphens and numbering formats to decimal Markdown markers.
+Retain bold/list text in flattened table cells as well. Warn if a referenced
+numbering definition cannot be resolved rather than silently dropping it.
+
+Explicit TODOs: compound outline labels, numbering-style links, hyperlinks, headers/footers,
 footnotes/endnotes, text boxes, grouped drawings, charts, embedded
 objects, captions, nested tables, images inside table cells.
 

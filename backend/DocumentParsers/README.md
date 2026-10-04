@@ -116,9 +116,14 @@ Omitting the optional processor produces Markdown using existing image captions/
   figure retrieval, page attribution and bounding boxes. A bounding box represents the first
   bounding region; multi-region geometry is not retained. Merged table cells occupy their origin
   cell. Layout quality, OCR and multi-column reading order depend on Azure's analysis.
-- DOCX: body order, custom/inherited heading styles, text around inline images, tables and image
+- DOCX: body order, custom/inherited heading styles, bold text from run/paragraph/character
+  styles (including explicit bold-off), nested bullets and numbered lists resolved from
+  numbering definitions, list instances and start overrides. Bold is emitted as `**text**`;
+  adjacent bold runs are merged. List glyphs normalize to `-` and number formats to decimal
+  Markdown markers; compound outline labels and numbering-style links are not fully supported.
+  Preserves text around inline images, tables and image
   extraction. Nested tables are flattened; cell images follow the table and produce a warning.
-  List numbering, headers/footers, notes, chart rendering and full text-box support remain follow-up work.
+  Headers/footers, notes, chart rendering and full text-box support remain follow-up work.
   Hyperlink text is retained but links are not followed or rendered as links.
 - PPTX: presentation slide order, empty slides, text, titles, images, tables and nested groups.
   Placeholder positions resolve from slide overrides, layout placeholders and master

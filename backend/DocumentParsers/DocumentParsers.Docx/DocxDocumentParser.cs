@@ -1,4 +1,3 @@
-using System.Text;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using W = DocumentFormat.OpenXml.Wordprocessing;
@@ -25,6 +24,7 @@ public sealed class DocxDocumentParser : IDocxDocumentParser
         var body = main.Document.Body ?? throw new InvalidDataException("Missing DOCX body.");
         var result = new DocxParseResult();
         var images = new ImageReader(_options);
+        var formatting = new DocxFormatting(main, result.Warnings);
         foreach (var child in body.ChildElements)
         {
             Visit(child);
@@ -41,7 +41,7 @@ public sealed class DocxDocumentParser : IDocxDocumentParser
             else if (element is W.Table table)
             {
                 var rows = table.Elements<W.TableRow>().Select(row => row.Elements<W.TableCell>()
-                    .Select(cell => string.Join("\n", cell.Descendants<W.Paragraph>().Select(p => p.InnerText))).ToArray()).ToArray();
+                    .Select(cell => string.Join("\n", cell.Descendants<W.Paragraph>().Select(FormatCellParagraph))).ToArray()).ToArray();
                 if (rows.Sum(row => (long)row.Length) > _options.MaxTableCells)
                 {
                     throw new InvalidDataException("DOCX table exceeds the cell limit.");
@@ -77,48 +77,81 @@ public sealed class DocxDocumentParser : IDocxDocumentParser
         void ParseParagraph(W.Paragraph paragraph)
         {
             var level = HeadingLevel(paragraph, main);
-            var text = new StringBuilder();
-            if (paragraph.ParagraphProperties?.NumberingProperties is not null)
-            {
-                result.Warnings.Add(new("ListNumbering", "List text is retained without numbering."));
-            }
+            var text = new DocxInlineText();
+            var listPrefix = formatting.ListPrefix(paragraph);
+            var prefix = level > 0 ? string.Empty : listPrefix;
+            var firstSegment = true;
             Walk(paragraph);
             Flush();
 
             void Flush()
             {
-                if (text.Length > 0)
+                var value = text.Take();
+                if (value.Length > 0)
                 {
-                    Add(level > 0 ? new HeadingElement(text.ToString(), level) : new TextElement(text.ToString()));
-                    text.Clear();
+                    var continuation = new string(' ', prefix.Length);
+                    value = (firstSegment ? prefix : continuation) + value.Replace("\n", "\n" + continuation);
+                    Add(level > 0 ? new HeadingElement(value, level) : new TextElement(value));
+                    firstSegment = false;
                 }
             }
 
-            void Walk(OpenXmlElement node)
+            void Walk(OpenXmlElement node, bool bold = false)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 switch (node)
                 {
                     case W.Text value:
-                        text.Append(value.Text);
+                        text.Append(value.Text, bold);
                         return;
                     case W.TabChar:
-                        text.Append('\t');
+                        text.Append("\t", bold);
                         return;
                     case W.Break:
                     case W.CarriageReturn:
-                        text.AppendLine();
+                        text.Append("\n", bold);
                         return;
                     case W.Drawing drawing:
                         Flush();
                         ParseDrawing(drawing);
                         return;
                 }
+                if (node is W.Run run)
+                {
+                    bold = level == 0 && formatting.IsBold(run, paragraph);
+                }
                 foreach (var child in node.ChildElements)
                 {
-                    Walk(child);
+                    Walk(child, bold);
                 }
             }
+        }
+
+        string FormatCellParagraph(W.Paragraph paragraph)
+        {
+            var text = new DocxInlineText();
+            foreach (var run in paragraph.Descendants<W.Run>())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var bold = formatting.IsBold(run, paragraph);
+                foreach (var node in run.ChildElements)
+                {
+                    switch (node)
+                    {
+                        case W.Text value:
+                            text.Append(value.Text, bold);
+                            break;
+                        case W.TabChar:
+                            text.Append("\t", bold);
+                            break;
+                        case W.Break:
+                        case W.CarriageReturn:
+                            text.Append("\n", bold);
+                            break;
+                    }
+                }
+            }
+            return formatting.ListPrefix(paragraph) + text.Take();
         }
 
         void ParseDrawing(W.Drawing drawing)
