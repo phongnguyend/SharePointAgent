@@ -65,14 +65,9 @@ public sealed class PptxDocumentParser : IPptxDocumentParser
                     }
                     return;
                 }
-                var offset = shape.Descendants<A.Offset>().FirstOrDefault();
-                var extents = shape.Descendants<A.Extents>().FirstOrDefault();
-                var frameTransform = (shape as P.GraphicFrame)?.Transform;
-                var x = frameTransform?.Offset?.X?.Value ?? offset?.X?.Value ?? 0;
-                var y = frameTransform?.Offset?.Y?.Value ?? offset?.Y?.Value ?? 0;
-                var width = frameTransform?.Extents?.Cx?.Value ?? extents?.Cx?.Value ?? 0;
-                var height = frameTransform?.Extents?.Cy?.Value ?? extents?.Cy?.Value ?? 0;
-                var box = new DocumentBoundingBox(tx + x * sx, ty + y * sy, width * sx, height * sy);
+                var bounds = PptxShapeGeometry.Resolve(shape, part);
+                var box = bounds is null ? null : new DocumentBoundingBox(
+                    tx + bounds.X * sx, ty + bounds.Y * sy, bounds.Width * sx, bounds.Height * sy);
                 switch (shape)
                 {
                     case P.Shape textShape:

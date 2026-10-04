@@ -439,6 +439,12 @@ PPTX has no guaranteed linear reading order. Collect positioned elements
 and initially sort `Y` then `X`. Keep this ordering logic isolated so a
 better `ReadingOrderResolver` can replace it.
 
+Resolve placeholder geometry from the slide, matching layout placeholder
+index, then matching master placeholder type before sorting. Local geometry
+takes precedence. Preserve unknown positions as null and sort them after
+known positions, retaining their source order; never substitute `(0, 0)`
+for missing geometry because that incorrectly moves footer text first.
+
 ``` csharp
 using DocumentFormat.OpenXml.Packaging;
 using P = DocumentFormat.OpenXml.Presentation;

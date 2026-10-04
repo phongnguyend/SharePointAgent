@@ -121,6 +121,9 @@ Omitting the optional processor produces Markdown using existing image captions/
   List numbering, headers/footers, notes, chart rendering and full text-box support remain follow-up work.
   Hyperlink text is retained but links are not followed or rendered as links.
 - PPTX: presentation slide order, empty slides, text, titles, images, tables and nested groups.
+  Placeholder positions resolve from slide overrides, layout placeholders and master
+  placeholders before sorting top-to-bottom then left-to-right. Unknown positions sort
+  after known positions in source order instead of being treated as the slide origin.
   Text shapes preserve numbered lists and nested bullets, including paragraph overrides and
   list styles inherited from matching layout/master placeholders and presentation defaults.
   Number sequences continue across nested sub-items; nested counters reset for a new parent.

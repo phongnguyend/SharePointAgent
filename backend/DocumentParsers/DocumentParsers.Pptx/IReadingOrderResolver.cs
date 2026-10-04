@@ -8,7 +8,7 @@ public interface IReadingOrderResolver
 public sealed class PositionReadingOrderResolver : IReadingOrderResolver
 {
     public IReadOnlyList<DocumentElement> Resolve(IEnumerable<DocumentElement> elements) => elements
-        .OrderBy(element => element.BoundingBox?.Y ?? 0)
-        .ThenBy(element => element.BoundingBox?.X ?? 0)
+        .OrderBy(element => element.BoundingBox?.Y ?? double.PositiveInfinity)
+        .ThenBy(element => element.BoundingBox?.X ?? double.PositiveInfinity)
         .ToArray();
 }
