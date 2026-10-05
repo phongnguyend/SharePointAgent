@@ -23,6 +23,19 @@ namespace SharePointAgent.Infrastructure;
 
 public static class DependencyInjection
 {
+    public static IServiceCollection AddPageIndexClient(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<PageIndexOptions>().Bind(configuration.GetSection(PageIndexOptions.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(o => Uri.TryCreate(o.Endpoint, UriKind.Absolute, out var uri) &&
+                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps),
+                "PageIndex:Endpoint must be an absolute HTTP or HTTPS URL.")
+            .ValidateOnStart();
+        services.AddHttpClient<PageIndexClient>((sp, client) =>
+            client.Timeout = TimeSpan.FromSeconds(sp.GetRequiredService<IOptions<PageIndexOptions>>().Value.TimeoutSeconds));
+        return services;
+    }
+
     public static IServiceCollection AddContentSafety(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<ContentSafetyOptions>().Bind(configuration.GetSection(ContentSafetyOptions.SectionName))

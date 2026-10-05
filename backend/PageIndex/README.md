@@ -166,7 +166,7 @@ from the repository root:
 
 ```powershell
 docker build -t sharepoint-pageindex backend/PageIndex
-docker run --rm -p 8001:8000 --env-file backend/PageIndex/.env sharepoint-pageindex
+docker run -p 8001:8000 --env-file backend/PageIndex/.env sharepoint-pageindex
 ```
 
 Docker reads `.env` on the host and supplies the variables to the container.
@@ -191,6 +191,49 @@ no model-provider key; you can omit the Azure variables and `PAGEINDEX_INDEX_MOD
 Keep actual keys out of the Dockerfile and committed files.
 
 No infrastructure deployment or existing agent wiring is changed by this service.
+
+## C# client
+
+`SharePointAgent.Infrastructure.PageIndexClient` provides `IndexAsync` and
+`CheckHealthAsync`, following the MarkItDown client pattern. Register it explicitly
+in the host that needs indexing:
+
+```csharp
+builder.Services.AddPageIndexClient(builder.Configuration);
+```
+
+Configure the host's `appsettings.json`:
+
+```json
+{
+  "PageIndex": {
+    "Endpoint": "http://localhost:8001",
+    "IndexPath": "/index",
+    "HealthPath": "/health",
+    "TimeoutSeconds": 360
+  }
+}
+```
+
+Set `PageIndex:ApiKey` through user secrets or `PageIndex__ApiKey` in the host
+environment to the same value as the server's `PAGEINDEX_SERVICE_API_KEY`.
+The C# host does not load the Python service's `.env`. Azure credentials stay on
+the PageIndex server. The client timeout should allow for the server's worker
+deadline plus upload and queue time.
+
+Inject `PageIndexClient` and call it with Markdown or PDF bytes:
+
+```csharp
+var tree = await pageIndex.IndexAsync(
+    "report.md", markdownBytes, "text/markdown", cancellationToken,
+    includeText: true, includeSummaries: false);
+```
+
+The result contains `DocumentName`, recursive `Structure` nodes, optional
+`SourceLineOffset`, and `Warnings`. Nodes expose text, summaries, Markdown line
+numbers, and PDF page ranges when present. Non-success indexing responses throw
+`PageIndexIndexingException` with the HTTP status and response detail. Registration
+does not automatically change the SharePoint indexing pipeline.
 
 ## Tests
 
