@@ -4,9 +4,26 @@ import json
 from pathlib import Path
 import sys
 
+if __package__:
+    from .token_usage import collect_token_usage
+else:
+    from token_usage import collect_token_usage
+
 
 async def index(directory: Path) -> dict:
     options = json.loads((directory / "request.json").read_text(encoding="utf-8"))
+    with collect_token_usage(enabled=options["include_summaries"]) as usage:
+        result = await index_document(directory, options)
+    result["usage"] = {
+        **usage,
+        "model_id": options["model"],
+        "input_tokens": usage["prompt_tokens"],
+        "output_tokens": usage["completion_tokens"],
+    }
+    return result
+
+
+async def index_document(directory: Path, options: dict) -> dict:
     source = directory / options["source"]
     if source.suffix == ".pdf":
         from pageindex.flash import page_index_flash

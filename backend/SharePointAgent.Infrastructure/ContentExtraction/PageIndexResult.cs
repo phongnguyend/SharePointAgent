@@ -16,4 +16,8 @@ public sealed class PageIndexResult
 
     [JsonPropertyName("warnings")]
     public List<string> Warnings { get; init; } = [];
+
+    /// <summary>Aggregate model response usage; null for older PageIndex servers.</summary>
+    [JsonPropertyName("usage")]
+    public PageIndexTokenUsage? Usage { get; init; }
 }

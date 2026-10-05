@@ -52,6 +52,10 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(200, response.status_code, response.text)
             self.assertEqual("report", response.json()["doc_name"])
             self.assertIn("source evidence", json.dumps(response.json()["structure"]))
+            self.assertEqual(0, response.json()["usage"]["total_tokens"])
+            self.assertEqual(0, response.json()["usage"]["model_calls"])
+            self.assertEqual(0, response.json()["usage"]["input_tokens"])
+            self.assertEqual(0, response.json()["usage"]["output_tokens"])
 
     def test_authentication_precedes_upload_validation(self):
         with patch.dict(os.environ, {"PAGEINDEX_SERVICE_API_KEY": "secret"}), TestClient(main.app) as client:
@@ -103,6 +107,10 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(200, response.status_code, response.text)
             tree = response.json()
             self.assertEqual("report", tree["doc_name"])
+            self.assertEqual({"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0,
+                              "model_calls": 0, "calls_without_usage": 0,
+                              "input_tokens": 0, "output_tokens": 0,
+                              "model_id": os.environ.get("PAGEINDEX_INDEX_MODEL", "gpt-4.1-mini")}, tree["usage"])
             self.assertEqual(2, tree["source_line_offset"])
             self.assertIn("Preamble", tree["structure"][0]["text"])
             self.assertEqual("Detail", tree["structure"][1]["nodes"][0]["title"])

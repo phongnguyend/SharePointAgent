@@ -49,6 +49,42 @@ OCR first: send Markdown produced by your parser/OCR pipeline. No OCR is run her
 When Flash finds no sections in a text PDF, the response contains one document
 node and a warning; that fallback does not generate a summary.
 
+### Token usage
+
+Successful `/index` responses include aggregate model token usage:
+
+```json
+"usage": {
+  "model_id": "azure/pageindex-summary",
+  "input_tokens": 1200,
+  "output_tokens": 240,
+  "prompt_tokens": 1200,
+  "completion_tokens": 240,
+  "total_tokens": 1440,
+  "model_calls": 3,
+  "calls_without_usage": 0
+}
+```
+
+`input_tokens` and `output_tokens` are request-wide totals, matching the input/output
+terminology used by the other usage tracking. `prompt_tokens` and `completion_tokens`
+remain equivalent aliases for compatibility; do not add the aliases to the totals.
+In C#, read `result.Usage.ModelId`, `InputTokens`, `OutputTokens`, and `TotalTokens`.
+`model_id` is the configured `PAGEINDEX_INDEX_MODEL`, including the provider prefix.
+For Azure it identifies the deployment, not the underlying model version. It is
+returned even when no model calls occur.
+This is response-only reporting; no database usage record is written.
+
+Counts are summed from completed LiteLLM responses across the document's model
+calls, for both Markdown and PDF. See the [LiteLLM response format](https://docs.litellm.ai/docs/).
+Requests with no model calls return zero for every counter, including indexing with
+summaries disabled. `model_calls` counts completed responses; `calls_without_usage`
+counts responses missing any token totals, so nonzero means the totals are partial.
+Failed attempts without a response are not included, and failed `/index` requests
+retain their existing error response. These counters are response usage, not a
+billing reconciliation or the token count of the uploaded document.
+The C# client exposes them through `PageIndexResult.Usage` (null for older servers).
+
 ## Configuration
 
 ### Use a `.env` file

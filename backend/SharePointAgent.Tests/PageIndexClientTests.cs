@@ -30,6 +30,7 @@ public sealed class PageIndexClientTests
             Assert.Equal(summaries ? "true" : "false", await parts["include_summaries"].ReadAsStringAsync(token));
             return Response(HttpStatusCode.OK, """
                 {"doc_name":"report","source_line_offset":2,"warnings":["fallback"],
+                 "usage":{"model_id":"azure/test-deployment","prompt_tokens":100,"completion_tokens":20,"total_tokens":120,"model_calls":2,"calls_without_usage":1},
                  "structure":[{"title":"Report","node_id":"0000","line_num":3,"text":"Body",
                    "prefix_summary":"Intro","nodes":[{"title":"Child","start_index":1,"end_index":2,"summary":"Summary"}]}]}
                 """);
@@ -38,6 +39,15 @@ public sealed class PageIndexClientTests
         var client = CreateClient(http, key);
         var result = await client.IndexAsync("report.md", "# Report"u8.ToArray(), "text/markdown", default, text, summaries);
         Assert.Equal("report", result.DocumentName);
+        Assert.NotNull(result.Usage);
+        Assert.Equal("azure/test-deployment", result.Usage.ModelId);
+        Assert.Equal(100, result.Usage.PromptTokens);
+        Assert.Equal(20, result.Usage.CompletionTokens);
+        Assert.Equal(100, result.Usage.InputTokens);
+        Assert.Equal(20, result.Usage.OutputTokens);
+        Assert.Equal(120, result.Usage.TotalTokens);
+        Assert.Equal(2, result.Usage.ModelCalls);
+        Assert.Equal(1, result.Usage.CallsWithoutUsage);
         Assert.Equal(2, result.SourceLineOffset);
         Assert.Equal("fallback", Assert.Single(result.Warnings));
         var node = Assert.Single(result.Structure);
