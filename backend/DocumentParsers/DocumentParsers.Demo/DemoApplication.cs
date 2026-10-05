@@ -62,7 +62,8 @@ internal static class DemoApplication
             var options = config.GetSection("Parser").Get<ParserOptions>() ?? new();
             var token = cancellation.Token;
             DocumentIntelligenceClient? documentClient = null;
-            if (format == DocumentFormat.Pdf || analyzeImages)
+            var pdfOcr = format == DocumentFormat.Pdf && config.GetValue<bool>("Demo:PdfOcr");
+            if (pdfOcr || analyzeImages)
             {
                 documentClient = new DocumentIntelligenceClient(Endpoint(config, "DocumentIntelligence:Endpoint"),
                     new AzureKeyCredential(Required(config, "DocumentIntelligence:ApiKey")));
@@ -86,7 +87,7 @@ internal static class DemoApplication
             switch (format)
             {
                 case DocumentFormat.Pdf:
-                    var pdf = new PdfDocumentParser(documentClient!, options);
+                    var pdf = new PdfDocumentParser(pdfOcr ? documentClient : null, options);
                     var pdfResult = await pdf.ParseAsync(stream, token);
                     markdown = await RenderAsync(pdfResult.Elements.OfType<ImageElement>(), pdfResult.Warnings,
                         () => pdf.ConvertToMarkdown(pdfResult, token, skipImages));
@@ -186,6 +187,9 @@ internal static class DemoApplication
                 case "--ocr":
                     values["Demo:ExtractText"] = "true";
                     break;
+                case "--pdf-ocr":
+                    values["Demo:PdfOcr"] = "true";
+                    break;
                 case "--overwrite":
                     values["Demo:Overwrite"] = "true";
                     break;
@@ -221,9 +225,10 @@ internal static class DemoApplication
             DocumentParsers.Demo
               --input <file>       PDF, DOCX, PPTX or XLSX (or set Demo:InputPath)
               --output <file.md>   Default: input filename with .md extension
-              --skip-images       Omit image blocks and skip LLM/OCR
+              --skip-images       Keep image comments only; skip image enrichment
               --analyze-images    Enable Azure OpenAI image descriptions
               --ocr               Also extract image text; requires --analyze-images
+              --pdf-ocr           OCR PDF pages without native text using Azure prebuilt-read
               --overwrite         Replace an existing output file
               --help              Show this help
 

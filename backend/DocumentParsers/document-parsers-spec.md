@@ -194,6 +194,8 @@ public sealed record ImageElement : DocumentElement
 
     public required string ContentType { get; init; }
 
+    public string? FileName { get; init; }
+
     public string? AltText { get; init; }
 
     public string? Caption { get; init; }
@@ -221,9 +223,8 @@ public sealed record SpreadsheetCell(
 
 Parsers must not dispose the caller's stream. Copy to a seekable
 `MemoryStream` when required. Parsers extract images but must not invoke
-the LLM or image OCR service. PDF layout analysis may perform OCR as
-part of Azure Document Intelligence parsing; that is separate from
-optional OCR of extracted images.
+the LLM or image OCR service. PDF parsing may optionally use Azure `prebuilt-read` for pages without native
+text; this is separate from optional OCR of extracted images.
 
 ## Format-specific result processing
 
@@ -280,70 +281,72 @@ on failure, retain any successful output, and propagate caller cancellation.
 
 # PDF Parser
 
-Use `Azure.AI.DocumentIntelligence` with `prebuilt-layout`.
+Use `PdfPig` 0.1.16 for local text and layout parsing. Azure Document
+Intelligence is used only for OCR through `prebuilt-read`; never use
+`prebuilt-layout` or Azure figure extraction.
 
-Extract paragraphs, headings, tables, figures, page numbers,
-spans/offsets, and bounding regions. Use span offset as the primary
-reading-order key.
-
-``` csharp
-public sealed class PdfDocumentParser : IPdfDocumentParser
-{
-    // Parsing excerpt; also implement ConvertToMarkdown as specified below.
-    private readonly DocumentIntelligenceClient _client;
-
-    public PdfDocumentParser(DocumentIntelligenceClient client)
-        => _client = client;
-
-    public async Task<PdfParseResult> ParseAsync(
-        Stream stream,
-        CancellationToken cancellationToken = default)
-    {
-        using var buffer = new MemoryStream();
-        await stream.CopyToAsync(buffer, cancellationToken);
-
-        var operation = await _client.AnalyzeDocumentAsync(
-            WaitUntil.Completed,
-            "prebuilt-layout",
-            BinaryData.FromBytes(buffer.ToArray()),
-            cancellationToken: cancellationToken);
-
-        return Map(operation.Value);
-    }
-}
+```csharp
+var localParser = new PdfDocumentParser();
+var parserWithOcr = new PdfDocumentParser(documentIntelligenceClient, options);
 ```
 
-Mapping requirements:
+Extract words with `NearestNeighbourWordExtractor` and pass words plus embedded
+images to the PDF project's `LayoutAnalyzer`:
 
-1.  Collect paragraphs, tables and figures into temporary
-    `(offset, element)` records.
-2.  Map `ParagraphRole.Title` to heading level 1 and `SectionHeading` to
-    level 2.
-3.  Populate `PageNumber`, `Order`, and bounding box where available.
-4.  Do not emit paragraphs whose spans are fully contained in a table
-    span; otherwise table text is duplicated.
-5.  Convert tables to Markdown, escaping `|`, preserving empty cells and
-    handling irregular/merged cells reasonably.
-6.  Sort all elements by offset before returning `PdfParseResult`;
-    populate `PageCount` from the analysis result.
+```text
+PdfPig words + bounding boxes / images + bounding boxes
+    -> normalize coordinates to top-left points
+    -> group words into lines and split large horizontal gaps
+    -> classify heading, list, paragraph and table candidates
+    -> group text, tables and images into reading rows
+    -> order rows top-to-bottom and items within each row left-to-right
+    -> merge adjacent aligned paragraph lines
+    -> DocumentElement[]
+```
 
-For table duplicate detection, compare paragraph start/end offsets
-against each table's start/end span.
+Normalize word geometry using the axis-aligned envelope of all four corners.
+Group words by vertical alignment with a font-relative tolerance that keeps
+short list glyphs attached. Classify short lines with fonts at least 1.2 times
+the page's dominant body size as headings (level 1 at 1.6 times, otherwise 2).
+Normalize supported bullets and decimal list markers into Markdown `TextElement`
+content; paragraphs also use `TextElement`.
 
-### PDF figures
+Promote a table candidate only when at least three nearby rows have matching
+cell starts, short cells, and numeric data in at least half the data rows.
+Enforce `MaxTableCells`, escape Markdown cell content, and consume table words
+once. The first row supplies the Markdown header. Ambiguous candidates remain
+text. This deliberately avoids treating every aligned prose column as a table.
 
-Implement figures using the exact Azure Document Intelligence SDK/API
-version selected by the project because figure APIs vary by version.
-Request figure output when necessary, retrieve the supported crop/image,
-create `ImageElement`, retain caption/page/span/bounding box, and insert
-by offset. Leave `Description` null for the common image-description
-stage.
+Read top-to-bottom, then left-to-right within each row, across columns. Group
+top edges within two points of the first top edge in a row; do not chain the
+tolerance across successive items. Text, tables and images follow the same
+rule, regardless of element height. Elements without geometry follow positioned
+content in source order. Merge nearby aligned paragraph lines only when adjacent
+in this reading order, without merging list items or crossing intervening text,
+headings, tables or images. Retain page numbers, geometry, and total page count
+(including empty pages), then assign sequential `Order` across pages.
 
-Do not silently screenshot arbitrary PDF pages and treat them as
-figures.
+Extract embedded raster images locally as PNG, enforcing image count/byte limits
+and checking decoded pixel size before conversion. Warn when an image cannot
+be decoded. Preserve page and bounding box; do not rasterize arbitrary pages
+or call Azure to obtain figures. Vector figures are not extracted as images.
 
-Per-request application metering may store `AnalyzeResult.Pages.Count`;
-do not treat it as authoritative Azure billing data.
+Supplying an optional Document Intelligence client enables OCR fallback for
+pages with no non-whitespace native words. Send one `prebuilt-read` request,
+with `Pages` restricted to those page numbers. The request uploads the whole
+PDF but requests analysis only for those pages. Map OCR lines only for requested
+pages, normalize geometry to points, and never duplicate native text. Propagate
+service errors and cancellation. Without a client, retain local output and warn
+that OCR is not configured when pages without native text are encountered.
+Blank pages may also be selected. Mixed text/image pages with any native text
+are not automatically OCRed; extracted-image OCR remains a separate option.
+
+Layout classification is heuristic and targets horizontal left-to-right text.
+Same-size headings, nested list indentation, text-only tables, merged/empty cells,
+rotated text and complex overlapping layouts need additional rules. Font sizes
+are inferred per page, so a title-only page may remain ordinary text. OCR lines
+use normalized geometry and shared reading order, without native font-based
+classification. Do not claim full semantic reconstruction or Azure layout parity.
 
 ------------------------------------------------------------------------
 
@@ -583,11 +586,19 @@ conversion in this separate method on the same parser. Conversion is
 synchronous, operates on the supplied result, and performs no file reads,
 LLM calls or OCR requests. Honor cancellation during traversal.
 
-All four methods accept optional `skipImages = false`. When true, omit
-image blocks entirely, including captions, alt text, anchors, descriptions
-and OCR text, without modifying the result. Preserve non-image content and
-slide/worksheet headings. Do not emit PDF page markers solely for skipped
-images. `DocumentConversionService.ConvertAsync` exposes the same option
+All four methods accept optional `skipImages = false`. Every image emits a
+`<!-- image: abc.png; caption: Sales overview; alt: Quarterly sales chart -->`
+comment in its rendering position. Include existing caption and alt text when
+nonempty, trim them, and escape comment delimiters/newlines in each field.
+Omit missing or whitespace-only fields. When true, emit
+only that comment, omitting visible image fields, anchors, descriptions and OCR
+text without modifying the result. Use `ImageElement.FileName` when available
+(Office image part filename), otherwise a stable `image-<SHA256>.<extension>`
+identifier from image bytes and MIME type. Strip directory components and escape
+comment delimiters/newlines. Comments do not imply image files were exported.
+Preserve non-image content, slide/worksheet headings and PDF page markers,
+including pages containing only image placeholders.
+`DocumentConversionService.ConvertAsync` exposes the same option
 and bypasses image enrichment when images are skipped. Parsing still
 extracts images so the result remains reusable for later conversions.
 
@@ -712,8 +723,9 @@ table, formula has no cached value.
 
 Create unit/integration fixtures for each format.
 
-PDF: - normal text; - scanned/OCR PDF; - headings; - multi-page; -
-tables; - figures; - paragraph/table duplication; - multi-column layout.
+PDF: - local text and reading order; - multi-page geometry; - embedded images;
+- optional OCR page selection; - no Azure calls for native text; - input/image
+limits; - cancellation; - multi-column layout.
 
 DOCX: - headings; - paragraph text; - image between text runs; -
 multiple images; - table; - image in table; - lists; - custom styles.
@@ -757,7 +769,7 @@ The implementation is complete when:
 5.  Image enrichment is format-independent: `DescribeAsync` uses an LLM,
     and `ExtractTextAsync` performs optional OCR with separate output.
 6.  Each parser implements `ConvertToMarkdown` for its specific result type.
-7.  PDF table text is not duplicated.
+7.  PDF native text is not duplicated by OCR.
 8.  DOCX inline images preserve surrounding text order.
 9.  PPTX uses a replaceable position-based reading-order resolver.
 10. XLSX retains spreadsheet semantics and avoids giant unbounded
@@ -783,5 +795,5 @@ Implement in this order:
 
 Before coding a parser, inspect the installed NuGet package version and
 compile against its actual API. In particular, do not invent Azure
-Document Intelligence figure methods or OpenXML members from memory;
+Document Intelligence OCR methods, PdfPig APIs or OpenXML members from memory;
 adapt to the exact package version and add tests for the selected API.

@@ -69,12 +69,18 @@ string markdown = parser.ConvertToMarkdown(result, cancellationToken);
 The caller owns the input stream; parsing starts at its current position. Non-seekable streams are supported.
 Markdown conversion uses the result in memory and makes no service calls.
 To omit image blocks (including captions, descriptions and OCR text), use
-`parser.ConvertToMarkdown(result, skipImages: true)`. Images are included
+`parser.ConvertToMarkdown(result, skipImages: true)`. Each image still emits
+`<!-- image: abc.png; caption: Sales overview; alt: Quarterly sales chart -->`
+at its position. Existing caption/alt text is retained in the comment; empty fields
+are omitted. Comments use the embedded filename
+when available, otherwise `image-<SHA256>.<extension>`. These are identifiers;
+conversion does not write image files. Images are included
 by default, and the parsed result is never modified by this option.
 `DocumentConversionService.ConvertAsync(..., skipImages: true)` also skips
 LLM/OCR enrichment; parsing still extracts images for reuse.
-`PdfDocumentParser` requires an authenticated `Azure.AI.DocumentIntelligence.DocumentIntelligenceClient`.
-It calls `prebuilt-layout` with figure output and downloads the detected figure crops.
+`new PdfDocumentParser()` extracts PDF text, layout and embedded images locally using PdfPig.
+Pass an authenticated `DocumentIntelligenceClient` to enable `prebuilt-read` OCR fallback
+for pages without native text. Native text pages never call Azure.
 DOCX, PPTX and XLSX parsing runs locally with Open XML SDK.
 
 ## Image analysis and dispatch
@@ -112,10 +118,16 @@ Omitting the optional processor produces Markdown using existing image captions/
 
 ## Current behavior and limits
 
-- PDF: paragraph/heading/table mapping, span ordering, duplicate table-paragraph suppression,
-  figure retrieval, page attribution and bounding boxes. A bounding box represents the first
-  bounding region; multi-region geometry is not retained. Merged table cells occupy their origin
-  cell. Layout quality, OCR and multi-column reading order depend on Azure's analysis.
+- PDF: PdfPig word extraction followed by `LayoutAnalyzer` coordinate normalization,
+  word-to-line grouping, font-size headings, Markdown lists, paragraph merging and conservative
+  aligned numeric table detection. Text, tables and images read top-to-bottom, then
+  left-to-right within each row, with a two-point tolerance for top-edge alignment.
+  Page attribution and bounding boxes use points measured from the top-left. Classification
+  targets horizontal left-to-right text; same-size headings, nested list indentation,
+  text-only/merged tables and overlapping layouts remain limitations. Vector figures are not
+  rendered. Optional Azure OCR selects pages
+  without native words (including blank pages); pages mixing native text and scanned images
+  need separate image OCR. The OCR request uploads the whole PDF with a page selection.
 - DOCX: body order, custom/inherited heading styles, bold text from run/paragraph/character
   styles (including explicit bold-off), nested bullets and numbered lists resolved from
   numbering definitions, list instances and start overrides. Bold is emitted as `**text**`;
@@ -159,7 +171,7 @@ Omitting the optional processor produces Markdown using existing image captions/
   reject unsupported or oversized images, resulting in per-operation warnings.
 
 This is an initial implementation, not completion of every production requirement in the spec.
-Tests build Open XML fixtures in memory and substitute external clients for PDF/LLM/OCR checks.
+Tests build Open XML and PDF fixtures in memory and substitute external clients for OCR/LLM checks.
 They make no paid service calls. Live Azure/vision validation and a representative real-world
 document corpus are still needed before production rollout.
 
@@ -170,3 +182,5 @@ installed Azure Document Intelligence 1.0.0 API rather than assuming the latest 
 See the [Azure SDK source for 1.0.0](https://github.com/Azure/azure-sdk-for-net/tree/Azure.AI.DocumentIntelligence_1.0.0/sdk/documentintelligence/Azure.AI.DocumentIntelligence),
 [Open XML SDK](https://github.com/dotnet/Open-XML-SDK), and
 [IChatClient documentation](https://learn.microsoft.com/en-us/dotnet/api/microsoft.extensions.ai.ichatclient).
+
+PDF layout implementation follows the [PdfPig layout analysis documentation](https://github.com/UglyToad/PdfPig/wiki/Document-Layout-Analysis).

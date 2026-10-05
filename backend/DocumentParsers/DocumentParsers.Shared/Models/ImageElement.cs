@@ -6,6 +6,8 @@ public sealed record ImageElement : DocumentElement
 
     public required string ContentType { get; init; }
 
+    public string? FileName { get; init; }
+
     public string? AltText { get; init; }
 
     public string? Caption { get; init; }

@@ -7,12 +7,13 @@ namespace DocumentParsers.Tests;
 public sealed class MarkdownImageOptionsTests
 {
     [Fact]
-    public void SkippingImagesOmitsAllImageFieldsAndPreservesSource()
+    public void SkippingImagesRetainsCaptionAndAltInCommentsAndPreservesSource()
     {
         var image = new ImageElement
         {
             Data = [1, 2, 3],
             ContentType = "image/png",
+            FileName = "abc.png",
             Caption = "Image caption",
             AltText = "Image alt text",
             Description = "Image description",
@@ -28,7 +29,11 @@ public sealed class MarkdownImageOptionsTests
 
         var included = Convert(false);
         var skipped = Convert(true);
-        foreach (var field in new[] { "[Image]", image.Caption, image.AltText, image.Description, image.ExtractedText, "Anchor: D3" })
+        const string comment = "<!-- image: abc.png; caption: Image caption; alt: Image alt text -->";
+        Assert.Contains(comment, included);
+        Assert.Equal(2, skipped.Split(comment).Length - 1);
+        Assert.True(skipped.IndexOf("Before", StringComparison.Ordinal) < skipped.IndexOf(comment, StringComparison.Ordinal));
+        foreach (var field in new[] { "[Image]", "Caption: ", "Alt text: ", image.Description, image.ExtractedText, "Anchor: D3" })
         {
             Assert.Contains(field, included);
             Assert.DoesNotContain(field, skipped);

@@ -34,10 +34,6 @@ internal static class Markdown
         foreach (var element in elements)
         {
             token.ThrowIfCancellationRequested();
-            if (skipImages && element is ImageElement)
-            {
-                continue;
-            }
             switch (element)
             {
                 case HeadingElement heading:
@@ -50,6 +46,11 @@ internal static class Markdown
                     output.AppendLine(table.Markdown);
                     break;
                 case ImageElement image:
+                    output.AppendLine(ImageComment(image));
+                    if (skipImages)
+                    {
+                        break;
+                    }
                     output.AppendLine("[Image]");
                     Field("Anchor", image.Anchor);
                     Field("Caption", image.Caption);
@@ -70,4 +71,37 @@ internal static class Markdown
             }
         }
     }
+
+    private static string ImageComment(ImageElement image)
+    {
+        var name = image.FileName?.Replace('\\', '/').Split('/')[^1].Trim();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            var extension = image.ContentType.ToLowerInvariant() switch
+            {
+                "image/png" => ".png",
+                "image/jpeg" => ".jpg",
+                "image/gif" => ".gif",
+                "image/webp" => ".webp",
+                "image/svg+xml" => ".svg",
+                "image/bmp" => ".bmp",
+                "image/tiff" => ".tiff",
+                _ => ".bin"
+            };
+            name = "image-" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(image.Data)).ToLowerInvariant() + extension;
+        }
+        var fields = new List<string> { "image: " + EscapeComment(name) };
+        if (!string.IsNullOrWhiteSpace(image.Caption))
+        {
+            fields.Add("caption: " + EscapeComment(image.Caption.Trim()));
+        }
+        if (!string.IsNullOrWhiteSpace(image.AltText))
+        {
+            fields.Add("alt: " + EscapeComment(image.AltText.Trim()));
+        }
+        return "<!-- " + string.Join("; ", fields) + " -->";
+    }
+
+    private static string EscapeComment(string value) => System.Net.WebUtility.HtmlEncode(value)
+        .Replace("--", "&#45;&#45;").Replace("\r", "&#13;").Replace("\n", "&#10;");
 }

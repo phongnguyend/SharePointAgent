@@ -160,7 +160,7 @@ public sealed class XlsxDocumentParser : IXlsxDocumentParser
         {
             cancellationToken.ThrowIfCancellationRequested();
             output.AppendLine($"# {sheet.SheetName}").AppendLine();
-            var pendingImages = (skipImages ? Enumerable.Empty<ImageElement>() : sheet.Images).OrderBy(image => image.Anchor is null ? int.MaxValue : CellReference.Parse(image.Anchor).Row).ToList();
+            var pendingImages = sheet.Images.OrderBy(image => image.Anchor is null ? int.MaxValue : CellReference.Parse(image.Anchor).Row).ToList();
             var nonEmptyRows = sheet.Data.Rows.Where(row =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -207,13 +207,13 @@ public sealed class XlsxDocumentParser : IXlsxDocumentParser
                     }
                 }
                 var nearby = pendingImages.Where(image => image.Anchor is not null && CellReference.Parse(image.Anchor).Row < region[^1].RowIndex).ToArray();
-                output.AppendLine(Markdown.Elements(nearby, cancellationToken));
+                output.AppendLine(Markdown.Elements(nearby, cancellationToken, skipImages));
                 foreach (var image in nearby)
                 {
                     pendingImages.Remove(image);
                 }
             }
-            output.AppendLine(Markdown.Elements(pendingImages, cancellationToken)).AppendLine();
+            output.AppendLine(Markdown.Elements(pendingImages, cancellationToken, skipImages)).AppendLine();
         }
         return output.ToString().TrimEnd();
     }

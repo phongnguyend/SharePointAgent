@@ -79,7 +79,10 @@ public sealed class XlsxParserTests
             Rows = [new(1, [new("A1", "", null)])]
         }, [new ImageElement { Data = [1], ContentType = "image/png", Anchor = "A1" }]));
         var parser = new XlsxDocumentParser();
-        Assert.Equal("# Empty", parser.ConvertToMarkdown(result, skipImages: true));
+        var skipped = parser.ConvertToMarkdown(result, skipImages: true);
+        Assert.StartsWith("# Empty", skipped);
+        Assert.Contains("<!-- image: image-", skipped);
+        Assert.DoesNotContain("[Image]", skipped);
         var markdown = parser.ConvertToMarkdown(result);
         Assert.Contains("Anchor: A1", markdown);
         Assert.DoesNotContain("| Row |", markdown);

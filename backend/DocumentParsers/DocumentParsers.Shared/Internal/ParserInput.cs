@@ -103,6 +103,11 @@ internal sealed class ImageReader(ParserOptions options)
             return null;
         }
         using var stream = image.GetStream(FileMode.Open, FileAccess.Read);
-        return new ImageElement { Data = Read(stream, token), ContentType = image.ContentType };
+        return new ImageElement
+        {
+            Data = Read(stream, token),
+            ContentType = image.ContentType,
+            FileName = image.Uri.OriginalString.Split('/')[^1]
+        };
     }
 }

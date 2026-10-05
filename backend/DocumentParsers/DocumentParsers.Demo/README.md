@@ -32,10 +32,14 @@ $env:DOCUMENTPARSERS_Demo__SkipImages = "true"
 dotnet run --project backend/DocumentParsers/DocumentParsers.Demo
 ```
 
-Local DOCX/PPTX/XLSX conversion needs no credentials. PDF parsing needs Document Intelligence.
+Local PDF/DOCX/PPTX/XLSX conversion needs no credentials. PDF text/layout uses PdfPig.
+Use `--pdf-ocr` (or `Demo:PdfOcr=true`) to enable Document Intelligence OCR for PDF pages
+without native text. This option needs only Document Intelligence credentials, not Azure OpenAI.
 Image descriptions are off by default; `--analyze-images` enables the configured vision
 deployment. `--ocr` adds OCR and requires image analysis. `--skip-images` takes precedence
-over both, omitting image output and enrichment while leaving PDF layout analysis enabled.
+over both, omitting visible image content and enrichment while retaining an
+`<!-- image: filename.png; caption: Sales overview; alt: Sales chart -->` comment
+per image, omitting empty caption/alt fields. It does not disable explicit `--pdf-ocr`.
 
 ## User secrets
 
@@ -81,5 +85,15 @@ inputs; see [vision documentation](https://developers.openai.com/api/docs/guides
 dotnet run --project backend/DocumentParsers/DocumentParsers.Demo -- --input "C:\Documents\sample.pdf" --analyze-images --ocr
 ```
 
-PDF/image analysis sends document content to the configured Azure services and incurs their
+Enabling PDF OCR or image analysis sends document content to the configured Azure services and incurs their
 normal usage charges. The demo never prints API keys.
+
+```powershell
+dotnet run --project backend/DocumentParsers/DocumentParsers.Demo -- --input "C:\Documents\scan.pdf" --pdf-ocr --skip-images
+```
+
+PDF OCR uploads the PDF and requests only pages without native text. Without `--pdf-ocr`,
+those pages produce a warning. Local layout analysis detects headings by font size, normalizes
+list markers, detects aligned numeric tables, and reads text and images top-to-bottom,
+then left-to-right within each row. Ambiguous
+headings/tables remain text; complex layouts and rotated text may require further rules.
