@@ -87,6 +87,10 @@ Create these resources before deploying:
 3. Azure AI Search and an Azure OpenAI embedding deployment. The search index is created or updated automatically.
 4. Azure Blob Storage for chat attachments. The Bicep templates create a private `chat-uploads` container.
 5. A MarkItDown service reachable at `MarkItDown:Endpoint`, which converts SharePoint Office files and non-text chat attachments to Markdown.
+
+An optional [PageIndex FastAPI service](backend/PageIndex/README.md) builds JSON document
+trees from Markdown or text-based PDFs. It runs independently and is not required by
+the current indexing worker or chat agent.
 6. Azure AI Document Intelligence for PDF indexing (SharePoint documents and attachments), and OCR for supported images. PDFs require a configured endpoint; other unsupported SharePoint formats still use metadata-only indexing when it is absent.
 7. An Entra application or managed identity with Microsoft Graph application access to the target site/drive. Prefer `Sites.Selected` with an explicit grant to the site; `Sites.Read.All` is the broader alternative. Admin consent is required. The Browse page's create, upload, rename, delete, copy, and move operations and the chat assistant's [`upload_sharepoint_file`](#uploading-a-file-back) tool need a `write` grant (or `Sites.ReadWrite.All`).
 8. A public HTTPS URL for the API. Microsoft Graph must be able to call it during subscription creation. Not needed when `SharePoint:SubscriptionRenewalEnabled` is `false` and the worker polls on its schedule alone.

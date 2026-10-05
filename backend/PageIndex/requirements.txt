@@ -1,0 +1,5 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.22
+pageindex==0.2.10
+python-dotenv==1.2.4
