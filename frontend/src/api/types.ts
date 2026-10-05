@@ -253,6 +253,8 @@ export interface ChatCitation {
 export type ChatFeedback = 'Like' | 'Dislike'
 
 export interface ChatMessage {
+  /** Distributed trace of the original chat turn; absent on older responses. */
+  traceId?: string | null
   id: string
   conversationId: string
   role: 'User' | 'Assistant'

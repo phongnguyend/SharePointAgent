@@ -38,6 +38,7 @@ public interface IChatRepository
         ChatTokenUsage? usage,
         string? modelId,
         IReadOnlyCollection<Guid> attachmentFileIds,
+        string? traceId,
         CancellationToken cancellationToken);
 
     /// <summary>

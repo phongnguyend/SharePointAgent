@@ -5,7 +5,9 @@ namespace SharePointAgent.Persistence;
 public sealed class ChatMessageEntity
 {
     public long EmbeddingTokenCount { get; set; }
+
     public Guid Id { get; set; }
+
     public Guid ConversationId { get; set; }
 
     /// <summary>
@@ -15,6 +17,7 @@ public sealed class ChatMessageEntity
     public int Sequence { get; set; }
 
     public ChatMessageRole Role { get; set; }
+
     public string Content { get; set; } = "";
 
     /// <summary>
@@ -25,13 +28,21 @@ public sealed class ChatMessageEntity
 
     /// <summary>Model usage for this response. User messages and historical rows have zeroes.</summary>
     public long InputTokenCount { get; set; }
+
     public long OutputTokenCount { get; set; }
+
     public long TotalTokenCount { get; set; }
+
     public string? ModelId { get; set; }
 
+    /// <summary>W3C trace ID of the request that originally produced this message.</summary>
+    public string? TraceId { get; set; }
+
     public ChatFeedback? Feedback { get; set; }
+
     public DateTimeOffset CreatedAtUtc { get; set; }
 
     public ChatConversationEntity? Conversation { get; set; }
+
     public ICollection<ChatMessageAttachmentEntity> Attachments { get; set; } = [];
 }

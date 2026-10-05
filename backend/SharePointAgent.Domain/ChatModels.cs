@@ -121,7 +121,8 @@ public sealed record ChatMessageRecord(
     ChatFeedback? Feedback,
     IReadOnlyList<ChatMessageAttachment> Attachments,
     DateTimeOffset CreatedAtUtc,
-    long EmbeddingTokenCount = 0);
+    long EmbeddingTokenCount = 0,
+    string? TraceId = null);
 
 public sealed record ChatMessageAttachment(Guid Id, string FileName, string? ContentType, long SizeBytes);
 

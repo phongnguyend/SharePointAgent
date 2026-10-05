@@ -274,6 +274,8 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
         modelBuilder.Entity<ChatMessageEntity>(entity =>
         {
             entity.ToTable("ChatMessages");
+            entity.Property(x => x.TraceId).HasMaxLength(32).IsUnicode(false);
+            entity.HasIndex(x => x.TraceId).HasFilter("[TraceId] IS NOT NULL");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedOnAdd();
             entity.Property(x => x.Content).IsRequired();

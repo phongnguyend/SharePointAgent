@@ -122,8 +122,8 @@ public sealed class ChatWorkspaceTests : IAsyncLifetime
 
         // Appending turns is the one thing that writes to a conversation row afterwards; it must not
         // disturb which row the sandbox binding is read from.
-        await chats.AppendMessageAsync(inside.Id, ChatMessageRole.User, "question", [], null, null, [], default);
-        await chats.AppendMessageAsync(outside.Id, ChatMessageRole.User, "question", [], null, null, [], default);
+        await chats.AppendMessageAsync(inside.Id, ChatMessageRole.User, "question", [], null, null, [], null, default);
+        await chats.AppendMessageAsync(outside.Id, ChatMessageRole.User, "question", [], null, null, [], null, default);
 
         Assert.Equal(workspace.Id, (await chats.GetConversationAsync(inside.Id, default))!.WorkspaceId);
         Assert.Equal("sandbox-workspace", await sessions.GetAsync(inside.Id, Endpoint, default));
@@ -160,7 +160,7 @@ public sealed class ChatWorkspaceTests : IAsyncLifetime
         var conversation = await chats.CreateConversationAsync("Source", null, _agentId, workspace.Id, default);
         await sessions.SaveAsync(conversation.Id, Endpoint, "sandbox-1", default);
         var question = await chats.AppendMessageAsync(
-            conversation.Id, ChatMessageRole.User, "question", [], null, null, [], default);
+            conversation.Id, ChatMessageRole.User, "question", [], null, null, [], null, default);
 
         var branch = await chats.BranchConversationAsync(conversation.Id, question.Id, default);
 
@@ -177,7 +177,7 @@ public sealed class ChatWorkspaceTests : IAsyncLifetime
 
         var workspace = await workspaces.CreateAsync("Quarterly report", null, default);
         var conversation = await chats.CreateConversationAsync("Kept", null, _agentId, workspace.Id, default);
-        await chats.AppendMessageAsync(conversation.Id, ChatMessageRole.User, "question", [], null, null, [], default);
+        await chats.AppendMessageAsync(conversation.Id, ChatMessageRole.User, "question", [], null, null, [], null, default);
         await sessions.SaveAsync(conversation.Id, Endpoint, "sandbox-1", default);
 
         Assert.Equal(1, (await workspaces.GetAsync(workspace.Id, default))!.ConversationCount);
@@ -216,7 +216,7 @@ public sealed class ChatWorkspaceTests : IAsyncLifetime
 
         // The sidebar orders by UpdatedAtUtc, so a turn has to move the workspace as well as the chat.
         var conversation = await chats.CreateConversationAsync("Chat", null, _agentId, workspace.Id, default);
-        await chats.AppendMessageAsync(conversation.Id, ChatMessageRole.User, "question", [], null, null, [], default);
+        await chats.AppendMessageAsync(conversation.Id, ChatMessageRole.User, "question", [], null, null, [], null, default);
         var used = await workspaces.GetAsync(workspace.Id, default);
         Assert.True(used!.UpdatedAtUtc > workspace.UpdatedAtUtc);
         Assert.Equal(1, used.ConversationCount);
@@ -292,7 +292,7 @@ public sealed class ChatWorkspaceTests : IAsyncLifetime
         var loader = new ChatAgentContextLoader(chats, agents, workspaces);
 
         var insideQuestion = await chats.AppendMessageAsync(
-            inside.Id, ChatMessageRole.User, "question", [], null, null, [], default);
+            inside.Id, ChatMessageRole.User, "question", [], null, null, [], null, default);
         var composed = (await loader.LoadAsync(new(inside.Id, insideQuestion.Id), default)).Instructions;
         Assert.StartsWith("Agent instructions.", composed);
         Assert.Contains("# Workspace rules", composed);
@@ -301,20 +301,20 @@ public sealed class ChatWorkspaceTests : IAsyncLifetime
 
         // A conversation outside a workspace is given exactly what the agent says, with nothing added.
         var outsideQuestion = await chats.AppendMessageAsync(
-            outside.Id, ChatMessageRole.User, "question", [], null, null, [], default);
+            outside.Id, ChatMessageRole.User, "question", [], null, null, [], null, default);
         var plain = await loader.LoadAsync(new(outside.Id, outsideQuestion.Id), default);
         Assert.Equal("Agent instructions.", plain.Instructions);
 
         // Editing the rules reaches conversations that already exist, on their next turn.
         await workspaces.UpdateAsync(workspace.Id, "Quarterly report", "Cite the file name.", default);
         var next = await chats.AppendMessageAsync(
-            inside.Id, ChatMessageRole.User, "another question", [], null, null, [], default);
+            inside.Id, ChatMessageRole.User, "another question", [], null, null, [], null, default);
         Assert.Contains("Cite the file name.", (await loader.LoadAsync(new(inside.Id, next.Id), default)).Instructions);
 
         // Clearing them puts the conversation back on the agent's instructions alone.
         await workspaces.UpdateAsync(workspace.Id, "Quarterly report", null, default);
         var last = await chats.AppendMessageAsync(
-            inside.Id, ChatMessageRole.User, "a third question", [], null, null, [], default);
+            inside.Id, ChatMessageRole.User, "a third question", [], null, null, [], null, default);
         Assert.Equal("Agent instructions.", (await loader.LoadAsync(new(inside.Id, last.Id), default)).Instructions);
     }
 

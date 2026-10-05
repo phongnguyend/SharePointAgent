@@ -137,6 +137,7 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
             TotalTokenCount = message.TotalTokenCount,
             EmbeddingTokenCount = message.EmbeddingTokenCount,
             ModelId = message.ModelId,
+            TraceId = message.TraceId,
             Feedback = null,
             CreatedAtUtc = message.CreatedAtUtc,
             Attachments = [.. message.Attachments.Select(attachment => new ChatMessageAttachmentEntity
@@ -199,8 +200,12 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
         ChatTokenUsage? usage,
         string? modelId,
         IReadOnlyCollection<Guid> attachmentFileIds,
+        string? traceId,
         CancellationToken cancellationToken)
     {
+        traceId ??= System.Diagnostics.Activity.Current is { IdFormat: System.Diagnostics.ActivityIdFormat.W3C } activity
+            ? activity.TraceId.ToString()
+            : null;
         var now = DateTimeOffset.UtcNow;
         var inputTokens = usage?.InputTokens ?? 0;
         var outputTokens = usage?.OutputTokens ?? 0;
@@ -227,6 +232,7 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
             OutputTokenCount = outputTokens,
             TotalTokenCount = totalTokens,
             ModelId = modelId,
+            TraceId = traceId,
             EmbeddingTokenCount = embeddingTokens,
             CreatedAtUtc = now
         };
@@ -271,7 +277,7 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
         var record = new ChatMessageRecord(
             entity.Id, conversationId, role, content, citations,
             inputTokens, outputTokens, totalTokens, modelId, null,
-            [.. attachedFiles.Select(ToAttachment)], now, embeddingTokens);
+            [.. attachedFiles.Select(ToAttachment)], now, embeddingTokens, traceId);
 
         // The conversation list is ordered by this, so it moves to the top on every turn.
         await context.ChatConversations
@@ -388,7 +394,7 @@ public sealed class ChatRepository(IDbContextFactory<SharePointIndexDbContext> c
         row.ModelId,
         row.Feedback,
         [.. row.Attachments.Where(x => x.AttachmentFile is not null).Select(x => ToAttachment(x.AttachmentFile!))],
-        row.CreatedAtUtc, row.EmbeddingTokenCount);
+        row.CreatedAtUtc, row.EmbeddingTokenCount, row.TraceId);
 
     private static ChatMessageAttachment ToAttachment(ChatMessageAttachmentFileEntity row) =>
         new(row.Id, row.FileName, row.ContentType, row.SizeBytes);

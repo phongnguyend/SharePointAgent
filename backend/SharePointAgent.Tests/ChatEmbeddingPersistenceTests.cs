@@ -28,9 +28,9 @@ public sealed class ChatEmbeddingPersistenceTests
         factory.CreateDbContextAsync(Arg.Any<CancellationToken>()).Returns(_ => new SharePointIndexDbContext(options));
         var repository = new ChatRepository(factory);
         var conversation = await repository.CreateConversationAsync("Test", null, agentId, null, default);
-        await repository.AppendMessageAsync(conversation.Id, ChatMessageRole.User, "question", [], null, null, [], default);
-        var first = await repository.AppendMessageAsync(conversation.Id, ChatMessageRole.Assistant, "answer", [], new(10, 5, 15, 7), "model", [], default);
-        await repository.AppendMessageAsync(conversation.Id, ChatMessageRole.Assistant, "more", [], new(20, 10, 30, 11), "model", [], default);
+        await repository.AppendMessageAsync(conversation.Id, ChatMessageRole.User, "question", [], null, null, [], null, default);
+        var first = await repository.AppendMessageAsync(conversation.Id, ChatMessageRole.Assistant, "answer", [], new(10, 5, 15, 7), "model", [], null, default);
+        await repository.AppendMessageAsync(conversation.Id, ChatMessageRole.Assistant, "more", [], new(20, 10, 30, 11), "model", [], null, default);
         Assert.Equal(15, first.TotalTokenCount);
         Assert.Equal(7, first.EmbeddingTokenCount);
         var loaded = await repository.GetConversationAsync(conversation.Id, default);

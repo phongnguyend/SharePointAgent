@@ -402,6 +402,14 @@ The record is written only after the search index write succeeds, so a failed pa
 
 ### Schema and migrations
 
+Chat messages store the original chat request's W3C `TraceId` on both the question
+and response. The message API and streamed `started`/`completed` events expose it
+as `traceId`. Use that value to search your tracing backend for the turn and its
+instrumented downstream requests. Exporters, sampling, and cross-service context
+propagation must be configured for those spans to be available. Historical messages
+have no trace ID; branching preserves the source messages' original IDs. Apply the
+`AddChatMessageTraceId` migration before running this version against an existing database.
+
 The schema is defined by `SharePointIndexDbContext` and applied by Entity Framework Core migrations. When `SqlServer:AutoMigrate` is true — the default — each application applies any pending migration as it starts, so a fresh deployment needs no separate schema step. The API and the worker both do this and may start together; applying a migration takes a SQL Server application lock, so whichever gets there second waits and then finds nothing to do.
 
 Turn `AutoMigrate` off where the login has no DDL rights, and apply the schema from the pipeline instead:

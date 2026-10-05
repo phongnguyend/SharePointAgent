@@ -236,6 +236,12 @@ public static class ChatEndpoints
             HttpResponse response,
             CancellationToken cancellationToken) =>
         {
+            // Keep one correlation ID for the question and answer, across agent/tool activities.
+            using var fallbackActivity = System.Diagnostics.Activity.Current is null
+                ? new System.Diagnostics.Activity("ChatTurn").SetIdFormat(System.Diagnostics.ActivityIdFormat.W3C).Start()
+                : null;
+            var traceId = System.Diagnostics.Activity.Current!.TraceId.ToString();
+
             if (string.IsNullOrWhiteSpace(body?.Content))
             {
                 return Results.BadRequest(new { error = "A non-empty 'content' is required." });
@@ -300,7 +306,7 @@ public static class ChatEndpoints
             try
             {
                 question = await store.AppendMessageAsync(
-                    id, ChatMessageRole.User, content, [], null, null, attachmentFileIds, cancellationToken);
+                    id, ChatMessageRole.User, content, [], null, null, attachmentFileIds, traceId, cancellationToken);
             }
             catch (InvalidOperationException ex)
             {
@@ -360,7 +366,7 @@ public static class ChatEndpoints
             }
 
             var answer = await store.AppendMessageAsync(
-                id, ChatMessageRole.Assistant, turn.Text, turn.Citations, turn.Usage, turn.ModelId, [], cancellationToken);
+                id, ChatMessageRole.Assistant, turn.Text, turn.Citations, turn.Usage, turn.ModelId, [], traceId, cancellationToken);
             await WriteEventAsync(new ChatStreamEvent("completed", Answer: answer, Title: renamed), cancellationToken);
             return Results.Empty;
         });

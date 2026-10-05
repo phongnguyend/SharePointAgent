@@ -64,7 +64,7 @@ import type {
   ChatWorkspace,
   FileSystemEntry,
 } from '../api/types'
-import { Empty, ErrorBanner, Field, LoadingBar, Modal } from '../components/ui'
+import { CopyButton, Empty, ErrorBanner, Field, LoadingBar, Modal } from '../components/ui'
 import { FileTypeIcon } from '../components/FileTypeIcon'
 import { useSandboxFileManagement } from '../components/SandboxFileManagement'
 import { AttachmentDownload } from '../components/AttachmentDownload'
@@ -1502,6 +1502,7 @@ function MessageBubble({
           {isUser ? (
             <div className="chat-actions">
               <MessageCopyButton content={message.content} label="Copy the question" />
+              <MessageTraceAction traceId={message.traceId} />
             </div>
           ) : null}
           <span className="chat-time" title={formatDateTime(message.createdAtUtc)}>
@@ -1534,6 +1535,35 @@ function MessageBubble({
         />
       ) : null}
     </div>
+  )
+}
+
+function MessageTraceAction({ traceId }: { traceId?: string | null }) {
+  const [open, setOpen] = useState(false)
+  const available = Boolean(traceId?.trim())
+
+  return (
+    <>
+      <button
+        type="button"
+        className="ghost icon-only"
+        title={available ? 'View trace ID' : 'No trace ID recorded'}
+        aria-label={available ? 'View trace ID' : 'No trace ID recorded'}
+        aria-haspopup="dialog"
+        disabled={!available}
+        onClick={() => setOpen(true)}
+      >
+        <ScrollText size={13} />
+      </button>
+      {open && traceId ? (
+        <Modal open={open} title="Message trace ID" icon={<ScrollText size={16} />}
+          onClose={() => setOpen(false)}
+          footer={<CopyButton value={traceId} label="Copy trace ID" />}>
+          <p>Use this ID to find the chat turn in distributed tracing.</p>
+          <code style={{ overflowWrap: 'anywhere', userSelect: 'text' }}>{traceId}</code>
+        </Modal>
+      ) : null}
+    </>
   )
 }
 
@@ -1578,6 +1608,7 @@ function MessageActions({
   return (
     <div className="chat-actions">
       <MessageCopyButton content={message.content} label="Copy the answer" />
+      <MessageTraceAction traceId={message.traceId} />
       <button
         className={message.feedback === 'Like' ? 'ghost icon-only liked' : 'ghost icon-only'}
         title="Good answer"
