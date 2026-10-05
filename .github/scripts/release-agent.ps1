@@ -1,4 +1,7 @@
 . "$PSScriptRoot/deployment-helpers.ps1"
+if ([string]::IsNullOrWhiteSpace($outputs.applicationInsightsConnectionString.value)) {
+  throw 'Run Deploy infrastructure to provision Application Insights before releasing AgentHost.'
+}
 # Resolve the deployment identity independently of the configured SQL administrator.
 $token = az account get-access-token --query accessToken -o tsv
 $payload = $token.Split('.')[1].Replace('-', '+').Replace('_', '/')
@@ -26,6 +29,9 @@ function Connection-Secret($Key) {
   return '$' + '{{connections.agent-secrets.credentials.' + $Key + '}}'
 }
 $environment = @{
+  Monitoring__OpenTelemetry__Exporter = 'AzureMonitor'
+  Monitoring__OpenTelemetry__Environment = $env:DEPLOY_ENVIRONMENT
+  APPLICATIONINSIGHTS_CONNECTION_STRING = $outputs.applicationInsightsConnectionString.value
   SqlServer__ConnectionString = "Server=tcp:$($hosting.sqlServerFqdn),1433;Database=$($hosting.sqlDatabaseName);Authentication=Active Directory Managed Identity;Encrypt=True;TrustServerCertificate=False;"
   SqlServer__AutoMigrate = 'false'
   SharePoint__TenantId = $env:SHAREPOINT_TENANT_ID

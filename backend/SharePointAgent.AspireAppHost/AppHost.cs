@@ -15,14 +15,20 @@ var sql = builder.AddSqlServer("sql")
 var database = sql.AddDatabase("sharepoint-index", "SharePointSearch");
 
 var agentHost = builder.AddProject<Projects.SharePointAgent_AgentHost>("agenthost")
+    .WithEnvironment("Monitoring__OpenTelemetry__Exporter", "Otlp")
+    .WithEnvironment("Monitoring__OpenTelemetry__Environment", "local")
     .WithEnvironment("SqlServer__ConnectionString", database)
     .WaitFor(database);
 
 builder.AddProject<Projects.SharePointAgent_Background>("background")
+    .WithEnvironment("Monitoring__OpenTelemetry__Exporter", "Otlp")
+    .WithEnvironment("Monitoring__OpenTelemetry__Environment", "local")
     .WithEnvironment("SqlServer__ConnectionString", database)
     .WaitFor(database);
 
 builder.AddProject<Projects.SharePointAgent_Api>("api")
+    .WithEnvironment("Monitoring__OpenTelemetry__Exporter", "Otlp")
+    .WithEnvironment("Monitoring__OpenTelemetry__Environment", "local")
     .WithEnvironment("SqlServer__ConnectionString", database)
     // Read only when ChatAgent:Mode is Foundry, so it costs nothing in the default local mode and
     // makes switching to the hosted agent a one-setting change.

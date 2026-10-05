@@ -112,6 +112,16 @@ param apiImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
 param backgroundImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
 @description('MarkItDown image reference; defaults to the public hello image.')
 param markItDownImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
+@description('PageIndex API image reference; defaults to the public hello image.')
+param pageIndexImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
+@description('Azure OpenAI API version for PageIndex summary calls.')
+param pageIndexAzureApiVersion string = '2024-10-21'
+@description('Azure OpenAI deployment used for PageIndex summaries.')
+param pageIndexDeploymentName string = chatDeploymentName
+@secure()
+param pageIndexServiceApiKey string = ''
+@secure()
+param pageIndexAzureApiKey string = ''
 param sharePointTenantId string = ''
 param sharePointClientId string = ''
 param sharePointSiteHostname string = ''
@@ -188,6 +198,17 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09
     sku: {
       name: 'PerGB2018'
     }
+  }
+}
+
+resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
+  name: '${namePrefix}-insights-${take(uniqueSuffix, 6)}'
+  location: location
+  kind: 'web'
+  tags: resourceTags
+  properties: {
+    Application_Type: 'web'
+    WorkspaceResourceId: logAnalyticsWorkspace.id
   }
 }
 
@@ -429,6 +450,11 @@ resource markItDownIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@20
   location: location
   tags: resourceTags
 }
+resource pageIndexIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${namePrefix}-pageindex-pull'
+  location: location
+  tags: resourceTags
+}
 resource foundry 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
   name: '${namePrefix}-foundry-${uniqueSuffix}'
   location: foundryLocation
@@ -477,6 +503,8 @@ output staticWebAppName string = staticWebApp.name
 output staticWebAppUrl string = 'https://${staticWebApp.properties.defaultHostname}'
 output containerRegistryLoginServer string = containerRegistry.properties.loginServer
 output containerAppsEnvironmentName string = containerAppsEnvironment.name
+output applicationInsightsName string = applicationInsights.name
+output applicationInsightsConnectionString string = applicationInsights.properties.ConnectionString
 output uploadStorageServiceUri string = uploadStorage.properties.primaryEndpoints.blob
 output uploadContainerName string = uploadContainer.name
 
@@ -513,12 +541,17 @@ output storageResourceId string = uploadStorage.id
 var apiName = '${namePrefix}-api-${take(uniqueSuffix, 6)}'
 var workerName = '${namePrefix}-wrk-${take(uniqueSuffix, 6)}'
 var markItDownName = '${namePrefix}-md-${take(uniqueSuffix, 6)}'
+var pageIndexName = '${namePrefix}-pi-${take(uniqueSuffix, 6)}'
 var sqlServerFqdn = sql.properties.fullyQualifiedDomainName
 var foundryEndpoint = 'https://${foundry.name}.services.ai.azure.com/api/projects/${project.name}/agents/sharepoint-agent/endpoint/protocols/invocations?api-version=v1'
 
 var markItDownUrl = 'https://${markItDownName}.${containerAppsEnvironment.properties.defaultDomain}'
+var pageIndexUrl = 'https://${pageIndexName}.${containerAppsEnvironment.properties.defaultDomain}'
 var apiEndpoint = 'https://${apiName}.${containerAppsEnvironment.properties.defaultDomain}'
 var commonEnv = [
+  { name: 'Monitoring__OpenTelemetry__Exporter', value: 'AzureMonitor' }
+  { name: 'Monitoring__OpenTelemetry__Environment', value: environmentName }
+  { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: applicationInsights.properties.ConnectionString }
   { name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' }
   { name: 'SqlServer__AutoMigrate', value: 'false' }
   { name: 'SharePoint__TenantId', value: sharePointTenantId }
@@ -577,6 +610,45 @@ resource markItDown 'Microsoft.App/containerApps@2025-01-01' = {
   }
   dependsOn: [markItDownRegistry]
 }
+resource pageIndex 'Microsoft.App/containerApps@2025-01-01' = {
+  name: pageIndexName
+  location: location
+  tags: resourceTags
+  identity: { type: 'UserAssigned', userAssignedIdentities: { '${pageIndexIdentity.id}': {} } }
+  properties: {
+    environmentId: containerAppsEnvironment.id
+    configuration: {
+      activeRevisionsMode: 'Single'
+      ingress: { external: true, allowInsecure: false, targetPort: deployApplicationImages ? 8000 : 80, transport: 'http' }
+      registries: [{ server: containerRegistry.properties.loginServer, identity: pageIndexIdentity.id }]
+      secrets: deployApplicationImages ? [
+        { name: 'pageindex-api-key', value: pageIndexServiceApiKey }
+        { name: 'pageindex-azure-api-key', value: pageIndexAzureApiKey }
+      ] : []
+    }
+    template: {
+      containers: [{
+        name: 'pageindex'
+        image: pageIndexImage
+        env: deployApplicationImages ? [
+          { name: 'PAGEINDEX_SERVICE_API_KEY', secretRef: 'pageindex-api-key' }
+          { name: 'AZURE_API_KEY', secretRef: 'pageindex-azure-api-key' }
+          { name: 'AZURE_API_BASE', value: openAiAccount.properties.endpoint }
+          { name: 'AZURE_API_VERSION', value: pageIndexAzureApiVersion }
+          { name: 'PAGEINDEX_INDEX_MODEL', value: 'azure/${pageIndexDeploymentName}' }
+          { name: 'PAGEINDEX_MAX_FILE_BYTES', value: '26214400' }
+          { name: 'PAGEINDEX_TIMEOUT_SECONDS', value: '210' }
+          { name: 'PAGEINDEX_MAX_CONCURRENCY', value: '2' }
+        ] : []
+        resources: { cpu: json('1.0'), memory: '2Gi' }
+        probes: [{ type: 'Readiness', httpGet: { path: deployApplicationImages ? '/health' : '/', port: deployApplicationImages ? 8000 : 80 }, periodSeconds: 10 }]
+      }]
+      scale: { minReplicas: 1, maxReplicas: 3 }
+    }
+  }
+  dependsOn: [pageIndexRegistry]
+}
+
 resource api 'Microsoft.App/containerApps@2025-01-01' = {
   name: apiName
   location: location
@@ -654,6 +726,16 @@ resource apiRegistry 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
     principalId: apiIdentity.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
+  }
+}
+
+resource pageIndexRegistry 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(containerRegistry.id, pageIndexIdentity.id, acrPullRole)
+  scope: containerRegistry
+  properties: {
+    principalId: pageIndexIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', acrPullRole)
   }
 }
 
@@ -802,6 +884,8 @@ output workerContainerAppName string = workerName
 output markItDownContainerAppName string = markItDownName
 output apiUrl string = apiEndpoint
 output markItDownEndpoint string = markItDownUrl
+output pageIndexContainerAppName string = pageIndexName
+output pageIndexEndpoint string = pageIndexUrl
 
 // Hosted environment variables reference this connection instead of containing raw secrets.
 resource foundrySecrets 'Microsoft.CognitiveServices/accounts/projects/connections@2025-06-01' = if (deployApplicationImages) {

@@ -1,10 +1,12 @@
 using SharePointAgent.Infrastructure;
+using SharePointAgent.Infrastructure.Monitoring;
 using SharePointAgent.Infrastructure.DocumentSigning;
 using SharePointAgent.Api;
 
 const string FrontendCorsPolicy = "frontend";
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddApplicationTelemetry("sharepointagent-api");
 builder.Services.AddEntraAuthentication(builder.Configuration);
 builder.Services.AddWebhookServices(builder.Configuration);
 builder.Services.AddSearchQueryServices(builder.Configuration);

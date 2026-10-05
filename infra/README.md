@@ -251,6 +251,52 @@ Save the output as the **secret** `MARKITDOWN_API_KEY` under **GitHub repository
 
 ## Deployment behavior
 
+### PageIndex API
+
+Infrastructure creates a separate PageIndex Container App with an ACR pull identity,
+HTTPS ingress, 1 CPU / 2 GiB memory, 1–3 replicas, and a readiness probe. As with
+MarkItDown, the default infrastructure deployment uses a placeholder image; run
+**Release PageIndex** after **Deploy infrastructure** to install the API. It is also
+an optional selection in **Release Services**.
+
+Set these GitHub environment secrets for each of `dev` and `test`:
+
+| Secret | Value |
+| --- | --- |
+| `PAGEINDEX_SERVICE_API_KEY` | A separately generated service key, at least 32 characters; see [key generation](../backend/PageIndex/README.md#generate-the-service-api-key) |
+| `PAGEINDEX_AZURE_API_KEY` | API key for the environment's provisioned Azure OpenAI resource; key authentication must be enabled |
+
+Optional environment variables: `PAGEINDEX_INDEX_MODEL` (defaults to
+`azure/<chatDeploymentName>` from infrastructure) and `PAGEINDEX_AZURE_API_VERSION`
+(defaults to `2024-10-21`; select a version supported by your deployment).
+The release builds `backend/PageIndex/Dockerfile`, pushes the `pageindex` image,
+stores keys as Container App secrets, and checks `/health` after deployment.
+`/health` does not validate Azure model credentials; test `/index` with summaries
+enabled to verify those settings.
+
+Infrastructure outputs `pageIndexContainerAppName` and `pageIndexEndpoint`. For
+C# callers, set `PageIndex__Endpoint` to that endpoint and `PageIndex__ApiKey` to
+the same service key. The existing agent indexing pipeline is not automatically
+switched to PageIndex.
+
+For direct Bicep application-image deployments, supply `pageIndexImage`, secure
+`pageIndexServiceApiKey` and `pageIndexAzureApiKey`, and optionally
+`pageIndexDeploymentName` / `pageIndexAzureApiVersion`. Do not commit keys in
+parameter files.
+
+The deployed worker timeout is 210 seconds to leave headroom below the default
+[Container Apps HTTP ingress timeout](https://learn.microsoft.com/en-us/azure/container-apps/ingress-overview)
+of 240 seconds. Upload and queue time also count toward ingress time; large
+summary jobs can still exceed it. This API remains synchronous.
+
+### Distributed tracing
+
+Infrastructure provisions Application Insights using the environment's Log Analytics
+workspace. Dev/test release scripts configure API, Background, and AgentHost with
+the Azure Monitor exporter and the provisioned connection string. Redeploy infrastructure
+before releasing these hosts after this change. Local Aspire runs use OTLP instead.
+See [OpenTelemetry configuration](../docs/telemetry.md) for setup and trace-ID queries.
+
 ### Configure runtime SQL access manually
 
 Release workflows do not create, repair or grant roles to runtime SQL users. Connect directly to the application database (`sharepointagent` by default) in SSMS or VS Code's MSSQL extension as the SQL Entra administrator. Allow your workstation through the SQL firewall if necessary.

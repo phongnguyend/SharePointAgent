@@ -197,6 +197,8 @@ restart the service or recreate the container with it, and update every caller.
 
 ## Container
 
+For Azure deployment, see [PageIndex Container App](../../infra/README.md#pageindex-api).
+
 Prepare `backend/PageIndex/.env` using [Configuration](#configuration), then run
 from the repository root:
 

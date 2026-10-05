@@ -1,7 +1,13 @@
 param([ValidateSet('Api', 'Background')][string]$Component)
 
 . "$PSScriptRoot/deployment-helpers.ps1"
+if ([string]::IsNullOrWhiteSpace($outputs.applicationInsightsConnectionString.value)) {
+  throw 'Run Deploy infrastructure to provision Application Insights before releasing applications.'
+}
 $commonValues = @{
+  Monitoring__OpenTelemetry__Exporter = 'AzureMonitor'
+  Monitoring__OpenTelemetry__Environment = $env:DEPLOY_ENVIRONMENT
+  APPLICATIONINSIGHTS_CONNECTION_STRING = $outputs.applicationInsightsConnectionString.value
   ASPNETCORE_ENVIRONMENT = 'Production'
   SqlServer__AutoMigrate = 'false'
   SharePoint__TenantId = $env:SHAREPOINT_TENANT_ID

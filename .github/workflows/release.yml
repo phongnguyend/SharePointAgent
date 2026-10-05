@@ -18,6 +18,10 @@ on:
         description: Release MarkItDown
         type: boolean
         default: false
+      pageindex:
+        description: Release PageIndex
+        type: boolean
+        default: false
       agent:
         description: Release AgentHost
         type: boolean
@@ -59,7 +63,7 @@ jobs:
           if ($selection.environment -notin @('dev', 'test')) {
             throw 'Select dev or test as the target environment.'
           }
-          $services = @('db_migration', 'markitdown', 'agent', 'api', 'background', 'frontend')
+          $services = @('db_migration', 'markitdown', 'pageindex', 'agent', 'api', 'background', 'frontend')
           $selected = @($services | Where-Object { $selection.$_ -eq $true })
           if ($selected.Count -eq 0) {
             throw 'Select at least one service to release.'
@@ -90,9 +94,19 @@ jobs:
       orchestrated: true
     secrets: inherit
 
+  pageindex:
+    name: Release PageIndex
+    needs: [validate, db_migration, markitdown]
+    if: ${{ !cancelled() && !failure() && inputs.pageindex }}
+    uses: ./.github/workflows/release-pageindex.yml
+    with:
+      environment: ${{ inputs.environment }}
+      orchestrated: true
+    secrets: inherit
+
   agent:
     name: Release AgentHost
-    needs: [validate, db_migration, markitdown]
+    needs: [validate, db_migration, markitdown, pageindex]
     # Explicit status checks allow unselected predecessors to be skipped.
     if: ${{ !cancelled() && !failure() && inputs.agent }}
     uses: ./.github/workflows/release-agent.yml
@@ -103,7 +117,7 @@ jobs:
 
   api:
     name: Release API
-    needs: [validate, db_migration, markitdown, agent]
+    needs: [validate, db_migration, markitdown, pageindex, agent]
     # Explicit status checks allow unselected predecessors to be skipped.
     if: ${{ !cancelled() && !failure() && inputs.api }}
     uses: ./.github/workflows/release-api.yml
@@ -114,7 +128,7 @@ jobs:
 
   background:
     name: Release Background
-    needs: [validate, db_migration, markitdown, agent, api]
+    needs: [validate, db_migration, markitdown, pageindex, agent, api]
     # Explicit status checks allow unselected predecessors to be skipped.
     if: ${{ !cancelled() && !failure() && inputs.background }}
     uses: ./.github/workflows/release-background.yml
@@ -125,7 +139,7 @@ jobs:
 
   frontend:
     name: Release Frontend
-    needs: [validate, db_migration, markitdown, agent, api, background]
+    needs: [validate, db_migration, markitdown, pageindex, agent, api, background]
     # Explicit status checks allow unselected predecessors to be skipped.
     if: ${{ !cancelled() && !failure() && inputs.frontend }}
     uses: ./.github/workflows/release-frontend.yml

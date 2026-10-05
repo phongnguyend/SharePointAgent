@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SharePointAgent.Application;
 using SharePointAgent.Domain;
+using SharePointAgent.Infrastructure.Monitoring;
 
 namespace SharePointAgent.Infrastructure;
 
@@ -38,6 +39,7 @@ public sealed class SharePointChangeProcessor(
 
     public async Task<FileIndexRecord?> ReindexAsync(string driveId, string itemId, CancellationToken cancellationToken)
     {
+        using var activity = Telemetry.Activities.StartActivity("SharePoint.Reindex");
         using var embeddingOperation = EmbeddingUsageScope.Begin(new(Operation: "SharePointReindex"));
         await _gate.WaitAsync(cancellationToken);
         try
@@ -72,6 +74,7 @@ public sealed class SharePointChangeProcessor(
 
     public async Task ProcessAsync(CancellationToken cancellationToken)
     {
+        using var activity = Telemetry.Activities.StartActivity("SharePoint.Sync");
         if (!await _gate.WaitAsync(TimeSpan.Zero, cancellationToken))
         {
             logger.LogInformation("Another SharePoint delta synchronization is already running; waiting for it to finish.");

@@ -1,9 +1,11 @@
 using Azure.AI.AgentServer.Invocations;
 using SharePointAgent.Infrastructure;
+using SharePointAgent.Infrastructure.Monitoring;
 using SharePointAgent.AgentHost;
 
 InvocationsServer.Run<ChatAgentInvocation>(args: args, configure: builder =>
 {
+    builder.WebApplicationBuilder.AddApplicationTelemetry("sharepointagent-agenthost");
     // Keep the agent's working directory in the session filesystem, rather than the ephemeral /tmp,
     // so downloaded and edited files survive from one turn to the next.
     if (string.IsNullOrWhiteSpace(builder.Configuration["LocalWorkingDirectory:Directory"]))

@@ -12,6 +12,7 @@ using AIChatMessage = Microsoft.Extensions.AI.ChatMessage;
 using AIChatRole = Microsoft.Extensions.AI.ChatRole;
 using SharePointAgent.Application;
 using SharePointAgent.Domain;
+using SharePointAgent.Infrastructure.Monitoring;
 
 using ChatMessageRole = SharePointAgent.Domain.ChatMessageRole;
 using ChatTokenUsage = SharePointAgent.Domain.ChatTokenUsage;
@@ -172,6 +173,7 @@ public sealed class ChatAgentService(
             (usage, token) => RecordRequestUsageAsync(conversationId, question.Id, modelId, startedAt, usage, token),
             logger))
             .AsBuilder()
+            .UseOpenTelemetry(sourceName: Telemetry.SourceName)
             .UseToolApproval(new ToolApprovalAgentOptions
             {
                 AutoApprovalRules = [AgentSkillsProvider.AllToolsAutoApprovalRule],

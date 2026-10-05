@@ -402,6 +402,9 @@ The record is written only after the search index write succeeds, so a failed pa
 
 ### Schema and migrations
 
+See [OpenTelemetry configuration](docs/telemetry.md) for local Aspire dashboard
+export, dev/test Azure Monitor export, and finding a chat turn by its trace ID.
+
 Chat messages store the original chat request's W3C `TraceId` on both the question
 and response. The message API and streamed `started`/`completed` events expose it
 as `traceId`. Use that value to search your tracing backend for the turn and its
