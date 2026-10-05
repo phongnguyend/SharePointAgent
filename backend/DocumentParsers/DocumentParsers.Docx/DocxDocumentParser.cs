@@ -8,9 +8,9 @@ namespace DocumentParsers;
 
 public sealed class DocxDocumentParser : IDocxDocumentParser
 {
-    private readonly ParserOptions _options;
+    private readonly DocxParserOptions _options;
 
-    public DocxDocumentParser(ParserOptions? options = null)
+    public DocxDocumentParser(DocxParserOptions? options = null)
     {
         _options = options ?? new();
         _options.Validate();
@@ -18,12 +18,12 @@ public sealed class DocxDocumentParser : IDocxDocumentParser
 
     public async Task<DocxParseResult> ParseAsync(Stream stream, CancellationToken cancellationToken = default)
     {
-        using var buffer = await ParserInput.ReadAsync(stream, _options, true, cancellationToken);
-        using var document = WordprocessingDocument.Open(buffer, false, ParserInput.Settings(_options));
+        using var buffer = await ParserInput.ReadAsync(stream, _options.MaxInputBytes, true, cancellationToken, _options.MaxExpandedBytes, _options.MaxZipEntries);
+        using var document = WordprocessingDocument.Open(buffer, false, ParserInput.Settings(_options.MaxExpandedBytes));
         var main = document.MainDocumentPart ?? throw new InvalidDataException("Missing DOCX main part.");
         var body = main.Document.Body ?? throw new InvalidDataException("Missing DOCX body.");
         var result = new DocxParseResult();
-        var images = new ImageReader(_options);
+        var images = new ImageReader(_options.MaxImages, _options.MaxImageBytes);
         var formatting = new DocxFormatting(main, result.Warnings);
         foreach (var child in body.ChildElements)
         {

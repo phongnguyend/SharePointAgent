@@ -24,7 +24,10 @@ Settings load in this order; later values override earlier ones:
 
 Set `Demo:InputPath` and optionally `Demo:OutputPath` in appsettings or user secrets to run
 without arguments from your IDE. Relative input/output paths use the current working directory,
-not the directory containing appsettings. Configure parser limits in the `Parser` section.
+not the directory containing appsettings. Configure parser limits in the `PdfParser`,
+`DocxParser`, `PptxParser`, or `XlsxParser` section. Each binds to that format's
+options type. Migrate settings from the former `Parser` section to the corresponding
+format sections; the old section is no longer read.
 
 ```powershell
 $env:DOCUMENTPARSERS_Demo__InputPath = "C:\Documents\sample.docx"
@@ -94,6 +97,11 @@ dotnet run --project backend/DocumentParsers/DocumentParsers.Demo -- --input "C:
 
 PDF OCR uploads the PDF and requests only pages without native text. Without `--pdf-ocr`,
 those pages produce a warning. Local layout analysis detects headings by font size, normalizes
-list markers, detects aligned numeric tables, and reads text and images top-to-bottom,
-then left-to-right within each row. Ambiguous
+list markers, detects aligned numeric tables, and reads each column top-to-bottom before
+moving left-to-right between columns, separating sections around spanning content. Ambiguous
 headings/tables remain text; complex layouts and rotated text may require further rules.
+
+PDF reading order defaults to `LayoutAware`. For forms or side-by-side comparisons that
+should read across rows, set `PdfParser:PdfReadingOrder` to `RowBased` in appsettings or
+user secrets (or `DOCUMENTPARSERS_PdfParser__PdfReadingOrder=RowBased`). This applies to
+native PDF text and OCR results. Other document formats are unaffected.

@@ -5,7 +5,7 @@ using UglyToad.PdfPig.Core;
 namespace DocumentParsers;
 
 /// <summary>Heuristic layout analysis for horizontal, left-to-right PDF content.</summary>
-internal sealed class LayoutAnalyzer(ParserOptions options)
+internal sealed class LayoutAnalyzer(PdfParserOptions options)
 {
     private sealed record LayoutWord(string Text, DocumentBoundingBox Box, double FontSize);
 
@@ -56,7 +56,7 @@ internal sealed class LayoutAnalyzer(ParserOptions options)
             elements.Add(element with { PageNumber = pageNumber, BoundingBox = line.Box });
         }
         elements.AddRange(images);
-        return MergeParagraphs(Order(elements, token), bodySize, token);
+        return MergeParagraphs(Order(elements, token, options.PdfReadingOrder), bodySize, token);
     }
 
     // PdfPig resolves PDF transformations; convert its bottom-left geometry to top-left points.
@@ -162,11 +162,91 @@ internal sealed class LayoutAnalyzer(ParserOptions options)
         return remaining;
     }
 
-    // Read rows from top to bottom, then left to right within each row. Anchor the
-    // tolerance to the row's first top edge so small offsets cannot chain rows together.
-    internal static List<DocumentElement> Order(List<DocumentElement> elements, CancellationToken token)
+    // Resolve regions before lines unless the caller explicitly requests row order.
+    internal static List<DocumentElement> Order(List<DocumentElement> elements, CancellationToken token,
+        PdfReadingOrder mode = PdfReadingOrder.LayoutAware)
     {
         token.ThrowIfCancellationRequested();
+        if (mode == PdfReadingOrder.RowBased)
+        {
+            return OrderRows(elements, token);
+        }
+        var positioned = elements.Where(element => element.BoundingBox is not null).ToList();
+        var ordered = OrderRegions(positioned, token, 0);
+        ordered.AddRange(elements.Where(element => element.BoundingBox is null));
+        return ordered;
+    }
+
+    private static List<DocumentElement> OrderRegions(List<DocumentElement> elements, CancellationToken token, int depth)
+    {
+        token.ThrowIfCancellationRequested();
+        if (elements.Count < 3 || depth >= 64)
+        {
+            return OrderRows(elements, token);
+        }
+        // A continuous gutter separates columns. Require repeated content on both
+        // sides and vertical overlap so a staggered pair of blocks is not a column.
+        var byX = elements.OrderBy(element => element.BoundingBox!.X).ToList();
+        var right = Right(byX[0].BoundingBox!);
+        var bestGap = 18.0;
+        var cut = -1;
+        for (var i = 1; i < byX.Count; i++)
+        {
+            token.ThrowIfCancellationRequested();
+            var gap = byX[i].BoundingBox!.X - right;
+            if (i >= 2 && byX.Count - i >= 2 && gap > bestGap)
+            {
+                var leftBounds = Union(byX.Take(i).Select(element => element.BoundingBox!));
+                var rightBounds = Union(byX.Skip(i).Select(element => element.BoundingBox!));
+                if (Math.Min(Bottom(leftBounds), Bottom(rightBounds)) > Math.Max(leftBounds.Y, rightBounds.Y))
+                {
+                    bestGap = gap;
+                    cut = i;
+                }
+            }
+            right = Math.Max(right, Right(byX[i].BoundingBox!));
+        }
+        if (cut > 0)
+        {
+            return JoinRegions(byX, cut, token, depth);
+        }
+        // Spanning content closes a gutter. Split at horizontal whitespace first,
+        // then search each section independently for columns.
+        var byY = elements.OrderBy(element => element.BoundingBox!.Y).ToList();
+        var regionWidth = Union(elements.Select(element => element.BoundingBox!)).Width;
+        var bottom = Bottom(byY[0].BoundingBox!);
+        bestGap = 2;
+        var spanningCut = false;
+        cut = -1;
+        for (var i = 1; i < byY.Count; i++)
+        {
+            token.ThrowIfCancellationRequested();
+            var gap = byY[i].BoundingBox!.Y - bottom;
+            var nearSpanningContent = byY[i - 1].BoundingBox!.Width >= regionWidth * 0.65
+                || byY[i].BoundingBox!.Width >= regionWidth * 0.65;
+            if (gap > 2 && ((!spanningCut && nearSpanningContent)
+                || nearSpanningContent == spanningCut && gap > bestGap))
+            {
+                bestGap = gap;
+                cut = i;
+                spanningCut = nearSpanningContent;
+            }
+            bottom = Math.Max(bottom, Bottom(byY[i].BoundingBox!));
+        }
+        return cut > 0 ? JoinRegions(byY, cut, token, depth) : OrderRows(elements, token);
+    }
+
+    private static List<DocumentElement> JoinRegions(List<DocumentElement> sorted, int cut, CancellationToken token, int depth)
+    {
+        var result = OrderRegions(sorted.GetRange(0, cut), token, depth + 1);
+        result.AddRange(OrderRegions(sorted.GetRange(cut, sorted.Count - cut), token, depth + 1));
+        return result;
+    }
+
+    private static List<DocumentElement> OrderRows(List<DocumentElement> elements, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        // Anchor each row to its first top edge so offsets cannot chain rows together.
         const double rowTolerance = 2;
         var positioned = elements.Where(element => element.BoundingBox is not null)
             .OrderBy(element => element.BoundingBox!.Y).ThenBy(element => element.BoundingBox!.X).ToList();

@@ -59,7 +59,6 @@ internal static class DemoApplication
             {
                 throw new ArgumentException("--ocr requires --analyze-images.");
             }
-            var options = config.GetSection("Parser").Get<ParserOptions>() ?? new();
             var token = cancellation.Token;
             DocumentIntelligenceClient? documentClient = null;
             var pdfOcr = format == DocumentFormat.Pdf && config.GetValue<bool>("Demo:PdfOcr");
@@ -87,25 +86,26 @@ internal static class DemoApplication
             switch (format)
             {
                 case DocumentFormat.Pdf:
-                    var pdf = new PdfDocumentParser(pdfOcr ? documentClient : null, options);
+                    var pdf = new PdfDocumentParser(pdfOcr ? documentClient : null,
+                        config.GetSection("PdfParser").Get<PdfParserOptions>());
                     var pdfResult = await pdf.ParseAsync(stream, token);
                     markdown = await RenderAsync(pdfResult.Elements.OfType<ImageElement>(), pdfResult.Warnings,
                         () => pdf.ConvertToMarkdown(pdfResult, token, skipImages));
                     break;
                 case DocumentFormat.Docx:
-                    var docx = new DocxDocumentParser(options);
+                    var docx = new DocxDocumentParser(config.GetSection("DocxParser").Get<DocxParserOptions>());
                     var docxResult = await docx.ParseAsync(stream, token);
                     markdown = await RenderAsync(docxResult.BodyElements.OfType<ImageElement>(), docxResult.Warnings,
                         () => docx.ConvertToMarkdown(docxResult, token, skipImages));
                     break;
                 case DocumentFormat.Pptx:
-                    var pptx = new PptxDocumentParser(options);
+                    var pptx = new PptxDocumentParser(config.GetSection("PptxParser").Get<PptxParserOptions>());
                     var pptxResult = await pptx.ParseAsync(stream, token);
                     markdown = await RenderAsync(pptxResult.Slides.SelectMany(slide => slide.Elements).OfType<ImageElement>(), pptxResult.Warnings,
                         () => pptx.ConvertToMarkdown(pptxResult, token, skipImages));
                     break;
                 case DocumentFormat.Xlsx:
-                    var xlsx = new XlsxDocumentParser(options);
+                    var xlsx = new XlsxDocumentParser(config.GetSection("XlsxParser").Get<XlsxParserOptions>());
                     var xlsxResult = await xlsx.ParseAsync(stream, token);
                     markdown = await RenderAsync(xlsxResult.Worksheets.SelectMany(sheet => sheet.Images), xlsxResult.Warnings,
                         () => xlsx.ConvertToMarkdown(xlsxResult, token, skipImages));

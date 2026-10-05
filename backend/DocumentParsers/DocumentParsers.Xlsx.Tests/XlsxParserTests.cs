@@ -52,7 +52,7 @@ public sealed class XlsxParserTests
         var result = new XlsxParseResult();
         result.Worksheets.Add(new(1, "Data", new SpreadsheetElement { SheetName = "Data", Rows = rows },
             [new ImageElement { Data = [1], ContentType = "image/png", Anchor = "A2", Caption = "Kept image" }]));
-        var markdown = new XlsxDocumentParser(new ParserOptions { MarkdownRowsPerRegion = 2 }).ConvertToMarkdown(result);
+        var markdown = new XlsxDocumentParser(new XlsxParserOptions { MarkdownRowsPerRegion = 2 }).ConvertToMarkdown(result);
         Assert.DoesNotContain("| 1 |", markdown);
         Assert.DoesNotContain("| 2 |", markdown);
         Assert.DoesNotContain("| 3 |", markdown);
@@ -92,7 +92,7 @@ public sealed class XlsxParserTests
     public async Task XlsxRetainsSparseCellsTypesFormulasDatesAnchorsAndEmptySheets()
     {
         using var stream = CreateWorkbook();
-        var parser = new XlsxDocumentParser(new ParserOptions { MarkdownRowsPerRegion = 1 });
+        var parser = new XlsxDocumentParser(new XlsxParserOptions { MarkdownRowsPerRegion = 1 });
         var result = await parser.ParseAsync(stream);
         var sheet = result.Worksheets[0];
         var cells = sheet.Data.Rows.SelectMany(row => row.Cells).ToDictionary(cell => cell.Reference);
@@ -140,9 +140,9 @@ public sealed class XlsxParserTests
     public async Task ImageAndCellLimitsAreEnforced()
     {
         using var stream = CreateWorkbook();
-        await Assert.ThrowsAsync<InvalidDataException>(() => new XlsxDocumentParser(new ParserOptions { MaxImageBytes = 1 }).ParseAsync(stream));
+        await Assert.ThrowsAsync<InvalidDataException>(() => new XlsxDocumentParser(new XlsxParserOptions { MaxImageBytes = 1 }).ParseAsync(stream));
         stream.Position = 0;
-        await Assert.ThrowsAsync<InvalidDataException>(() => new XlsxDocumentParser(new ParserOptions { MaxTableCells = 1 }).ParseAsync(stream));
+        await Assert.ThrowsAsync<InvalidDataException>(() => new XlsxDocumentParser(new XlsxParserOptions { MaxTableCells = 1 }).ParseAsync(stream));
     }
 
     [Fact]

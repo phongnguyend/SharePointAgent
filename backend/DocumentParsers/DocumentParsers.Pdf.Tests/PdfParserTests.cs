@@ -84,7 +84,7 @@ public sealed class PdfParserTests
     public async Task InputLimitIsEnforcedBeforeParsing()
     {
         using var stream = MixedDocument();
-        var parser = new PdfDocumentParser(options: new ParserOptions { MaxInputBytes = 5 });
+        var parser = new PdfDocumentParser(options: new PdfParserOptions { MaxInputBytes = 5 });
         await Assert.ThrowsAsync<InvalidDataException>(() => parser.ParseAsync(stream));
     }
 

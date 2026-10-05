@@ -9,10 +9,10 @@ namespace DocumentParsers;
 public sealed class PdfDocumentParser : IPdfDocumentParser
 {
     private readonly DocumentIntelligenceClient? _ocrClient;
-    private readonly ParserOptions _options;
+    private readonly PdfParserOptions _options;
 
     // Supplying a client enables OCR fallback for pages without native text.
-    public PdfDocumentParser(DocumentIntelligenceClient? client = null, ParserOptions? options = null)
+    public PdfDocumentParser(DocumentIntelligenceClient? client = null, PdfParserOptions? options = null)
     {
         _ocrClient = client;
         _options = options ?? new();
@@ -21,7 +21,7 @@ public sealed class PdfDocumentParser : IPdfDocumentParser
 
     public async Task<PdfParseResult> ParseAsync(Stream stream, CancellationToken cancellationToken = default)
     {
-        using var buffer = await ParserInput.ReadAsync(stream, _options, false, cancellationToken);
+        using var buffer = await ParserInput.ReadAsync(stream, _options.MaxInputBytes, false, cancellationToken);
         if (buffer.Length < 5 || !buffer.GetBuffer().AsSpan(0, 5).SequenceEqual("%PDF-"u8))
         {
             throw new InvalidDataException("Input is not a PDF document.");
@@ -29,7 +29,7 @@ public sealed class PdfDocumentParser : IPdfDocumentParser
         using var document = PdfDocument.Open(buffer.ToArray());
         var result = new PdfParseResult { PageCount = document.NumberOfPages };
         result.Metadata["Parser"] = "PdfPig";
-        var images = new ImageReader(_options);
+        var images = new ImageReader(_options.MaxImages, _options.MaxImageBytes);
         var layout = new LayoutAnalyzer(_options);
         var ocrPages = new Dictionary<int, (double Width, double Height)>();
         foreach (var page in document.GetPages())
@@ -127,7 +127,7 @@ public sealed class PdfDocumentParser : IPdfDocumentParser
                 }
                 pageElements.Add(new TextElement(line.Content) { PageNumber = page.PageNumber, BoundingBox = bounds });
             }
-            result.Elements.AddRange(LayoutAnalyzer.Order(pageElements, token));
+            result.Elements.AddRange(LayoutAnalyzer.Order(pageElements, token, _options.PdfReadingOrder));
         }
         result.Metadata["OcrModelId"] = "prebuilt-read";
     }

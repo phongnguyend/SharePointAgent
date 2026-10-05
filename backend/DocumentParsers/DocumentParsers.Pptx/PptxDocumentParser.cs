@@ -8,10 +8,10 @@ namespace DocumentParsers;
 
 public sealed class PptxDocumentParser : IPptxDocumentParser
 {
-    private readonly ParserOptions _options;
+    private readonly PptxParserOptions _options;
     private readonly IReadingOrderResolver _readingOrder;
 
-    public PptxDocumentParser(ParserOptions? options = null, IReadingOrderResolver? readingOrder = null)
+    public PptxDocumentParser(PptxParserOptions? options = null, IReadingOrderResolver? readingOrder = null)
     {
         _options = options ?? new();
         _options.Validate();
@@ -20,11 +20,11 @@ public sealed class PptxDocumentParser : IPptxDocumentParser
 
     public async Task<PptxParseResult> ParseAsync(Stream stream, CancellationToken cancellationToken = default)
     {
-        using var buffer = await ParserInput.ReadAsync(stream, _options, true, cancellationToken);
-        using var document = PresentationDocument.Open(buffer, false, ParserInput.Settings(_options));
+        using var buffer = await ParserInput.ReadAsync(stream, _options.MaxInputBytes, true, cancellationToken, _options.MaxExpandedBytes, _options.MaxZipEntries);
+        using var document = PresentationDocument.Open(buffer, false, ParserInput.Settings(_options.MaxExpandedBytes));
         var main = document.PresentationPart ?? throw new InvalidDataException("Missing presentation part.");
         var result = new PptxParseResult();
-        var images = new ImageReader(_options);
+        var images = new ImageReader(_options.MaxImages, _options.MaxImageBytes);
         foreach (var id in main.Presentation.SlideIdList?.Elements<P.SlideId>() ?? [])
         {
             cancellationToken.ThrowIfCancellationRequested();

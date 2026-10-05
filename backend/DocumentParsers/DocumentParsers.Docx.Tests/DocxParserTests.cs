@@ -62,7 +62,7 @@ public sealed class DocxParserTests
     public async Task LimitsInputWithoutDisposingCallerStream()
     {
         using var stream = new MemoryStream(new byte[100]);
-        await Assert.ThrowsAsync<InvalidDataException>(() => new DocxDocumentParser(new ParserOptions { MaxInputBytes = 10 }).ParseAsync(stream));
+        await Assert.ThrowsAsync<InvalidDataException>(() => new DocxDocumentParser(new DocxParserOptions { MaxInputBytes = 10 }).ParseAsync(stream));
         Assert.True(stream.CanRead);
     }
 
@@ -76,7 +76,7 @@ public sealed class DocxParserTests
             entry.Write(new byte[10000]);
         }
         stream.Position = 0;
-        await Assert.ThrowsAsync<InvalidDataException>(() => new DocxDocumentParser(new ParserOptions { MaxExpandedBytes = 100 }).ParseAsync(stream));
+        await Assert.ThrowsAsync<InvalidDataException>(() => new DocxDocumentParser(new DocxParserOptions { MaxExpandedBytes = 100 }).ParseAsync(stream));
     }
 
     [Fact]

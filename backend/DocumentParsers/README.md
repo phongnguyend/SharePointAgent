@@ -39,12 +39,19 @@ The demo supports `appsettings.json`, .NET user secrets, environment variables a
 
 Reference the format project(s) your application needs. Each format library references
 `DocumentParsers.Shared`; format libraries do not reference each other. Public namespaces
-remain `DocumentParsers`, so existing using directives and method calls remain valid.
+remain `DocumentParsers`.
 
-Shared owns the parser contracts, result/element models, limits, input/image reading helpers,
+Shared owns the parser contracts, result/element models, input/image reading helpers,
 Markdown helpers, image analysis, format resolution and conversion orchestration. Dispatch
 depends only on parser interfaces, so Shared has no dependency on the format libraries.
 The PPTX reading-order resolver lives in the PPTX project; cell-reference utilities live in XLSX.
+Each format project owns its options: `PdfParserOptions`, `DocxParserOptions`,
+`PptxParserOptions`, and `XlsxParserOptions`. Replace former `ParserOptions`
+constructor arguments with the matching type. Common limit defaults are unchanged.
+Only PDF options expose `PdfReadingOrder` (the enum also lives in the PDF project);
+only XLSX options expose `MarkdownRowsPerRegion`. ZIP limits apply only to Office formats.
+The demo binds separate `PdfParser`, `DocxParser`, `PptxParser`, and `XlsxParser`
+configuration sections; migrate settings from the former shared `Parser` section.
 SDK packages used by shared helpers/services are referenced by Shared and flow transitively.
 
 Each test project references only its corresponding library. Shared tests cover image services
@@ -120,8 +127,10 @@ Omitting the optional processor produces Markdown using existing image captions/
 
 - PDF: PdfPig word extraction followed by `LayoutAnalyzer` coordinate normalization,
   word-to-line grouping, font-size headings, Markdown lists, paragraph merging and conservative
-  aligned numeric table detection. Text, tables and images read top-to-bottom, then
-  left-to-right within each row, with a two-point tolerance for top-edge alignment.
+  aligned numeric table detection. Default `PdfParserOptions.PdfReadingOrder = PdfReadingOrder.LayoutAware`
+  reads each detected column top-to-bottom, then moves left-to-right, separating sections
+  around spanning content. Images and tables participate in ordering. Set `PdfReadingOrder.RowBased`
+  to read across rows instead, with a two-point tolerance for top-edge alignment.
   Page attribution and bounding boxes use points measured from the top-left. Classification
   targets horizontal left-to-right text; same-size headings, nested list indentation,
   text-only/merged tables and overlapping layouts remain limitations. Vector figures are not
@@ -166,7 +175,7 @@ Omitting the optional processor produces Markdown using existing image captions/
   their cached values are blank, so retained formula rows have visible content.
   Images follow their corresponding row region with their cell reference retained.
 - Input bytes, expanded ZIP bytes/entry count, table cells, extracted image count and total image
-  bytes have configurable limits in `ParserOptions`. ZIP contents are validated before SDK parsing.
+  bytes have configurable limits in each parser's options. ZIP contents are validated before SDK parsing.
   Image resizing and decorative-image detection are not implemented yet; the image provider may
   reject unsupported or oversized images, resulting in per-operation warnings.
 

@@ -34,6 +34,18 @@ dotnet add package DocumentFormat.OpenXml
 
 ### Project layout
 
+Each concrete parser accepts its own optional options record, defined in its
+format project: `PdfParserOptions`, `DocxParserOptions`, `PptxParserOptions`,
+or `XlsxParserOptions`. Do not use a shared options class or options base class.
+All four expose input size, image count/bytes, and table-cell limits. Office
+options additionally expose ZIP entry/expanded-byte limits. Only PDF options
+expose `PdfReadingOrder`; only XLSX options expose `MarkdownRowsPerRegion`.
+Each type validates its own settings. Shared helpers receive primitive limit
+values, keeping Shared independent of format-specific option types.
+
+The demo binds the matching `PdfParser`, `DocxParser`, `PptxParser`, or
+`XlsxParser` configuration section. The former `Parser` section is no longer read.
+
 Keep all projects and `DocumentParsers.slnx` under `backend/DocumentParsers`:
 
 - `DocumentParsers.Pdf` and `DocumentParsers.Pdf.Tests`
@@ -298,8 +310,8 @@ PdfPig words + bounding boxes / images + bounding boxes
     -> normalize coordinates to top-left points
     -> group words into lines and split large horizontal gaps
     -> classify heading, list, paragraph and table candidates
-    -> group text, tables and images into reading rows
-    -> order rows top-to-bottom and items within each row left-to-right
+    -> identify page sections and column gutters (LayoutAware default)
+    -> read columns left-to-right, each top-to-bottom (or explicit RowBased)
     -> merge adjacent aligned paragraph lines
     -> DocumentElement[]
 ```
@@ -317,7 +329,19 @@ Enforce `MaxTableCells`, escape Markdown cell content, and consume table words
 once. The first row supplies the Markdown header. Ambiguous candidates remain
 text. This deliberately avoids treating every aligned prose column as a table.
 
-Read top-to-bottom, then left-to-right within each row, across columns. Group
+`PdfParserOptions.PdfReadingOrder` defaults to `PdfReadingOrder.LayoutAware`.
+Use recursive whitespace partitioning: continuous vertical gutters wider than
+18 points separate columns when each side has at least two elements and their
+vertical ranges overlap. Read each column completely, from left to right.
+When spanning content closes a gutter, split sections at horizontal whitespace,
+prioritizing gaps adjacent to content at least 65% of the region width. Recheck
+columns within each section. Text, images and intact tables participate together.
+Fall back to row ordering for ambiguous/overlapping regions or after 64 splits.
+This is a geometric heuristic; sparse columns and unusual spans may need RowBased
+or further rules. OCR lines use the same selected ordering mode.
+
+Set `PdfReadingOrder.RowBased` for explicit top-to-bottom, then left-to-right
+ordering within each row across columns. In row ordering, group
 top edges within two points of the first top edge in a row; do not chain the
 tolerance across successive items. Text, tables and images follow the same
 rule, regardless of element height. Elements without geometry follow positioned

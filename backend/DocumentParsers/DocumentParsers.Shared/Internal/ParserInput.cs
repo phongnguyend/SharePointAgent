@@ -5,10 +5,16 @@ namespace DocumentParsers;
 
 internal static class ParserInput
 {
-    internal static async Task<MemoryStream> ReadAsync(Stream source, ParserOptions options, bool zip, CancellationToken token)
+    internal static async Task<MemoryStream> ReadAsync(Stream source, long maxInputBytes, bool zip, CancellationToken token,
+        long maxExpandedBytes = 0, int maxZipEntries = 0)
     {
         ArgumentNullException.ThrowIfNull(source);
-        options.Validate();
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxInputBytes);
+        if (zip)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxExpandedBytes);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxZipEntries);
+        }
         var buffer = new MemoryStream();
         try
         {
@@ -16,7 +22,7 @@ internal static class ParserInput
             int count;
             while ((count = await source.ReadAsync(bytes, token)) != 0)
             {
-                if (buffer.Length + count > options.MaxInputBytes)
+                if (buffer.Length + count > maxInputBytes)
                 {
                     throw new InvalidDataException("Document exceeds the input size limit.");
                 }
@@ -27,7 +33,7 @@ internal static class ParserInput
             if (zip)
             {
                 using var archive = new ZipArchive(buffer, ZipArchiveMode.Read, leaveOpen: true);
-                if (archive.Entries.Count > options.MaxZipEntries)
+                if (archive.Entries.Count > maxZipEntries)
                 {
                     throw new InvalidDataException("Package exceeds the entry count limit.");
                 }
@@ -35,7 +41,7 @@ internal static class ParserInput
                 foreach (var entry in archive.Entries)
                 {
                     token.ThrowIfCancellationRequested();
-                    if (entry.Length > options.MaxExpandedBytes - total)
+                    if (entry.Length > maxExpandedBytes - total)
                     {
                         throw new InvalidDataException("Package exceeds the expanded size limit.");
                     }
@@ -44,7 +50,7 @@ internal static class ParserInput
                     while ((read = await content.ReadAsync(bytes, token)) != 0)
                     {
                         total += read;
-                        if (total > options.MaxExpandedBytes)
+                        if (total > maxExpandedBytes)
                         {
                             throw new InvalidDataException("Package exceeds the expanded size limit.");
                         }
@@ -61,21 +67,21 @@ internal static class ParserInput
         }
     }
 
-    internal static OpenSettings Settings(ParserOptions options) => new()
+    internal static OpenSettings Settings(long maxExpandedBytes) => new()
     {
         AutoSave = false,
-        MaxCharactersInPart = options.MaxExpandedBytes
+        MaxCharactersInPart = maxExpandedBytes
     };
 }
 
-internal sealed class ImageReader(ParserOptions options)
+internal sealed class ImageReader(int maxImages, long maxImageBytes)
 {
     private int _count;
     private long _bytes;
 
     internal byte[] Read(Stream source, CancellationToken token)
     {
-        if (++_count > options.MaxImages)
+        if (++_count > maxImages)
         {
             throw new InvalidDataException("Extracted image count exceeds the limit.");
         }
@@ -86,7 +92,7 @@ internal sealed class ImageReader(ParserOptions options)
         {
             token.ThrowIfCancellationRequested();
             _bytes += count;
-            if (_bytes > options.MaxImageBytes)
+            if (_bytes > maxImageBytes)
             {
                 throw new InvalidDataException("Extracted images exceed the total byte limit.");
             }

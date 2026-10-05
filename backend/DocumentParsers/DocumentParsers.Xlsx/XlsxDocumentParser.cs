@@ -8,9 +8,9 @@ namespace DocumentParsers;
 
 public sealed class XlsxDocumentParser : IXlsxDocumentParser
 {
-    private readonly ParserOptions _options;
+    private readonly XlsxParserOptions _options;
 
-    public XlsxDocumentParser(ParserOptions? options = null)
+    public XlsxDocumentParser(XlsxParserOptions? options = null)
     {
         _options = options ?? new();
         _options.Validate();
@@ -18,11 +18,11 @@ public sealed class XlsxDocumentParser : IXlsxDocumentParser
 
     public async Task<XlsxParseResult> ParseAsync(Stream stream, CancellationToken cancellationToken = default)
     {
-        using var buffer = await ParserInput.ReadAsync(stream, _options, true, cancellationToken);
-        using var document = SpreadsheetDocument.Open(buffer, false, ParserInput.Settings(_options));
+        using var buffer = await ParserInput.ReadAsync(stream, _options.MaxInputBytes, true, cancellationToken, _options.MaxExpandedBytes, _options.MaxZipEntries);
+        using var document = SpreadsheetDocument.Open(buffer, false, ParserInput.Settings(_options.MaxExpandedBytes));
         var main = document.WorkbookPart ?? throw new InvalidDataException("Missing workbook part.");
         var result = new XlsxParseResult();
-        var images = new ImageReader(_options);
+        var images = new ImageReader(_options.MaxImages, _options.MaxImageBytes);
         var sharedStrings = main.SharedStringTablePart?.SharedStringTable?.Elements<S.SharedStringItem>().Select(s => s.InnerText).ToArray() ?? [];
         var formats = main.WorkbookStylesPart?.Stylesheet?.CellFormats?.Elements<S.CellFormat>().ToArray() ?? [];
         var date1904 = main.Workbook.WorkbookProperties?.Date1904?.Value == true;
