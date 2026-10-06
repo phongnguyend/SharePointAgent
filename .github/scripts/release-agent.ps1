@@ -54,6 +54,7 @@ $environment = @{
   Uploads__ServiceUri = $outputs.uploadStorageServiceUri.value
   Uploads__ContainerName = $outputs.uploadContainerName.value
   MarkItDown__Endpoint = $outputs.markItDownEndpoint.value
+  PageIndex__Endpoint = [string]$outputs.pageIndexEndpoint.value
   MarkItDown__ApiKey = (Connection-Secret 'markItDownApiKey')
   ContentSafety__Enabled = ([bool]$settings.deployContentSafety.value).ToString().ToLowerInvariant()
   ContentSafety__UseManagedIdentity = 'true'

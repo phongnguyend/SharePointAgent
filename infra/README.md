@@ -119,9 +119,11 @@ Configure `API_IMAGE`, `BACKGROUND_IMAGE` and `MARKITDOWN_IMAGE` in the selected
 
 Leave all three variables unset for the default hello images. Re-running infrastructure with them unset resets ACA apps to hello images. Component release workflows build and deploy new images independently and does not update these GitHub variables; set them to the desired release references before the next infrastructure run. All deployment workflows share an environment concurrency group. AgentHost is published by Release AgentHost and is not controlled by these ACA image variables.
 
-Create matching GitHub environments with these settings:
+### GitHub environment settings
 
-| Name | Kind | Purpose |
+Configure these settings under **Settings → Environments → dev/test → Environment variables / Environment secrets**. This single alphabetical table covers all GitHub environment settings referenced by the deployment and management workflows. Only configure settings needed by the workflows and providers you use; signing settings apply to API only.
+
+| Name | Kind | Purpose / runtime mapping |
 | --- | --- | --- |
 | `API_IMAGE` | Optional variable | Existing API image, e.g. `YOUR_REGISTRY.azurecr.io/api:EXISTING_TAG`; set all three image variables together |
 | `AZURE_CLIENT_ID` | Secret | Application/client ID of the deployment principal used for Azure OIDC login |
@@ -132,9 +134,29 @@ Create matching GitHub environments with these settings:
 | `AZURE_TENANT_ID` | Secret | Entra tenant ID for Azure OIDC deployment login; independent of the SharePoint tenant |
 | `BACKGROUND_IMAGE` | Optional variable | Existing Background image, e.g. `YOUR_REGISTRY.azurecr.io/background:EXISTING_TAG`; set all three image variables together |
 | `BOOTSTRAP_ADMIN_EMAIL` | Variable | Initial application Global Admin |
+| `DOCUMENTSIGNING__ADOBESIGN__ACCESSTOKENURL` | Variable | API signing: Required for OAuth setup. Initial OAuth token exchange URL, e.g. `https://api.sg1.adobesign.com/oauth/v2/token`. Always used for token exchange, with no callback endpoint fallback. The token response's `api_access_point` takes precedence for the displayed API origin. Does not change the configured API origin or refresh-token endpoint used for signing. Runtime key: `DocumentSigning__AdobeSign__AccessTokenUrl`. |
+| `DOCUMENTSIGNING__ADOBESIGN__APIACCESSPOINT` | Variable | API signing: Actual regional `api_access_point` from OAuth, e.g. `https://api.na1.adobesign.com`; omit `/api/rest/v6`. Always forwarded during API release, including when signing is disabled for OAuth setup; required when Adobe signing is enabled. Runtime key: `DocumentSigning__AdobeSign__ApiAccessPoint`. |
+| `DOCUMENTSIGNING__ADOBESIGN__AUTHURL` | Variable | API signing: Required when Adobe signing is enabled or OAuth setup is configured. No deployment fallback. For Singapore use `https://secure.sg1.adobesign.com/public/oauth/v2`. Runtime key: `DocumentSigning__AdobeSign__AuthUrl`. |
+| `DOCUMENTSIGNING__ADOBESIGN__CLIENTID` | Variable | API signing: Adobe OAuth application ID. Runtime key: `DocumentSigning__AdobeSign__ClientId`. |
+| `DOCUMENTSIGNING__ADOBESIGN__CLIENTSECRET` | Secret | API signing: Active OAuth application client secret. Runtime key: `DocumentSigning__AdobeSign__ClientSecret`. |
+| `DOCUMENTSIGNING__ADOBESIGN__ENABLED` | Variable | API signing: `false` by default; set `true` once all Adobe settings are configured. Runtime key: `DocumentSigning__AdobeSign__Enabled`. |
+| `DOCUMENTSIGNING__ADOBESIGN__OAUTHREDIRECTURI` | Optional variable | API signing: `https://YOUR_FRONTEND/adobe-sign-callback.html`; register this exact URL in Adobe to use the Global Admin token page. Runtime key: `DocumentSigning__AdobeSign__OAuthRedirectUri`. |
+| `DOCUMENTSIGNING__ADOBESIGN__REFRESHTOKEN` | Secret | API signing: Refresh token authorized by the shared sender with `agreement_read:self agreement_write:self agreement_send:self user_login:self`. Runtime key: `DocumentSigning__AdobeSign__RefreshToken`. |
+| `DOCUMENTSIGNING__DOCUSIGN__ACCOUNTID` | Variable | API signing: Shared sender's API account GUID. Runtime key: `DocumentSigning__DocuSign__AccountId`. |
+| `DOCUMENTSIGNING__DOCUSIGN__APIBASEURL` | Variable | API signing: Developer: `https://demo.docusign.net/restapi/v2.1/`; production: account-specific REST base URL ending `/restapi/v2.1/`. Runtime key: `DocumentSigning__DocuSign__ApiBaseUrl`. |
+| `DOCUMENTSIGNING__DOCUSIGN__CLIENTID` | Variable | API signing: Integration key / application client GUID. Runtime key: `DocumentSigning__DocuSign__ClientId`. |
+| `DOCUMENTSIGNING__DOCUSIGN__DEMO` | Variable | API signing: `true` for developer accounts; `false` for production. Runtime key: `DocumentSigning__DocuSign__Demo`. |
+| `DOCUMENTSIGNING__DOCUSIGN__ENABLED` | Variable | API signing: `false` by default; set `true` once all DocuSign settings are configured. Runtime key: `DocumentSigning__DocuSign__Enabled`. |
+| `DOCUMENTSIGNING__DOCUSIGN__PRIVATEKEYPEM` | Secret | API signing: Full RSA private key PEM, including BEGIN/END lines and actual line breaks. Runtime key: `DocumentSigning__DocuSign__PrivateKeyPem`. |
+| `DOCUMENTSIGNING__DOCUSIGN__SENDERUSERID` | Variable | API signing: Shared sender's API user GUID. Runtime key: `DocumentSigning__DocuSign__SenderUserId`. |
+| `DOCUMENTSIGNING__RETURNURL` | Variable | API signing: `https://YOUR_FRONTEND/attachment-files`; required for the DocuSign return redirect. Runtime key: `DocumentSigning__ReturnUrl`. |
 | `FRONTEND_ORIGIN` | Variable | Frontend HTTPS origin for CORS; configure its Entra redirect URI separately |
 | `MARKITDOWN_API_KEY` | Secret | Shared MarkItDown authentication key, at least 32 characters |
 | `MARKITDOWN_IMAGE` | Optional variable | Existing MarkItDown image, e.g. `YOUR_REGISTRY.azurecr.io/markitdown:EXISTING_TAG`; set all three image variables together |
+| `PAGEINDEX_AZURE_API_KEY` | Secret | Release PageIndex: key for the provisioned Azure OpenAI resource; key authentication must be enabled. Container key: `AZURE_API_KEY`. |
+| `PAGEINDEX_AZURE_API_VERSION` | Optional variable | Release PageIndex: defaults to `2024-10-21`; select a version supported by the deployment. Container key: `AZURE_API_VERSION`. |
+| `PAGEINDEX_INDEX_MODEL` | Optional variable | Release PageIndex: defaults to `azure/<chatDeploymentName>` from infrastructure; use `azure/<deployment-name>`. Container key: `PAGEINDEX_INDEX_MODEL`. |
+| `PAGEINDEX_SERVICE_API_KEY` | Secret | Release PageIndex: separately generated service key, at least 32 characters; see [key generation](../backend/PageIndex/README.md#generate-the-service-api-key). Container key: `PAGEINDEX_SERVICE_API_KEY`. |
 | `SHAREPOINT_CLIENT_ID` | Variable | Existing SharePoint/Entra application client ID in the SharePoint tenant |
 | `SHAREPOINT_CLIENT_SECRET` | Secret | Graph application credential |
 | `SHAREPOINT_CLIENT_STATE` | Secret | Webhook validation secret, at least 16 characters |
@@ -142,33 +164,14 @@ Create matching GitHub environments with these settings:
 | `SHAREPOINT_SITE_HOSTNAME` | Variable | Hostname of the source SharePoint site |
 | `SHAREPOINT_SITE_PATH` | Variable | Path of the source SharePoint site |
 | `SHAREPOINT_TENANT_ID` | Variable | Required for application deployments: Entra tenant ID for SharePoint Graph access and application sign-in; can differ from `AZURE_TENANT_ID` and has no fallback |
-| `SQL_ENTRA_ADMINISTRATOR_PRINCIPAL_TYPE` | Optional variable | `Application` (default), `Group` or `User`; use `Application` for a managed identity or service principal |
 | `SQL_ENTRA_ADMIN_OBJECT_ID` | Variable | Object ID of the SQL administrator matching the configured principal type, not its application/client ID |
+| `SQL_ENTRA_ADMINISTRATOR_PRINCIPAL_TYPE` | Optional variable | `Application` (default), `Group` or `User`; use `Application` for a managed identity or service principal |
 
 ### Document signing configuration mapping
 
-Use the following names under **Settings → Environments → dev/test → Environment variables / Environment secrets** for document signing. These settings apply to **API only**; Background, AgentHost, and Frontend do not need provider credentials.
+Use the signing entries in [GitHub environment settings](#github-environment-settings). These settings apply to **API only**; Background, AgentHost, and Frontend do not need provider credentials.
 
 **Deployment support:** run **Release API**, or select API in **Release services**, after configuring these GitHub settings. The workflow validates required values for enabled providers before building and deploys credentials through Container Apps secrets and secret references. Missing enable flags default to `false`, explicitly disabling those providers; DocuSign `Demo` defaults to `true`. Disabled providers need no credentials. Existing unused Container Apps secrets are retained. `main.bicep` does not configure signing; rerun Release API after infrastructure deployment to reapply these settings. No signing credentials are passed to Background, AgentHost, or Frontend.
-
-| GitHub environment name | Kind | API runtime environment key | Value / example |
-| --- | --- | --- | --- |
-| `DOCUMENTSIGNING__RETURNURL` | Variable | `DocumentSigning__ReturnUrl` | `https://YOUR_FRONTEND/attachment-files`; required for the DocuSign return redirect |
-| `DOCUMENTSIGNING__DOCUSIGN__ENABLED` | Variable | `DocumentSigning__DocuSign__Enabled` | `false` by default; set `true` once all DocuSign settings are configured |
-| `DOCUMENTSIGNING__DOCUSIGN__DEMO` | Variable | `DocumentSigning__DocuSign__Demo` | `true` for developer accounts; `false` for production |
-| `DOCUMENTSIGNING__DOCUSIGN__APIBASEURL` | Variable | `DocumentSigning__DocuSign__ApiBaseUrl` | Developer: `https://demo.docusign.net/restapi/v2.1/`; production: account-specific REST base URL ending `/restapi/v2.1/` |
-| `DOCUMENTSIGNING__DOCUSIGN__ACCOUNTID` | Variable | `DocumentSigning__DocuSign__AccountId` | Shared sender's API account GUID |
-| `DOCUMENTSIGNING__DOCUSIGN__CLIENTID` | Variable | `DocumentSigning__DocuSign__ClientId` | Integration key / application client GUID |
-| `DOCUMENTSIGNING__DOCUSIGN__SENDERUSERID` | Variable | `DocumentSigning__DocuSign__SenderUserId` | Shared sender's API user GUID |
-| `DOCUMENTSIGNING__DOCUSIGN__PRIVATEKEYPEM` | Secret | `DocumentSigning__DocuSign__PrivateKeyPem` | Full RSA private key PEM, including BEGIN/END lines and actual line breaks |
-| `DOCUMENTSIGNING__ADOBESIGN__ENABLED` | Variable | `DocumentSigning__AdobeSign__Enabled` | `false` by default; set `true` once all Adobe settings are configured |
-| `DOCUMENTSIGNING__ADOBESIGN__OAUTHREDIRECTURI` | Optional variable | `DocumentSigning__AdobeSign__OAuthRedirectUri` | `https://YOUR_FRONTEND/adobe-sign-callback.html`; register this exact URL in Adobe to use the Global Admin token page |
-| `DOCUMENTSIGNING__ADOBESIGN__AUTHURL` | Variable | `DocumentSigning__AdobeSign__AuthUrl` | Required when Adobe signing is enabled or OAuth setup is configured. No deployment fallback. For Singapore use `https://secure.sg1.adobesign.com/public/oauth/v2`. |
-| `DOCUMENTSIGNING__ADOBESIGN__ACCESSTOKENURL` | Required for OAuth setup | `DocumentSigning__AdobeSign__AccessTokenUrl` | Initial OAuth token exchange URL, e.g. `https://api.sg1.adobesign.com/oauth/v2/token`. Always used for token exchange, with no callback endpoint fallback. The token response's `api_access_point` takes precedence for the displayed API origin. Does not change the configured API origin or refresh-token endpoint used for signing. |
-| `DOCUMENTSIGNING__ADOBESIGN__APIACCESSPOINT` | Variable | `DocumentSigning__AdobeSign__ApiAccessPoint` | Actual regional `api_access_point` from OAuth, e.g. `https://api.na1.adobesign.com`; omit `/api/rest/v6`. Always forwarded during API release, including when signing is disabled for OAuth setup; required when Adobe signing is enabled. |
-| `DOCUMENTSIGNING__ADOBESIGN__CLIENTID` | Variable | `DocumentSigning__AdobeSign__ClientId` | Adobe OAuth application ID |
-| `DOCUMENTSIGNING__ADOBESIGN__CLIENTSECRET` | Secret | `DocumentSigning__AdobeSign__ClientSecret` | Active OAuth application client secret |
-| `DOCUMENTSIGNING__ADOBESIGN__REFRESHTOKEN` | Secret | `DocumentSigning__AdobeSign__RefreshToken` | Refresh token authorized by the shared sender with `agreement_read:self agreement_write:self agreement_send:self user_login:self` |
 
 Configure each provider independently; keep an unused provider disabled and omit its credentials. Use separate test and production credentials. Local user secrets use colons instead of double underscores, for example `DocumentSigning:AdobeSign:RefreshToken`. The old `Signing` section is no longer read. See [shared organization signing](../README.md#shared-organization-signing) for provider authorization and token renewal details.
 
@@ -258,7 +261,7 @@ select **Run workflow**, choose `dev` or `test`, and choose `start` or `stop`.
 Run infrastructure and the corresponding service release first.
 
 These workflows use the existing Azure OIDC environment secrets and optional
-`AZURE_RESOURCE_GROUP` variable described below. They resolve the app from
+`AZURE_RESOURCE_GROUP` variable in [GitHub environment settings](#github-environment-settings). They resolve the app from
 `markItDownContainerAppName` or `pageIndexContainerAppName` in the
 `infra-<environment>` deployment outputs. The shared
 [control script](../.github/scripts/manage-container-app.ps1) verifies the container
@@ -308,25 +311,26 @@ MarkItDown, the default infrastructure deployment uses a placeholder image; run
 **Release PageIndex** after **Deploy infrastructure** to install the API. It is also
 an optional selection in **Release Services**.
 
-Set these GitHub environment secrets for each of `dev` and `test`:
+Configure the PageIndex entries in [GitHub environment settings](#github-environment-settings)
+for each of `dev` and `test`; that table includes their container variable mappings.
+The workflow supplies `AZURE_API_BASE` from the infrastructure output
+`openAiEndpoint`, so no GitHub setting is needed for the endpoint.
+It does not read the local `.env` file. See [PageIndex configuration](../backend/PageIndex/README.md#github-release-configuration)
+for the distinction between GitHub settings and local runtime variables.
 
-| Secret | Value |
-| --- | --- |
-| `PAGEINDEX_SERVICE_API_KEY` | A separately generated service key, at least 32 characters; see [key generation](../backend/PageIndex/README.md#generate-the-service-api-key) |
-| `PAGEINDEX_AZURE_API_KEY` | API key for the environment's provisioned Azure OpenAI resource; key authentication must be enabled |
-
-Optional environment variables: `PAGEINDEX_INDEX_MODEL` (defaults to
-`azure/<chatDeploymentName>` from infrastructure) and `PAGEINDEX_AZURE_API_VERSION`
-(defaults to `2024-10-21`; select a version supported by your deployment).
 The release builds `backend/PageIndex/Dockerfile`, pushes the `pageindex` image,
 stores keys as Container App secrets, and checks `/health` after deployment.
 `/health` does not validate Azure model credentials; test `/index` with summaries
 enabled to verify those settings.
 
-Infrastructure outputs `pageIndexContainerAppName` and `pageIndexEndpoint`. For
-C# callers, set `PageIndex__Endpoint` to that endpoint and `PageIndex__ApiKey` to
-the same service key. The existing agent indexing pipeline is not automatically
-switched to PageIndex.
+Infrastructure outputs `pageIndexContainerAppName` and `pageIndexEndpoint`.
+API, Background, and AgentHost releases configure `PageIndex__Endpoint` from
+that output; Bicep also sets it for API and Background application images.
+Run **Release API** after updating the release scripts to apply the endpoint
+used by **Admin → Service health**. `/health` requires no API key.
+For C# indexing calls, configure `PageIndex__ApiKey` separately with the same
+service key; these releases do not provision that caller credential. The existing
+agent indexing pipeline is not automatically switched to PageIndex.
 
 For direct Bicep application-image deployments, supply `pageIndexImage`, secure
 `pageIndexServiceApiKey` and `pageIndexAzureApiKey`, and optionally

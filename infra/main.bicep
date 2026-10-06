@@ -574,6 +574,7 @@ var commonEnv = [
   { name: 'AzureOpenAI__EmbeddingDeployment', value: embeddingDeploymentName }
   { name: 'AzureOpenAI__ChatDeployment', value: chatDeploymentName }
   { name: 'MarkItDown__Endpoint', value: markItDownUrl }
+  { name: 'PageIndex__Endpoint', value: pageIndexUrl }
   { name: 'MarkItDown__ApiKey', secretRef: 'markitdown-api-key' }
   { name: 'DocumentIntelligence__UsedManagedIdentity', value: 'true' }
   { name: 'DocumentIntelligence__Endpoint', value: documentIntelligenceAccount.?properties.endpoint ?? '' }

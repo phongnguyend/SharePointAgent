@@ -28,6 +28,7 @@ $commonValues = @{
   AzureOpenAI__EmbeddingDeployment = $outputs.embeddingDeploymentName.value
   AzureOpenAI__ChatDeployment = $outputs.chatDeploymentName.value
   MarkItDown__Endpoint = $outputs.markItDownEndpoint.value
+  PageIndex__Endpoint = [string]$outputs.pageIndexEndpoint.value
   DocumentIntelligence__UsedManagedIdentity = 'true'
   DocumentIntelligence__Endpoint = [string]$outputs.documentIntelligenceEndpoint.value
 }
