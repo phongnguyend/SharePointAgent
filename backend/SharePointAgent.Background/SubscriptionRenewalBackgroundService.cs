@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using SharePointAgent.Application;
 using SharePointAgent.Domain;
 using SharePointAgent.Infrastructure;
+using SharePointAgent.Infrastructure.Monitoring;
 
 namespace SharePointAgent.Background;
 
@@ -9,6 +10,7 @@ public sealed class SubscriptionRenewalBackgroundService(
     SubscriptionManager subscriptions,
     IOptions<SharePointOptions> options,
     IHostApplicationLifetime applicationLifetime,
+    WorkerHealthState health,
     ILogger<SubscriptionRenewalBackgroundService> logger) : BackgroundService
 {
     private readonly SharePointOptions _options = options.Value;
@@ -37,6 +39,7 @@ public sealed class SubscriptionRenewalBackgroundService(
             }
             catch (Exception ex)
             {
+                health.Failed("Subscription renewal");
                 logger.LogError(ex, "Unable to create or renew the Microsoft Graph webhook subscription. Retrying later.");
             }
             await Task.Delay(TimeSpan.FromHours(_options.RenewalCheckHours), stoppingToken);

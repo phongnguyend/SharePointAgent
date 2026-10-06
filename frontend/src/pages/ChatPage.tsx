@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -1555,13 +1556,14 @@ function MessageTraceAction({ traceId }: { traceId?: string | null }) {
       >
         <ScrollText size={13} />
       </button>
-      {open && traceId ? (
+      {open && traceId ? createPortal(
         <Modal open={open} title="Message trace ID" icon={<ScrollText size={16} />}
           onClose={() => setOpen(false)}
           footer={<CopyButton value={traceId} label="Copy trace ID" />}>
           <p>Use this ID to find the chat turn in distributed tracing.</p>
           <code style={{ overflowWrap: 'anywhere', userSelect: 'text' }}>{traceId}</code>
-        </Modal>
+        </Modal>,
+        document.body,
       ) : null}
     </>
   )

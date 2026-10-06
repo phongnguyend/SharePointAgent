@@ -39,6 +39,43 @@ import type {
 /** Empty by default, so requests go to the dev server's /api proxy on this same origin. */
 const BASE_URL = API_BASE
 
+export interface ServiceHealthStatus {
+  name: string
+  status: 'healthy' | 'unhealthy' | 'not-configured' | 'misconfigured' | 'degraded' | 'unknown'
+  message: string
+  responseTimeMs: number | null
+  checkedAtUtc: string
+  lastHeartbeatUtc?: string | null
+  lastSyncSucceededUtc?: string | null
+  lastFailureUtc?: string | null
+  subscriptionExpiresUtc?: string | null
+}
+
+export const getServiceHealth = (signal?: AbortSignal) =>
+  request<ServiceHealthStatus[]>('/api/admin/service-health', { signal, cache: 'no-store' })
+
+export interface SitePermissionInput {
+  tenantId: string
+  clientId: string
+  clientSecret: string
+  siteUrl: string
+  targetClientId: string
+  targetDisplayName: string
+  role: 'read' | 'write'
+}
+
+export interface SitePermissionResult {
+  siteId: string
+  targetClientId: string
+  role: string
+  updated: boolean
+}
+
+export const saveSitePermission = (input: SitePermissionInput) =>
+  request<SitePermissionResult>('/api/admin/site-permissions', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input), cache: 'no-store',
+  })
+
 export type SandboxOperation = 'mkdir' | 'rename' | 'delete' | 'copy' | 'move' | 'upload'
 
 export const manageSandboxFile = (conversationId: string, operation: SandboxOperation, path: string, destination?: string, content?: string) =>

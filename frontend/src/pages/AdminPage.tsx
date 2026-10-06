@@ -1,10 +1,12 @@
 import { useId } from 'react'
 import { Navigate, useSearchParams } from 'react-router-dom'
-import { FilePenLine, GitBranch, Webhook } from 'lucide-react'
+import { Activity, FilePenLine, GitBranch, ShieldCheck, Webhook } from 'lucide-react'
 import { canManageAdministration, canReadAdministration, useAppUser } from '../components/AppUserContext'
 import DeltaStatePage from './DeltaStatePage'
 import SubscriptionsPage from './SubscriptionsPage'
 import DocumentSigningConfigurationPage from './DocumentSigningConfigurationPage'
+import SitePermissionsPage from './SitePermissionsPage'
+import ServiceHealthPage from './ServiceHealthPage'
 
 export default function AdminPage() {
   const user = useAppUser()
@@ -13,7 +15,9 @@ export default function AdminPage() {
   const tabs = [
     { key: 'delta', label: 'Delta state', Icon: GitBranch },
     { key: 'subscriptions', label: 'Subscriptions', Icon: Webhook },
+    { key: 'health', label: 'Service health', Icon: Activity },
     ...(canManageAdministration(user) ? [{ key: 'document-signing-configuration', label: 'Document signing', Icon: FilePenLine }] : []),
+    ...(canManageAdministration(user) ? [{ key: 'site-permissions', label: 'Site access', Icon: ShieldCheck }] : []),
   ]
   const requested = params.get('tab') || 'delta'
   if (!canReadAdministration(user)) {
@@ -47,7 +51,7 @@ export default function AdminPage() {
     </div>
     {tabs.map(({ key }) => <div key={key} role="tabpanel" id={`${id}-${key}-panel`}
       aria-labelledby={`${id}-${key}`} hidden={requested !== key}>
-      {requested === key && (key === 'delta' ? <DeltaStatePage /> : key === 'subscriptions' ? <SubscriptionsPage /> : <DocumentSigningConfigurationPage />)}
+      {requested === key && (key === 'delta' ? <DeltaStatePage /> : key === 'subscriptions' ? <SubscriptionsPage /> : key === 'health' ? <ServiceHealthPage /> : key === 'site-permissions' ? <SitePermissionsPage /> : <DocumentSigningConfigurationPage />)}
     </div>)}
   </div>
 }

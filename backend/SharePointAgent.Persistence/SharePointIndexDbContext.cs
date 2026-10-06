@@ -51,6 +51,13 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<WorkerHeartbeatEntity>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedOnAdd();
+            entity.Property(x => x.ActiveFailure).HasMaxLength(500);
+            entity.HasIndex(x => x.LastHeartbeatUtc);
+        });
         modelBuilder.Entity<SignatureRequestEntity>(entity =>
         {
             entity.HasKey(x => x.Id);

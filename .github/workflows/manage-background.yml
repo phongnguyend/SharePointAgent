@@ -1,0 +1,57 @@
+name: Start or Stop Background
+run-name: ${{ inputs.action }} Background (${{ inputs.environment }})
+'on':
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options:
+          - dev
+          - test
+        default: dev
+      action:
+        description: Background Container App action
+        required: true
+        type: choice
+        options:
+          - start
+          - stop
+        default: start
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  # Serialize with infrastructure and application releases for this environment.
+  group: deployment-${{ inputs.environment }}
+  cancel-in-progress: false
+jobs:
+  background:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: ${{ inputs.environment }}
+    env:
+      DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+      BACKGROUND_ACTION: ${{ inputs.action }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Start or stop Background
+        run: |
+          & ./.github/scripts/manage-container-app.ps1 `
+            -Component Background `
+            -EnvironmentName $env:DEPLOY_ENVIRONMENT `
+            -Action $env:BACKGROUND_ACTION `
+            -ResourceGroup $env:AZURE_RESOURCE_GROUP

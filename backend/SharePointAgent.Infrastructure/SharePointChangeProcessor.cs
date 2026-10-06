@@ -19,7 +19,8 @@ public sealed class SharePointChangeProcessor(
     IOptions<ProcessorOptions> processorOptions,
     IOptions<OpenAiOptions> openAiOptions,
     IOptions<SearchOptions> searchOptions,
-    ILogger<SharePointChangeProcessor> logger) : ISharePointChangeProcessor
+    ILogger<SharePointChangeProcessor> logger,
+    WorkerHealthState? workerHealth = null) : ISharePointChangeProcessor
 {
     // How many orphaned files the sweep claims at a time, so a large clean-up does not read the whole
     // backlog into memory at once.
@@ -108,6 +109,12 @@ public sealed class SharePointChangeProcessor(
                 await SweepItemsOutsideScanAsync(driveId, scanId, cancellationToken);
                 await state.MarkSweptAsync(driveId, scanId, cancellationToken);
             }
+            workerHealth?.Succeeded("Synchronization");
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            workerHealth?.Failed("Synchronization");
+            throw;
         }
         finally
         {

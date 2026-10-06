@@ -251,6 +251,55 @@ Save the output as the **secret** `MARKITDOWN_API_KEY` under **GitHub repository
 
 ## Deployment behavior
 
+### Start or stop MarkItDown and PageIndex
+
+Open **Actions → Start or Stop MarkItDown** or **Actions → Start or Stop PageIndex**,
+select **Run workflow**, choose `dev` or `test`, and choose `start` or `stop`.
+Run infrastructure and the corresponding service release first.
+
+These workflows use the existing Azure OIDC environment secrets and optional
+`AZURE_RESOURCE_GROUP` variable described below. They resolve the app from
+`markItDownContainerAppName` or `pageIndexContainerAppName` in the
+`infra-<environment>` deployment outputs. The shared
+[control script](../.github/scripts/manage-container-app.ps1) verifies the container
+name, skips an action when already in the requested state, and waits up to 15
+minutes for completion. Both workflows share the environment deployment lock
+with Background, infrastructure, and application releases.
+
+Stopping MarkItDown makes conversions unavailable; stopping PageIndex makes
+indexing requests unavailable. Starting reuses the deployed image and settings.
+After starting, use **Admin → Service health** to check API connectivity and
+container logs to investigate failures. The workflow confirms Azure running state,
+not application readiness. No images are rebuilt by these workflows.
+
+### Start or stop Background
+
+Open **Actions → Start or Stop Background → Run workflow**, select `dev` or
+`test`, and choose `start` or `stop`. The [workflow](../.github/workflows/manage-background.yml)
+resolves the Background Container App from the `infra-<environment>` deployment's
+`workerContainerAppName` output. Run **Deploy infrastructure** and **Release
+Background** before using it to control the worker.
+
+It uses the existing environment secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and
+`AZURE_SUBSCRIPTION_ID` for OIDC login, plus the optional `AZURE_RESOURCE_GROUP`
+variable (otherwise `rg-<workloadName>-<environment>`). The deployment identity needs
+permission to read the deployment and Container App and perform
+`Microsoft.App/containerApps/start/action` and `Microsoft.App/containerApps/stop/action`.
+The existing resource-group Contributor role includes these operations.
+
+The pipeline calls Azure's [Container App start/stop operations](https://learn.microsoft.com/en-us/rest/api/resource-manager/containerapps/container-apps?view=rest-resource-manager-containerapps-2025-01-01),
+keeps the existing image and configuration, and waits up to 15 minutes for the
+requested running status. An app already in that state succeeds without another
+action. The workflow shares the environment deployment lock with releases.
+Its summary reports the final Azure running status; check container logs to verify
+that a started worker is processing successfully.
+
+Stopping pauses all work hosted by Background, including synchronization and
+subscription renewal. Pending queue messages remain subject to their expiry and
+delivery policies. Use `start` to resume the deployed worker. This is an operational
+control, not a persistent infrastructure setting; check the app state after later
+deployments.
+
 ### PageIndex API
 
 Infrastructure creates a separate PageIndex Container App with an ACR pull identity,

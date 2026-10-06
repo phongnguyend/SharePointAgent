@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using SharePointAgent.Application;
 using SharePointAgent.Domain;
 using SharePointAgent.Infrastructure;
+using SharePointAgent.Infrastructure.Monitoring;
 
 namespace SharePointAgent.Background;
 
@@ -19,6 +20,7 @@ public sealed class ChangeSignalListenerBackgroundService(
     SharePointClient sharePointClient,
     IOptions<ServiceBusOptions> serviceBusOptions,
     IOptions<ProcessorOptions> processorOptions,
+    WorkerHealthState health,
     ILogger<ChangeSignalListenerBackgroundService> logger) : BackgroundService
 {
     private ServiceBusProcessor? _processor;
@@ -66,10 +68,12 @@ public sealed class ChangeSignalListenerBackgroundService(
         logger.LogInformation("Processing SharePoint change signal from subscription {SubscriptionId}.", signal.SubscriptionId);
         await changeProcessor.ProcessAsync(args.CancellationToken);
         await args.CompleteMessageAsync(args.Message, args.CancellationToken);
+        health.Succeeded("Service Bus processing");
     }
 
     private Task ProcessErrorAsync(ProcessErrorEventArgs args)
     {
+        health.Failed("Service Bus processing");
         logger.LogError(args.Exception, "Service Bus processor error. Entity: {EntityPath}; source: {ErrorSource}.", args.EntityPath, args.ErrorSource);
         return Task.CompletedTask;
     }

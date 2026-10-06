@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SharePointAgent.Application;
 using SharePointAgent.Domain;
+using SharePointAgent.Infrastructure.Monitoring;
 
 namespace SharePointAgent.Infrastructure;
 
@@ -14,7 +15,8 @@ public sealed class SubscriptionManager(
     SharePointClient sharePointClient,
     IWebhookSubscriptionRepository subscriptionRepository,
     IOptions<SharePointOptions> options,
-    ILogger<SubscriptionManager> logger)
+    ILogger<SubscriptionManager> logger,
+    WorkerHealthState? workerHealth = null)
 {
     /// <summary>How close to expiry a subscription has to be before a renewal pass extends it.</summary>
     public const int RenewalThresholdDays = 3;
@@ -373,6 +375,7 @@ public sealed class SubscriptionManager(
         var resource = await GetExpectedResourceAsync(cancellationToken);
         var subscriptions = (await sharePointClient.ListSubscriptionsAsync(cancellationToken)).ToList();
         var results = new List<EnsureSubscriptionResult>();
+        var hadFailures = false;
 
         foreach (var definition in definitions.Where(item => item.AutoRenewEnabled))
         {
@@ -387,9 +390,15 @@ public sealed class SubscriptionManager(
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unable to renew webhook subscription {SubscriptionName} ({SubscriptionId}).", definition.Name, definition.GraphSubscriptionId);
+                hadFailures = true;
+                workerHealth?.Failed("Subscription renewal");
             }
         }
 
+        if (!hadFailures)
+        {
+            workerHealth?.SubscriptionChecked(results.Select(result => (DateTimeOffset?)result.Subscription.ExpirationUtc).Min());
+        }
         return results;
     }
 
