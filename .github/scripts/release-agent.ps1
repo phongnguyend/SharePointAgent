@@ -31,7 +31,8 @@ function Connection-Secret($Key) {
 $environment = @{
   Monitoring__OpenTelemetry__Exporter = 'AzureMonitor'
   Monitoring__OpenTelemetry__Environment = $env:DEPLOY_ENVIRONMENT
-  APPLICATIONINSIGHTS_CONNECTION_STRING = $outputs.applicationInsightsConnectionString.value
+  # Foundry reserves APPLICATIONINSIGHTS_CONNECTION_STRING for platform injection.
+  Monitoring__OpenTelemetry__AzureMonitor__ConnectionString = $outputs.applicationInsightsConnectionString.value
   SqlServer__ConnectionString = "Server=tcp:$($hosting.sqlServerFqdn),1433;Database=$($hosting.sqlDatabaseName);Authentication=Active Directory Managed Identity;Encrypt=True;TrustServerCertificate=False;"
   SqlServer__AutoMigrate = 'false'
   SharePoint__TenantId = $env:SHAREPOINT_TENANT_ID

@@ -30,10 +30,14 @@ public static class Telemetry
         {
             throw new InvalidOperationException("Monitoring:OpenTelemetry:Exporter must be Otlp, AzureMonitor, or None.");
         }
-        var connectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+        var connectionString = builder.Configuration["Monitoring:OpenTelemetry:AzureMonitor:ConnectionString"];
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            connectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+        }
         if (azure && string.IsNullOrWhiteSpace(connectionString))
         {
-            throw new InvalidOperationException("APPLICATIONINSIGHTS_CONNECTION_STRING is required for AzureMonitor telemetry.");
+            throw new InvalidOperationException("Monitoring:OpenTelemetry:AzureMonitor:ConnectionString or APPLICATIONINSIGHTS_CONNECTION_STRING is required for AzureMonitor telemetry.");
         }
 
         Activity.DefaultIdFormat = ActivityIdFormat.W3C;

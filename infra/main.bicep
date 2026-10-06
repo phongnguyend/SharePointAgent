@@ -551,7 +551,7 @@ var apiEndpoint = 'https://${apiName}.${containerAppsEnvironment.properties.defa
 var commonEnv = [
   { name: 'Monitoring__OpenTelemetry__Exporter', value: 'AzureMonitor' }
   { name: 'Monitoring__OpenTelemetry__Environment', value: environmentName }
-  { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: applicationInsights.properties.ConnectionString }
+  { name: 'Monitoring__OpenTelemetry__AzureMonitor__ConnectionString', value: applicationInsights.properties.ConnectionString }
   { name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' }
   { name: 'SqlServer__AutoMigrate', value: 'false' }
   { name: 'SharePoint__TenantId', value: sharePointTenantId }

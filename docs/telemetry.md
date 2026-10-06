@@ -56,7 +56,7 @@ The release scripts read the infrastructure output and supply:
 ```dotenv
 Monitoring__OpenTelemetry__Exporter=AzureMonitor
 Monitoring__OpenTelemetry__Environment=dev
-APPLICATIONINSIGHTS_CONNECTION_STRING=InstrumentationKey=...;IngestionEndpoint=...
+Monitoring__OpenTelemetry__AzureMonitor__ConnectionString=InstrumentationKey=...;IngestionEndpoint=...
 ```
 
 For test, the environment label is `test`. No new GitHub secret is needed: the
@@ -64,6 +64,18 @@ connection string comes from provisioned infrastructure. ASP.NET environment
 remains `Production` for deployed services; exporter choice is explicit and does
 not treat the local ASP.NET `Development` environment as the Azure dev environment.
 An absent Azure Monitor connection string fails startup with a configuration error.
+
+API, Background, and AgentHost all use `Monitoring__OpenTelemetry__AzureMonitor__ConnectionString`
+in their deployment configuration. Foundry reserves `APPLICATIONINSIGHTS_CONNECTION_STRING`
+for platform injection and rejects agent definitions that set it.
+The application prefers `Monitoring:OpenTelemetry:AzureMonitor:ConnectionString`, falling back
+to `APPLICATIONINSIGHTS_CONNECTION_STRING` when the application setting is blank.
+This keeps AgentHost application telemetry in the same provisioned resource as
+API and Background without overriding Foundry's platform variable. See
+[Foundry telemetry configuration](https://learn.microsoft.com/azure/foundry/agents/how-to/configure-hosted-agent-telemetry).
+Rerun **Release API**, **Release Background**, and **Release AgentHost** from the
+updated commit so their rebuilt images and deployment settings use the new key.
+Bicep uses the same key for deployments with application images enabled.
 
 The [Azure Monitor exporter](https://learn.microsoft.com/en-us/dotnet/api/overview/azure/monitor.opentelemetry.exporter-readme)
 is configured for full sampling of new traces in dev/test. Local tracing also

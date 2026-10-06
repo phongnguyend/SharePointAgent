@@ -58,6 +58,35 @@ public sealed class TelemetryTests
         Assert.Null(host.Services.GetService<TracerProvider>());
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData(" ")]
+    [InlineData("InstrumentationKey=11111111-1111-1111-1111-111111111111")]
+    public void AzureMonitorSupportsApplicationSettingAndLegacyFallback(string? applicationSetting)
+    {
+        var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { DisableDefaults = true });
+        builder.Configuration["Monitoring:OpenTelemetry:Exporter"] = "AzureMonitor";
+        builder.Configuration["Monitoring:OpenTelemetry:AzureMonitor:ConnectionString"] = applicationSetting;
+        // The application setting must take precedence over even an invalid platform value.
+        builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"] = string.IsNullOrWhiteSpace(applicationSetting)
+            ? "InstrumentationKey=22222222-2222-2222-2222-222222222222"
+            : "invalid-platform-value";
+        builder.AddApplicationTelemetry("test-agent");
+        using var host = builder.Build();
+        Assert.NotNull(host.Services.GetRequiredService<TracerProvider>());
+    }
+
+    [Fact]
+    public void AzureMonitorAcceptsApplicationSettingWithoutPlatformVariable()
+    {
+        var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { DisableDefaults = true });
+        builder.Configuration["Monitoring:OpenTelemetry:Exporter"] = "AzureMonitor";
+        builder.Configuration["Monitoring:OpenTelemetry:AzureMonitor:ConnectionString"] = "InstrumentationKey=11111111-1111-1111-1111-111111111111";
+        builder.AddApplicationTelemetry("test-agent");
+        using var host = builder.Build();
+        Assert.NotNull(host.Services.GetRequiredService<TracerProvider>());
+    }
+
     private sealed class CaptureExporter : BaseExporter<Activity>
     {
         public List<Activity> Activities { get; } = [];
