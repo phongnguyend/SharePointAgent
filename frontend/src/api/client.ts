@@ -64,12 +64,30 @@ export interface SitePermissionInput {
   role: 'read' | 'write'
 }
 
+export const getSitePermissionDefaults = (signal?: AbortSignal) =>
+  request<Pick<SitePermissionInput, 'tenantId' | 'siteUrl' | 'targetClientId'>>('/api/admin/site-permissions/defaults', { signal, cache: 'no-store' })
+
 export interface SitePermissionResult {
   siteId: string
   targetClientId: string
   role: string
   updated: boolean
 }
+
+export interface SitePermissionListing {
+  siteId: string
+  permissions: { permissionId: string; clientId: string; displayName: string; roles: string[] }[]
+}
+
+export const deleteSitePermission = (input: Pick<SitePermissionInput, 'tenantId' | 'clientId' | 'clientSecret' | 'siteUrl' | 'targetClientId'> & { permissionId: string }) =>
+  request<{ deleted: string }>('/api/admin/site-permissions/delete', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input), cache: 'no-store',
+  })
+
+export const listSitePermissions = (input: Pick<SitePermissionInput, 'tenantId' | 'clientId' | 'clientSecret' | 'siteUrl'>) =>
+  request<SitePermissionListing>('/api/admin/site-permissions/list', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input), cache: 'no-store',
+  })
 
 export const saveSitePermission = (input: SitePermissionInput) =>
   request<SitePermissionResult>('/api/admin/site-permissions', {

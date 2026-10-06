@@ -1010,6 +1010,85 @@ input[readonly] {
   color: var(--text-primary);
 }
 
+.site-access-permission {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.site-access-permission legend {
+  padding: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.site-access-permission-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.site-access-permission-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 72px;
+  padding: 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+  cursor: pointer;
+}
+
+.site-access-permission-card:hover:not(:has(input:disabled)) {
+  border-color: var(--accent);
+}
+
+.site-access-permission-card:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.site-access-permission-card:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.site-access-permission-card:has(input:disabled) {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.site-access-permission-card > .lucide {
+  flex-shrink: 0;
+  color: var(--accent-text);
+}
+
+.site-access-permission-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.site-access-permission-copy strong {
+  font-size: 13px;
+}
+
+.site-access-permission-copy > span {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.site-access-permission-options input {
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+}
+
 .site-access-actions {
   grid-column: 1 / -1;
 }

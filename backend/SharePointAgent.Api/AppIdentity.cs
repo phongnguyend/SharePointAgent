@@ -200,7 +200,8 @@ public static class AppAccess
 
         if (role == AppRoles.GlobalReaderAdmin)
         {
-            if (path == "/api/admin/document-signing" || path.StartsWith("/api/admin/document-signing/"))
+            if (path == "/api/admin/document-signing" || path.StartsWith("/api/admin/document-signing/") ||
+                path == "/api/admin/site-permissions" || path.StartsWith("/api/admin/site-permissions/"))
             {
                 return false;
             }

@@ -20,33 +20,110 @@ public sealed class SitePermissionRequest
     public string TargetDisplayName { get; set; } = "";
 
     public string Role { get; set; } = "read";
+
+    public string PermissionId { get; set; } = "";
 }
 
 public sealed record SitePermissionResult(string SiteId, string TargetClientId, string Role, bool Updated);
+
+public sealed record SitePermissionGrant(string PermissionId, string ClientId, string DisplayName, IReadOnlyList<string> Roles);
+
+public sealed record SitePermissionListing(string SiteId, IReadOnlyList<SitePermissionGrant> Permissions);
 
 public sealed class SitePermissionService(HttpClient http)
 {
     private const string Graph = "https://graph.microsoft.com/v1.0/";
 
-    public async Task<SitePermissionResult> SaveAsync(SitePermissionRequest input, CancellationToken cancellationToken)
+    public async Task DeleteAsync(SitePermissionRequest input, CancellationToken cancellationToken)
     {
-        if (!Guid.TryParse(input.TenantId, out var tenant) || tenant == Guid.Empty ||
-            !Guid.TryParse(input.ClientId, out var client) || client == Guid.Empty ||
+        if (string.IsNullOrWhiteSpace(input.PermissionId) || input.PermissionId.Length > 2048 ||
             !Guid.TryParse(input.TargetClientId, out var target) || target == Guid.Empty)
         {
-            throw new ArgumentException("Tenant ID and both application client IDs must be non-empty GUIDs.");
+            throw new ArgumentException("A permission ID and valid target client ID are required.");
         }
-        if (string.IsNullOrWhiteSpace(input.ClientSecret) || input.ClientSecret.Length > 4096)
+        var session = await LoadAsync(input, cancellationToken);
+        var grants = session.Permissions.Where(grant => grant.PermissionId == input.PermissionId).ToList();
+        if (grants.Count == 0)
         {
-            throw new ArgumentException("Enter a valid privileged application client secret.");
+            throw new KeyNotFoundException("Permission no longer exists on this site. Refresh the permissions list.");
+        }
+        if (grants.Any(grant => !Guid.TryParse(grant.ClientId, out var id) || id != target))
+        {
+            throw new ArgumentException("Permission does not belong exclusively to the selected application. Refresh the permissions list.");
+        }
+        using var request = new HttpRequestMessage(HttpMethod.Delete,
+            $"{Graph}sites/{Uri.EscapeDataString(session.SiteId)}/permissions/{Uri.EscapeDataString(input.PermissionId)}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.Token);
+        using var response = await http.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException("Microsoft Graph rejected the permission deletion. Refresh permissions before retrying.");
+        }
+    }
+
+    public async Task<SitePermissionListing> ListAsync(SitePermissionRequest input, CancellationToken cancellationToken)
+    {
+        var session = await LoadAsync(input, cancellationToken);
+        return new(session.SiteId, session.Permissions);
+    }
+
+    public async Task<SitePermissionResult> SaveAsync(SitePermissionRequest input, CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(input.TargetClientId, out var target) || target == Guid.Empty)
+        {
+            throw new ArgumentException("Target client ID must be a non-empty GUID.");
         }
         if (input.Role is not ("read" or "write"))
         {
             throw new ArgumentException("Permission must be read or write.");
         }
-        if (string.IsNullOrWhiteSpace(input.TargetDisplayName) || input.TargetDisplayName.Length > 256)
+        if (input.TargetDisplayName?.Length > 256)
         {
-            throw new ArgumentException("Enter a target application name of at most 256 characters.");
+            throw new ArgumentException("Target application name must be at most 256 characters.");
+        }
+        var session = await LoadAsync(input, cancellationToken);
+        var matches = session.Permissions.Where(grant => Guid.TryParse(grant.ClientId, out var id) && id == target)
+            .Select(grant => grant.PermissionId).Distinct().ToList();
+        var permissionsUrl = $"{Graph}sites/{Uri.EscapeDataString(session.SiteId)}/permissions";
+        if (matches.Count > 1)
+        {
+            throw new InvalidOperationException("Multiple grants exist for this application. Resolve the duplicate site permissions before saving.");
+        }
+        if (matches.Count == 1)
+        {
+            using var updated = await SendAsync(session.Token, HttpMethod.Patch, $"{permissionsUrl}/{Uri.EscapeDataString(matches[0])}", new { roles = new[] { input.Role } }, cancellationToken);
+        }
+        else
+        {
+            using var created = await SendAsync(session.Token, HttpMethod.Post, permissionsUrl, new
+            {
+                roles = new[] { input.Role },
+                grantedToIdentities = new[] { new { application = new { id = target.ToString("D"),
+                    displayName = string.IsNullOrWhiteSpace(input.TargetDisplayName) ? target.ToString("D") : input.TargetDisplayName.Trim() } } }
+            }, cancellationToken);
+        }
+        return new(session.SiteId, target.ToString("D"), input.Role, matches.Count == 1);
+    }
+
+    private sealed class Session(string token, string siteId, IReadOnlyList<SitePermissionGrant> permissions)
+    {
+        public string Token { get; } = token;
+
+        public string SiteId { get; } = siteId;
+
+        public IReadOnlyList<SitePermissionGrant> Permissions { get; } = permissions;
+    }
+
+    private async Task<Session> LoadAsync(SitePermissionRequest input, CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(input.TenantId, out var tenant) || tenant == Guid.Empty ||
+            !Guid.TryParse(input.ClientId, out var client) || client == Guid.Empty)
+        {
+            throw new ArgumentException("Tenant ID and privileged client ID must be non-empty GUIDs.");
+        }
+        if (string.IsNullOrWhiteSpace(input.ClientSecret) || input.ClientSecret.Length > 4096)
+        {
+            throw new ArgumentException("Enter a valid privileged application client secret.");
         }
         if (!Uri.TryCreate(input.SiteUrl, UriKind.Absolute, out var site) || site.Scheme != "https" ||
             !site.Host.EndsWith(".sharepoint.com", StringComparison.OrdinalIgnoreCase) || !site.IsDefaultPort ||
@@ -74,33 +151,16 @@ public sealed class SitePermissionService(HttpClient http)
         var token = tokenJson.RootElement.GetProperty("access_token").GetString()
             ?? throw new HttpRequestException("The identity provider returned no access token.");
 
-        async Task<JsonDocument> SendAsync(HttpMethod method, string url, object? body = null)
-        {
-            using var request = new HttpRequestMessage(method, url);
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            if (body is not null)
-            {
-                request.Content = JsonContent.Create(body);
-            }
-            using var response = await http.SendAsync(request, cancellationToken);
-            if (!response.IsSuccessStatusCode)
-            {
-                // Provider bodies can contain sensitive data. Return only a status and setup guidance.
-                throw new HttpRequestException($"Microsoft Graph returned {(int)response.StatusCode}. Verify the site URL and admin consent for Sites.FullControl.All on the privileged application.");
-            }
-            return await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
-        }
-
         var sitePath = site.AbsolutePath == "/" ? "/" : site.AbsolutePath.TrimEnd('/');
-        using var siteJson = await SendAsync(HttpMethod.Get, $"{Graph}sites/{site.Host}:{sitePath}");
+        using var siteJson = await SendAsync(token, HttpMethod.Get, $"{Graph}sites/{site.Host}:{sitePath}", null, cancellationToken);
         var siteId = siteJson.RootElement.GetProperty("id").GetString()
             ?? throw new HttpRequestException("Microsoft Graph returned no site ID.");
         var permissionsUrl = $"{Graph}sites/{Uri.EscapeDataString(siteId)}/permissions";
         string? nextUrl = permissionsUrl;
-        var matches = new List<string>();
+        var grants = new List<SitePermissionGrant>();
         while (nextUrl is not null)
         {
-            using var permissions = await SendAsync(HttpMethod.Get, nextUrl);
+            using var permissions = await SendAsync(token, HttpMethod.Get, nextUrl, null, cancellationToken);
             foreach (var permission in permissions.RootElement.GetProperty("value").EnumerateArray())
             {
                 var identities = permission.TryGetProperty("grantedToIdentitiesV2", out var v2) ? v2 :
@@ -109,10 +169,15 @@ public sealed class SitePermissionService(HttpClient http)
                 {
                     continue;
                 }
-                if (identities.EnumerateArray().Any(identity => identity.TryGetProperty("application", out var application) &&
-                    application.TryGetProperty("id", out var id) && Guid.TryParse(id.GetString(), out var existing) && existing == target))
+                var roles = permission.TryGetProperty("roles", out var roleValues) && roleValues.ValueKind == JsonValueKind.Array
+                    ? roleValues.EnumerateArray().Select(role => role.GetString() ?? "").ToArray() : [];
+                foreach (var identity in identities.EnumerateArray())
                 {
-                    matches.Add(permission.GetProperty("id").GetString()!);
+                    if (identity.TryGetProperty("application", out var application) && application.TryGetProperty("id", out var id))
+                    {
+                        grants.Add(new(permission.GetProperty("id").GetString()!, id.GetString() ?? "",
+                            application.TryGetProperty("displayName", out var name) ? name.GetString() ?? "" : "", roles));
+                    }
                 }
             }
             nextUrl = permissions.RootElement.TryGetProperty("@odata.nextLink", out var next) ? next.GetString() : null;
@@ -121,22 +186,23 @@ public sealed class SitePermissionService(HttpClient http)
                 throw new HttpRequestException("Microsoft Graph returned an unexpected pagination URL.");
             }
         }
-        if (matches.Count > 1)
+        return new(token, siteId, grants);
+    }
+
+    private async Task<JsonDocument> SendAsync(string token, HttpMethod method, string url, object? body, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(method, url);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        if (body is not null)
         {
-            throw new InvalidOperationException("Multiple grants exist for this application. Resolve the duplicate site permissions before saving.");
+            request.Content = JsonContent.Create(body);
         }
-        if (matches.Count == 1)
+        using var response = await http.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
         {
-            using var updated = await SendAsync(HttpMethod.Patch, $"{permissionsUrl}/{Uri.EscapeDataString(matches[0])}", new { roles = new[] { input.Role } });
+            // Provider bodies can contain sensitive data. Return only a status and setup guidance.
+            throw new HttpRequestException($"Microsoft Graph returned {(int)response.StatusCode}. Verify the site URL and admin consent for Sites.FullControl.All on the privileged application.");
         }
-        else
-        {
-            using var created = await SendAsync(HttpMethod.Post, permissionsUrl, new
-            {
-                roles = new[] { input.Role },
-                grantedToIdentities = new[] { new { application = new { id = target.ToString("D"), displayName = input.TargetDisplayName.Trim() } } }
-            });
-        }
-        return new(siteId, target.ToString("D"), input.Role, matches.Count == 1);
+        return await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
     }
 }

@@ -107,7 +107,13 @@ See [the infrastructure deployment guide](infra/README.md) for settings and the 
 
 Configured capacity is **2 vCPU / 4 GiB per AgentHost session** and **2 vCPU / 4 GiB per API replica** (1–3 replicas). Background uses 1 vCPU / 2 GiB with one replica, and MarkItDown uses 0.5 vCPU / 1 GiB per replica (1–3 replicas). See [current configured capacity](infra/README.md#current-configured-capacity) for allocation sources and how to apply changes to existing deployments.
 
+To inspect site access, open **Admin → Site access**, enter the privileged credentials and site URL, then select **View permissions**. Target application fields are not required for viewing. The table lists explicit application grants with application name, client ID, roles, and permission ID across all result pages; it does not list user/group permissions or broader tenant-wide application access. The secret clears after viewing, so re-enter it before saving or refreshing. Changing the site or tenant hides the previous results, and saving clears them so they can be reloaded.
+
 ## Configure and run
+
+The Site access form pre-fills Tenant ID, Site URL, and Target client ID from the API's `SharePoint:TenantId`, `SiteHostname`/`SitePath`, and `ClientId` settings. These defaults remain editable, and Clear form restores them while clearing privileged credentials. Target application name is an optional display label; the client ID identifies the application. A blank name uses the target client ID as the label when creating a grant. Privileged client ID and secret must still be entered manually.
+
+To revoke an explicit site grant, use its trash icon in **Admin → Site access → View permissions**. Confirm the application and site, re-enter the privileged client secret, and select **Delete permission**. The backend checks that the permission belongs exclusively to that application before calling Graph; successful deletion removes the row. Other grants and tenant-wide permissions can still provide access. Only Global Admins can perform this action.
 
 Background also publishes a SQL heartbeat every 30 seconds. **Admin → Service health** shows its last heartbeat, last successful synchronization, last failure time, and earliest subscription expiry observed during a successful renewal check. A heartbeat at least two minutes old is **Unhealthy**; no record or an unreadable database is **Unknown**. A current heartbeat with an unresolved synchronization, Service Bus processing, or subscription-renewal failure (or an expired observed subscription) is **Degraded**. Successful work clears only that component's failure. An idle worker can be healthy without processing new documents; a current heartbeat alone does not prove an in-progress sync is making progress.
 
