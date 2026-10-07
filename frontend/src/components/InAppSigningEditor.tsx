@@ -401,7 +401,7 @@ export default function InAppSigningEditor({ attachmentId, requestId, name, onCl
             </button>)}
             <p className="signing-palette-count">{fields.length} field{fields.length === 1 ? '' : 's'}{dirty ? ' · unsaved' : ''}</p>
           </> : <>
-            <p>Click each signature or initials field to draw it, and fill in the date and text fields.</p>
+            <p>Click each signature or initials field to draw, upload, drop, or paste an image. Fill in the date and text fields.</p>
             <p className="signing-palette-count">{signedCount} of {fields.length} complete{dirty ? ' · unsaved' : ''}</p>
             {imageFields.length === 0 && <p>Add a signature field in Place fields first.</p>}
           </>}
@@ -450,7 +450,7 @@ export default function InAppSigningEditor({ attachmentId, requestId, name, onCl
       </div>
     </Modal>
     {padField && <SignaturePad
-      title={padField.type === 'initials' ? 'Draw your initials' : 'Draw your signature'}
+      title={padField.type === 'initials' ? 'Add your initials' : 'Add your signature'}
       previous={fields.find(x => x.id !== padField.id && x.type === padField.type && x.value)?.value ?? null}
       emptyCount={fields.filter(x => x.id !== padField.id && x.type === padField.type && !x.value).length}
       onClose={() => setPadFieldId(null)}
