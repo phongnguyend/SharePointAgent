@@ -11,7 +11,7 @@ public static class ImageDescriptionUsageEndpoints
     }
 
     public static async Task<IResult> ReadAsync(SharePointIndexDbContext db, CancellationToken ct,
-        DateOnly? from = null, DateOnly? to = null, string? model = null, Guid? userId = null,
+        DateOnly? from = null, DateOnly? to = null, string? model = null, string? user = null,
         Guid? attachmentId = null, int skip = 0, int top = 25)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -28,9 +28,13 @@ public static class ImageDescriptionUsageEndpoints
         {
             query = query.Where(x => x.ModelId == model.Trim());
         }
-        if (userId is { } user)
+        if (!string.IsNullOrWhiteSpace(user))
         {
-            query = query.Where(x => x.UserId == user);
+            // Matches the Chat and Embedding reports: a user ID, or part of a name or email.
+            var term = user.Trim();
+            var id = Guid.TryParse(term, out var parsed) ? parsed : (Guid?)null;
+            query = query.Where(x => (id != null && x.UserId == id) || db.Users.Any(u => u.Id == x.UserId
+                && (u.DisplayName.Contains(term) || (u.Email != null && u.Email.Contains(term)))));
         }
         if (attachmentId is { } attachment)
         {
@@ -60,7 +64,8 @@ public static class ImageDescriptionUsageEndpoints
                 x.Id, x.CreatedAtUtc, x.UserId, x.ConversationId, x.QuestionId, x.AttachmentId, x.FilePath, x.ModelId,
                 x.InputTokens, x.OutputTokens, x.TotalTokens,
                 x.SystemPrompt, x.Prompt, x.Description,
-                UserName = db.Users.Where(u => u.Id == x.UserId).Select(u => u.UserName).FirstOrDefault(),
+                UserName = db.Users.Where(u => u.Id == x.UserId).Select(u => u.DisplayName != "" ? u.DisplayName : u.Email).FirstOrDefault(),
+                UserEmail = db.Users.Where(u => u.Id == x.UserId).Select(u => u.Email).FirstOrDefault(),
                 FileName = db.ChatMessageAttachmentFiles.Where(f => f.Id == x.AttachmentId).Select(f => f.FileName).FirstOrDefault() ?? x.FilePath
             }).ToListAsync(ct);
         return Results.Ok(new

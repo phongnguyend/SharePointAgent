@@ -20,6 +20,9 @@
     "deployContentSafety": {
       "value": true
     },
+    "deployTranscription": {
+      "value": false
+    },
     "deployDocumentIntelligence": {
       "value": true
     },

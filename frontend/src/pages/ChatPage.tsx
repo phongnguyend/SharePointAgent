@@ -46,6 +46,7 @@ import {
   setMessageFeedback,
   uploadAttachmentFile,
   getAttachmentOptions,
+  getTranscriptionOptions,
   getCurrentUser,
   downloadAttachmentFile,
   listWorkspaces,
@@ -70,6 +71,7 @@ import { FileTypeIcon } from '../components/FileTypeIcon'
 import { useSandboxFileManagement } from '../components/SandboxFileManagement'
 import { AttachmentDownload } from '../components/AttachmentDownload'
 import { MonthlyTokenUsage } from '../components/MonthlyTokenUsage'
+import { DictationButton, dictationSupported } from '../components/DictationButton'
 import { OfficeViewer } from '../components/OfficeViewer'
 import { ImageViewer } from '../components/ImageViewer'
 import { MarkdownViewer } from '../components/MarkdownViewer'
@@ -96,6 +98,7 @@ export default function ChatPage() {
   const workspaces = useAsync((signal) => listWorkspaces(signal), [])
   const agents = useAsync((signal) => listAgents(signal), [])
   const attachmentOptions = useAsync((signal) => getAttachmentOptions(signal), [])
+  const transcriptionOptions = useAsync((signal) => getTranscriptionOptions(signal), [])
   const tokenUsage = useAsync(signal => getCurrentUser(signal), [])
   useEffect(() => {
     const timer = window.setInterval(tokenUsage.reload, 60_000)
@@ -903,6 +906,24 @@ export default function ChatPage() {
                 }}
               />
             </div>
+            {transcriptionOptions.data?.enabled && dictationSupported() ? (
+              <DictationButton
+                disabled={readOnly || sending}
+                maxSeconds={transcriptionOptions.data.maxSeconds}
+                onError={setError}
+                onText={(text) => {
+                  // Dictation adds to what is already typed; the user reviews it before sending.
+                  setDraft((current) => (current.trim() ? `${current.trimEnd()} ${text}` : text))
+                  window.requestAnimationFrame(() => {
+                    const input = composerRef.current
+                    if (input) {
+                      input.focus()
+                      input.setSelectionRange(input.value.length, input.value.length)
+                    }
+                  })
+                }}
+              />
+            ) : null}
             <button
               className="primary chat-composer-action"
               disabled={readOnly || sending || uploading || draft.trim() === ''}

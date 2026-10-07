@@ -48,6 +48,14 @@ param chatModelVersion string = '2025-08-07'
 @minValue(1)
 param chatDeploymentCapacity int = 10
 
+@description('Deploy a speech-to-text model for chat dictation. Check that the model is available for GlobalStandard in the OpenAI account region first.')
+param deployTranscription bool = false
+param transcriptionDeploymentName string = 'gpt-4o-transcribe'
+param transcriptionModelName string = 'gpt-4o-transcribe'
+param transcriptionModelVersion string = '2025-03-20'
+@minValue(1)
+param transcriptionDeploymentCapacity int = 10
+
 @description('Allow Service Bus shared-access-key connection strings.')
 param allowServiceBusLocalAuth bool = true
 
@@ -519,6 +527,18 @@ resource chatDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-1
   dependsOn: [embeddingDeployment]
 }
 
+// Deployments on one account are created one at a time, so this waits for the chat deployment.
+resource transcriptionDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = if (deployTranscription) {
+  parent: openAiAccount
+  name: transcriptionDeploymentName
+  sku: { name: 'GlobalStandard', capacity: transcriptionDeploymentCapacity }
+  properties: {
+    model: { format: 'OpenAI', name: transcriptionModelName, version: transcriptionModelVersion }
+    versionUpgradeOption: 'OnceNewDefaultVersionAvailable'
+  }
+  dependsOn: [chatDeployment]
+}
+
 output hosting object = {
   sqlServerName: sql.name
   sqlServerFqdn: sql.properties.fullyQualifiedDomainName
@@ -534,6 +554,7 @@ output hosting object = {
   foundryProjectEndpoint: 'https://${foundry.name}.services.ai.azure.com/api/projects/${project.name}'
 }
 output chatDeploymentName string = chatDeployment.name
+output transcriptionDeploymentName string = deployTranscription ? transcriptionDeploymentName : ''
 output openAiResourceId string = openAiAccount.id
 output searchResourceId string = searchService.id
 output storageResourceId string = uploadStorage.id
@@ -573,6 +594,7 @@ var commonEnv = [
   { name: 'AzureOpenAI__Endpoint', value: openAiAccount.properties.endpoint }
   { name: 'AzureOpenAI__EmbeddingDeployment', value: embeddingDeploymentName }
   { name: 'AzureOpenAI__ChatDeployment', value: chatDeploymentName }
+  { name: 'AzureOpenAI__TranscriptionDeployment', value: deployTranscription ? transcriptionDeploymentName : '' }
   { name: 'MarkItDown__Endpoint', value: markItDownUrl }
   { name: 'PageIndex__Endpoint', value: pageIndexUrl }
   { name: 'MarkItDown__ApiKey', secretRef: 'markitdown-api-key' }

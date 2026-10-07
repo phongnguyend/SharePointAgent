@@ -91,6 +91,7 @@ public static class DependencyInjection
     public static IServiceCollection AddChatServices(this IServiceCollection services, IConfiguration configuration)
     {
         AddChatStorage(services, configuration);
+        services.AddHttpClient<ChatTranscriptionService>(client => client.Timeout = TimeSpan.FromMinutes(2));
         services.AddOptions<ChatAgentHostingOptions>().Bind(configuration.GetSection(ChatAgentHostingOptions.SectionName))
             .ValidateDataAnnotations().ValidateOnStart();
         var mode = configuration.GetValue<ChatAgentExecutionMode>("ChatAgent:Mode");

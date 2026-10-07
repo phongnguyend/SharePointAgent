@@ -50,6 +50,17 @@ public sealed class MonthlyTokenQuota(IDbContextFactory<SharePointIndexDbContext
         }
     }
 
+    /// <summary>
+    /// Checks the monthly limit without taking the per-user turn lock, for short standalone model calls
+    /// such as dictation that may run while a chat answer is still streaming.
+    /// </summary>
+    public async Task EnsureAvailableAsync(Guid userId, CancellationToken ct)
+    {
+        await using var db = await factory.CreateDbContextAsync(ct);
+        var user = await db.Users.AsNoTracking().SingleAsync(x => x.Id == userId, ct);
+        EnsureAvailable(user.MonthlyTokenLimit, await UsedAsync(db, userId, MonthKey(clock.GetUtcNow()), ct));
+    }
+
     public static void EnsureAvailable(long? limit, long used)
     {
         if (limit.HasValue && used >= limit.Value)
@@ -65,7 +76,8 @@ public sealed class MonthlyTokenQuota(IDbContextFactory<SharePointIndexDbContext
         // checked against.
         var chat = await ChatUsage(db, userId, month).SumAsync(x => x.TotalTokens, ct) ?? 0;
         var images = await ImageUsage(db, userId, month).SumAsync(x => x.TotalTokens, ct) ?? 0;
-        return chat + images;
+        var transcriptions = await TranscriptionUsage(db, userId, month).SumAsync(x => x.TotalTokens, ct) ?? 0;
+        return chat + images + transcriptions;
     }
 
     private static IQueryable<ChatTokenUsageEntity> ChatUsage(SharePointIndexDbContext db, Guid userId, int month) =>
@@ -73,6 +85,9 @@ public sealed class MonthlyTokenQuota(IDbContextFactory<SharePointIndexDbContext
 
     private static IQueryable<ImageDescriptionTokenUsageEntity> ImageUsage(SharePointIndexDbContext db, Guid userId, int month) =>
         db.ImageDescriptionTokenUsage.Where(x => x.UserId == userId && x.Month == month);
+
+    private static IQueryable<TranscriptionTokenUsageEntity> TranscriptionUsage(SharePointIndexDbContext db, Guid userId, int month) =>
+        db.TranscriptionTokenUsage.Where(x => x.UserId == userId && x.Month == month);
 
     public static async Task<IReadOnlyList<DailyModelTokenUsage>> DailyUsageAsync(
         SharePointIndexDbContext db, Guid userId, int month, CancellationToken ct = default)
@@ -84,7 +99,10 @@ public sealed class MonthlyTokenQuota(IDbContextFactory<SharePointIndexDbContext
         var images = await ImageUsage(db, userId, month).GroupBy(x => new { x.Day, x.ModelId })
             .Select(x => new DailyModelTokenUsage(x.Key.Day, x.Key.ModelId, x.Sum(t => t.InputTokens ?? 0), x.Sum(t => t.OutputTokens ?? 0), x.Sum(t => t.TotalTokens ?? 0)))
             .ToListAsync(ct);
-        return chat.Concat(images).GroupBy(x => new { x.Day, x.ModelId })
+        var transcriptions = await TranscriptionUsage(db, userId, month).GroupBy(x => new { x.Day, x.ModelId })
+            .Select(x => new DailyModelTokenUsage(x.Key.Day, x.Key.ModelId, x.Sum(t => t.InputTokens ?? 0), x.Sum(t => t.OutputTokens ?? 0), x.Sum(t => t.TotalTokens ?? 0)))
+            .ToListAsync(ct);
+        return chat.Concat(images).Concat(transcriptions).GroupBy(x => new { x.Day, x.ModelId })
             .OrderBy(x => x.Key.Day).ThenBy(x => x.Key.ModelId)
             .Select(x => new DailyModelTokenUsage(x.Key.Day, x.Key.ModelId, x.Sum(t => t.InputTokens), x.Sum(t => t.OutputTokens), x.Sum(t => t.TotalTokens))).ToArray();
     }

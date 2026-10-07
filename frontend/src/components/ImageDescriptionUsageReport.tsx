@@ -7,7 +7,7 @@ import { CopyButton, Empty, ErrorBanner, LoadingBar, Modal, Pagination, StatTile
 
 function initialFilters(): ImageDescriptionUsageFilter {
   const today = new Date().toISOString().slice(0, 10)
-  return { from: `${today.slice(0, 7)}-01`, to: today, model: '', userId: '', attachmentId: '' }
+  return { from: `${today.slice(0, 7)}-01`, to: today, model: '', user: '', attachmentId: '' }
 }
 const number = (value: number | null) => value == null ? 'Not reported' : value.toLocaleString()
 
@@ -34,7 +34,7 @@ export default function ImageDescriptionUsageReport() {
       <label>From (UTC)<input type="date" required max={draft.to} value={draft.from} onChange={event => setDraft({ ...draft, from: event.target.value })} /></label>
       <label>Through (UTC)<input type="date" required min={draft.from} value={draft.to} onChange={event => setDraft({ ...draft, to: event.target.value })} /></label>
       <label>Model ID<input type="text" placeholder="All models" value={draft.model} onChange={event => setDraft({ ...draft, model: event.target.value })} /></label>
-      <label>User ID<input type="text" placeholder="Exact user GUID" value={draft.userId} onChange={event => setDraft({ ...draft, userId: event.target.value })} /></label>
+      <label>User<input type="text" maxLength={200} placeholder="Name, email, or user ID" value={draft.user} onChange={event => setDraft({ ...draft, user: event.target.value })} /></label>
       <label>Attachment ID<input type="text" placeholder="Exact attachment GUID" value={draft.attachmentId} onChange={event => setDraft({ ...draft, attachmentId: event.target.value })} /></label>
       <div className="row embedding-filter-actions"><button disabled={report.loading}><Filter size={14} />Apply filters</button><button type="button" onClick={() => apply(initialFilters())}><RotateCcw size={14} />Reset</button></div>
     </form>
@@ -54,7 +54,7 @@ export default function ImageDescriptionUsageReport() {
           <div className="row spread muted"><span>{filters.from}</span><span>{filters.to}</span></div>
         </div></section>
         <div className="embedding-panels">{(['daily', 'models'] as const).map(group => <section className="card" key={group}><div className="card-head"><h2>{group === 'daily' ? 'Daily totals' : 'By model'}</h2></div><div className="table-scroll"><table><thead><tr><th>{group === 'daily' ? 'Day (UTC)' : 'Model'}</th><th>Calls</th><th>Input</th><th>Output</th><th>Total</th><th>Unknown</th></tr></thead><tbody>{(group === 'daily' ? data.daily.map(row => ({ ...row, key: row.day, label: row.day.slice(0, 10) })) : data.models.map(row => ({ ...row, key: row.modelId, label: row.modelId }))).map(row => <tr key={row.key}><td>{row.label}</td><td>{number(row.calls)}</td><td>{number(row.inputTokens)}</td><td>{number(row.outputTokens)}</td><td>{number(row.totalTokens)}</td><td>{number(row.unknownUsage)}</td></tr>)}</tbody></table></div></section>)}</div>
-        <section className="card"><div className="card-head"><h2>Description calls</h2></div><div className="table-scroll"><table><thead><tr><th>Time (UTC)</th><th>Image</th><th>User</th><th>Model</th><th>Input</th><th>Output</th><th>Total</th><th /></tr></thead><tbody>{data.items.map(row => <tr key={row.id}><td>{row.createdAtUtc.replace('T', ' ').slice(0, 19)}</td><td>{row.fileName ?? row.attachmentId}</td><td>{row.userName ?? row.userId ?? 'Unattributed'}</td><td>{row.modelId}</td><td>{number(row.inputTokens)}</td><td>{number(row.outputTokens)}</td><td>{number(row.totalTokens)}</td><td><button onClick={() => setSelected(row)}><Eye size={14} />Details</button></td></tr>)}</tbody></table></div><Pagination skip={skip} top={25} total={data.summary.calls} onSkip={setSkip} /></section>
+        <section className="card"><div className="card-head"><h2>Description calls</h2></div><div className="table-scroll"><table><thead><tr><th>Time (UTC)</th><th>Image</th><th>User</th><th>Model</th><th>Input</th><th>Output</th><th>Total</th><th /></tr></thead><tbody>{data.items.map(row => <tr key={row.id}><td>{row.createdAtUtc.replace('T', ' ').slice(0, 19)}</td><td>{row.fileName ?? row.attachmentId}</td><td title={row.userEmail ?? row.userId ?? undefined}>{row.userName ?? row.userId ?? 'Unattributed'}</td><td>{row.modelId}</td><td>{number(row.inputTokens)}</td><td>{number(row.outputTokens)}</td><td>{number(row.totalTokens)}</td><td><button onClick={() => setSelected(row)}><Eye size={14} />Details</button></td></tr>)}</tbody></table></div><Pagination skip={skip} top={25} total={data.summary.calls} onSkip={setSkip} /></section>
       </>}
     </div>}
     <Modal open={selected != null} title="Image description usage" icon={<Image size={18} />} onClose={() => setSelected(null)}>

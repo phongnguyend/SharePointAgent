@@ -45,6 +45,7 @@ app.MapEmbeddingUsage();
 app.MapTokenUsage();
 app.MapContentSafetyUsage();
 app.MapImageDescriptionUsage();
+app.MapTranscriptionUsage();
 app.MapSystemEndpoints();
 app.MapSharePointWebhookEndpoints();
 app.MapSearchEndpoints();
@@ -60,6 +61,7 @@ app.MapBrowseEndpoints();
 app.MapAgentsEndpoints();
 app.MapChatWorkspacesEndpoints();
 app.MapChatEndpoints();
+app.MapChatTranscriptionEndpoints();
 app.MapSandboxFileEndpoints();
 
 app.Run();

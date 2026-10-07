@@ -2,6 +2,8 @@ import { authorizedFetch, API_BASE } from '../auth'
 import type {
   ImageDescriptionUsageReport,
   ImageDescriptionUsageFilter,
+  VoiceUsageFilter,
+  VoiceUsageReport,
   ContentSafetyUsageReport,
   ChatUsageFilter,
   ChatUsageReport,
@@ -161,8 +163,10 @@ export const uploadSharePointFile = (parentId: string, file: File) =>
     method: 'PUT', headers: { 'Content-Type': 'application/octet-stream' }, body: file,
   })
 
+export const getVoiceUsage = (filters: VoiceUsageFilter, skip: number, signal?: AbortSignal) =>
+  request<VoiceUsageReport>(`/api/usage/transcriptions${query({ ...filters, user: filters.user.trim() || undefined, skip, top: 25 })}`, { signal })
 export const getImageDescriptionUsage = (filters: ImageDescriptionUsageFilter, skip: number, signal?: AbortSignal) =>
-  request<ImageDescriptionUsageReport>(`/api/usage/image-descriptions${query({ ...filters, userId: filters.userId || undefined, attachmentId: filters.attachmentId || undefined, skip, top: 25 })}`, { signal })
+  request<ImageDescriptionUsageReport>(`/api/usage/image-descriptions${query({ ...filters, user: filters.user.trim() || undefined, attachmentId: filters.attachmentId || undefined, skip, top: 25 })}`, { signal })
 
 export const getContentSafetyUsage = (filters: { from: string; to: string; status: string; operation: string }, skip: number, signal?: AbortSignal) =>
   request<ContentSafetyUsageReport>(`/api/usage/content-safety${query({ ...filters, skip, top: 25 })}`, { signal })
@@ -440,6 +444,21 @@ export function getThread(id: string, signal?: AbortSignal): Promise<ChatThread>
 }
 
 /** Runs one turn and reports text and tool progress as newline-delimited JSON arrives. */
+export interface TranscriptionOptions {
+  enabled: boolean
+  maxBytes: number
+  maxSeconds: number
+}
+
+export const getTranscriptionOptions = (signal?: AbortSignal) =>
+  request<TranscriptionOptions>('/api/chat/transcriptions/options', { signal })
+
+/** Sends a composer recording for speech-to-text. The audio is not stored. */
+export const transcribeAudio = (audio: Blob, durationSeconds: number | undefined, signal?: AbortSignal) => request<{ text: string }>(
+  `/api/chat/transcriptions${query({ durationSeconds: durationSeconds === undefined ? undefined : Math.round(durationSeconds * 10) / 10 })}`, {
+  method: 'POST', headers: { 'Content-Type': audio.type || 'audio/webm' }, body: audio, signal,
+})
+
 export async function sendChatMessage(
   id: string,
   content: string,

@@ -3725,3 +3725,52 @@ button.signing-field-remove {
 .signing-template-row:has(.signing-template-rename) .signing-template-info {
   flex: 1 1 100%;
 }
+
+.chat-dictation {
+  padding-inline: 18px;
+}
+
+.chat-dictation.is-recording {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-end;
+}
+
+.chat-dictation-stop {
+  gap: 8px;
+  border-color: var(--critical);
+  color: var(--critical);
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-dictation-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--critical);
+  animation: chat-dictation-pulse 1.2s ease-in-out infinite;
+}
+
+.chat-dictation-spinner {
+  animation: chat-dictation-spin 0.9s linear infinite;
+}
+
+@keyframes chat-dictation-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@keyframes chat-dictation-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-dictation-dot,
+  .chat-dictation-spinner {
+    animation: none;
+  }
+}

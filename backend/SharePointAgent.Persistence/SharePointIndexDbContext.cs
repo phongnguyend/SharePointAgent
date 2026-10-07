@@ -35,6 +35,8 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
 
     public DbSet<SigningTemplateEntity> SigningTemplates => Set<SigningTemplateEntity>();
 
+    public DbSet<TranscriptionTokenUsageEntity> TranscriptionTokenUsage => Set<TranscriptionTokenUsageEntity>();
+
     public DbSet<ImageDescriptionTokenUsageEntity> ImageDescriptionTokenUsage => Set<ImageDescriptionTokenUsageEntity>();
 
     public DbSet<ChatTokenUsageEntity> ChatTokenUsage => Set<ChatTokenUsageEntity>();
@@ -84,6 +86,14 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
             entity.Property(x => x.Name).HasMaxLength(100);
             entity.HasIndex(x => new { x.CreatedById, x.Name }).IsUnique();
             entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.CreatedById).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<TranscriptionTokenUsageEntity>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedOnAdd();
+            entity.Property(x => x.ModelId).HasMaxLength(200);
+            entity.HasIndex(x => new { x.UserId, x.Month });
+            entity.HasIndex(x => new { x.ModelId, x.CreatedAtUtc });
         });
         modelBuilder.Entity<ImageDescriptionTokenUsageEntity>(entity =>
         {

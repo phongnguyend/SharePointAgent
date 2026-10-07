@@ -395,6 +395,10 @@ The deployed worker timeout is 210 seconds to leave headroom below the default
 of 240 seconds. Upload and queue time also count toward ingress time; large
 summary jobs can still exceed it. This API remains synchronous.
 
+### Chat dictation
+
+Set `deployTranscription=true` in the parameter file to deploy `gpt-4o-transcribe` (GlobalStandard, `transcriptionDeploymentCapacity`, default 10) on the Azure OpenAI account. It is `false` in the supplied files because the model is not offered in every region; check model availability for the account's region first. The deployment name is output as `transcriptionDeploymentName` and set as `AzureOpenAI__TranscriptionDeployment` on the API by provisioning and by **Release services**. When the flag is false the setting is empty and the chat microphone is hidden. The existing API identity role on the account covers transcription.
+
 ### Content Safety
 
 `deployContentSafety=true` in the supplied parameter files provisions S0. The template configures API managed-identity access; AgentHost's role must be assigned when registering the hosted agent. `allowContentSafetyApiKeyAuth` controls local key authentication. Outputs include `contentSafetyEndpoint` and `contentSafetyResourceId`, never keys. Disabling the deployment flag does not delete a previously created resource in incremental deployment mode.

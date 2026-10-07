@@ -3,7 +3,7 @@ export interface ImageDescriptionUsageFilter {
   from: string
   to: string
   model: string
-  userId: string
+  user: string
   attachmentId: string
 }
 export interface ImageDescriptionUsageTotals {
@@ -22,6 +22,7 @@ export interface ImageDescriptionUsageReport {
     createdAtUtc: string
     userId: string | null
     userName: string | null
+    userEmail: string | null
     conversationId: string
     questionId: string
     attachmentId: string | null
@@ -31,6 +32,39 @@ export interface ImageDescriptionUsageReport {
     systemPrompt: string | null
     prompt: string | null
     description: string | null
+    inputTokens: number | null
+    outputTokens: number | null
+    totalTokens: number | null
+  }[]
+}
+export interface VoiceUsageFilter {
+  from: string
+  to: string
+  model: string
+  user: string
+}
+export interface VoiceUsageTotals {
+  calls: number
+  unknownUsage: number
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+  audioBytes: number
+  durationSeconds: number
+}
+export interface VoiceUsageReport {
+  summary: VoiceUsageTotals
+  daily: (VoiceUsageTotals & { day: string })[]
+  models: (VoiceUsageTotals & { modelId: string })[]
+  items: {
+    id: string
+    createdAtUtc: string
+    userId: string
+    userName: string | null
+    userEmail: string | null
+    modelId: string
+    audioBytes: number
+    durationSeconds: number | null
     inputTokens: number | null
     outputTokens: number | null
     totalTokens: number | null

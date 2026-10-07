@@ -104,9 +104,8 @@ public sealed class UploadOptions
 public sealed class OpenAiOptions
 {
     public const string SectionName = "AzureOpenAI";
-    public bool UsedManagedIdentity { get; set; }
-    [Required, Url] public string Endpoint { get; set; } = "";
-    [Required] public string EmbeddingDeployment { get; set; } = "text-embedding-3-small";
+
+    public string? ApiKey { get; set; }
 
     /// <summary>
     /// The chat deployment the assistant runs on, on the same resource as
@@ -114,7 +113,29 @@ public sealed class OpenAiOptions
     /// </summary>
     [Required] public string ChatDeployment { get; set; } = "gpt-5-mini";
 
-    public string? ApiKey { get; set; }
+    [Required] public string EmbeddingDeployment { get; set; } = "text-embedding-3-small";
+
+    [Required, Url] public string Endpoint { get; set; } = "";
+
+    /// <summary>The key for <see cref="TranscriptionEndpoint"/> when not using managed identity; defaults to <see cref="ApiKey"/>.</summary>
+    public string? TranscriptionApiKey { get; set; }
+
+    /// <summary>The Azure OpenAI api-version for transcription requests; gpt-4o transcription models need 2025-03-01-preview or later.</summary>
+    [Required] public string TranscriptionApiVersion { get; set; } = "2025-03-01-preview";
+
+    /// <summary>
+    /// A speech-to-text deployment (for example gpt-4o-transcribe), used for dictation in the chat
+    /// composer. Empty turns dictation off.
+    /// </summary>
+    public string? TranscriptionDeployment { get; set; }
+
+    /// <summary>
+    /// The resource hosting <see cref="TranscriptionDeployment"/>, when it is not <see cref="Endpoint"/>.
+    /// Transcription models are offered in fewer regions, so they may live on a separate resource.
+    /// </summary>
+    public string? TranscriptionEndpoint { get; set; }
+
+    public bool UsedManagedIdentity { get; set; }
 }
 
 /// <summary>
