@@ -33,6 +33,8 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
 
     public DbSet<SignatureRequestEntity> SignatureRequests => Set<SignatureRequestEntity>();
 
+    public DbSet<SigningTemplateEntity> SigningTemplates => Set<SigningTemplateEntity>();
+
     public DbSet<ImageDescriptionTokenUsageEntity> ImageDescriptionTokenUsage => Set<ImageDescriptionTokenUsageEntity>();
 
     public DbSet<ChatTokenUsageEntity> ChatTokenUsage => Set<ChatTokenUsageEntity>();
@@ -74,6 +76,14 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
             entity.HasIndex(x => new { x.AttachmentFileId, x.CreatedAtUtc });
             entity.HasOne<ChatMessageAttachmentFileEntity>().WithMany().HasForeignKey(x => x.AttachmentFileId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.CreatedById).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<SigningTemplateEntity>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedOnAdd();
+            entity.Property(x => x.Name).HasMaxLength(100);
+            entity.HasIndex(x => new { x.CreatedById, x.Name }).IsUnique();
+            entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.CreatedById).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<ImageDescriptionTokenUsageEntity>(entity =>
         {

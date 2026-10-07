@@ -226,6 +226,7 @@ public static class AppAccess
         return path == "/api/chat/workspaces" || path.StartsWith("/api/chat/workspaces/")
             || path == "/api/chat/conversations" || path.StartsWith("/api/chat/conversations/")
             || (path.StartsWith("/api/chat/messages/") && path.EndsWith("/feedback") && HttpMethods.IsPost(method))
-            || path == "/api/attachment-files" || path.StartsWith("/api/attachment-files/");
+            || path == "/api/attachment-files" || path.StartsWith("/api/attachment-files/")
+            || path == "/api/signing-templates" || path.StartsWith("/api/signing-templates/");
     }
 }

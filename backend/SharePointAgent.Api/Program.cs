@@ -52,6 +52,7 @@ app.MapIndexedFilesEndpoints();
 app.MapDeltaStateEndpoints();
 app.MapAttachmentFilesEndpoints();
 app.MapSignatureEndpoints();
+app.MapSigningTemplateEndpoints();
 app.MapSigningAuthorizationEndpoints();
 app.MapSitePermissionEndpoints();
 app.MapSubscriptionsEndpoints();

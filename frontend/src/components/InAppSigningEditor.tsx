@@ -1,15 +1,16 @@
 import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
-import { CalendarDays, CheckCheck, Eye, Hand, PenLine, Save, Signature, TextCursorInput, Trash2, Type, X } from 'lucide-react'
+import { CalendarDays, CheckCheck, Eye, Hand, LayoutTemplate, PenLine, Save, Signature, TextCursorInput, Trash2, Type, X } from 'lucide-react'
 import { Document, Page } from 'react-pdf'
 import {
   completeInAppSigning, downloadAttachmentFile, getSigningFields, saveSigningFields,
-  type SigningField, type SigningFieldType,
+  type SigningField, type SigningFieldType, type SigningTemplate,
 } from '../api/client'
 import { flattenSignedPdf, isImageField } from '../lib/flattenSignedPdf'
 import { pdfDocumentOptions } from '../lib/pdfjs'
 import { ErrorBanner, LoadingBar, Modal } from './ui'
 import { PdfViewer } from './PdfViewer'
 import { SignaturePad } from './SignaturePad'
+import { SigningTemplatesDialog, type TemplateLoadMode } from './SigningTemplatesDialog'
 
 const FIELD_MIME = 'application/x-signing-field'
 
@@ -96,6 +97,7 @@ export default function InAppSigningEditor({ attachmentId, requestId, name, onCl
   const [notice, setNotice] = useState<string | null>(null)
   const [confirmClose, setConfirmClose] = useState(false)
   const [preview, setPreview] = useState<{ key: number; pdf: Blob } | null>(null)
+  const [showTemplates, setShowTemplates] = useState(false)
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null)
   const [scrollerWidth, setScrollerWidth] = useState<number | null>(null)
   const drag = useRef<Drag | null>(null)
@@ -201,6 +203,23 @@ export default function InAppSigningEditor({ attachmentId, requestId, name, onCl
   const removeField = (id: string) => {
     setFields(values => values.filter(x => x.id !== id))
     setSelected(null)
+  }
+
+  const loadTemplate = (template: SigningTemplate, loadMode: TemplateLoadMode) => {
+    // Templates are reused across documents, so skip fields on pages this document does not have.
+    const loaded = template.fields
+      .filter(x => x.page <= pageSizes.length)
+      .map(x => ({ ...x, id: crypto.randomUUID(), value: null }))
+    const skipped = template.fields.length - loaded.length
+    setFields(values => loadMode === 'replace' ? loaded : [...values, ...loaded])
+    setSelected(null)
+    setMissing(new Set())
+    setMode('place')
+    setShowTemplates(false)
+    setError(null)
+    setNotice(`Loaded ${loaded.length} field${loaded.length === 1 ? '' : 's'} from "${template.name}"`
+      + (skipped ? `; ${skipped} on pages beyond this document's ${pageSizes.length} were skipped` : '')
+      + '. Review their positions, then choose Save fields.')
   }
 
   const save = async () => {
@@ -400,6 +419,8 @@ export default function InAppSigningEditor({ attachmentId, requestId, name, onCl
               {spec.icon}{spec.label}
             </button>)}
             <p className="signing-palette-count">{fields.length} field{fields.length === 1 ? '' : 's'}{dirty ? ' · unsaved' : ''}</p>
+            <button type="button" className="signing-palette-templates" disabled={busy || !pageSizes.length}
+              onClick={() => setShowTemplates(true)}><LayoutTemplate size={16} aria-hidden="true" />Templates</button>
           </> : <>
             <p>Click each signature or initials field to draw, upload, drop, or paste an image. Fill in the date and text fields.</p>
             <p className="signing-palette-count">{signedCount} of {fields.length} complete{dirty ? ' · unsaved' : ''}</p>
@@ -459,6 +480,8 @@ export default function InAppSigningEditor({ attachmentId, requestId, name, onCl
           .forEach(x => update(x.id, { value: png }))
         setPadFieldId(null)
       }} />}
+    {showTemplates && <SigningTemplatesDialog fields={fields} pageCount={pageSizes.length}
+      onLoad={loadTemplate} onClose={() => setShowTemplates(false)} />}
     {preview && <PdfViewer key={preview.key} name={`preview-${name}`} sourceKey={String(preview.key)}
       load={async () => preview.pdf} onClose={() => setPreview(null)} />}
     {confirmClose && <Modal open title="Unsaved changes" onClose={() => setConfirmClose(false)}>

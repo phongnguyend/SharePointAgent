@@ -35,6 +35,7 @@ public static class DependencyInjection
         services.AddTransient<ISignatureProvider>(sp => sp.GetRequiredService<DocuSignService>());
         services.AddTransient<ISignatureProvider>(sp => sp.GetRequiredService<AdobeSignService>());
         services.AddTransient<SignatureRequestService>();
+        services.AddTransient<SigningTemplateService>();
         return services;
     }
 
