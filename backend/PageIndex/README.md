@@ -157,7 +157,7 @@ Create `PAGEINDEX_SERVICE_API_KEY` yourself as a random shared secret for this
 service. No Azure or PageIndex account is needed to generate it.
 
 Use the same PowerShell/.NET approach as
-[Generate the MarkItDown API key](../../infra/README.md#generate-the-markitdown-api-key).
+[Generate the MarkItDown and PageIndex API keys](../../infra/README.md#generate-the-markitdown-and-pageindex-api-keys).
 This requires no Python installation:
 
 ```powershell

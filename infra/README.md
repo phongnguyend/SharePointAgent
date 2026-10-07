@@ -1,123 +1,38 @@
 # Azure infrastructure
 
-The Bicep template provisions shared Azure resources and describe the application's deployment targets. Python deployment scripts and their dependencies have been removed.
+[main.bicep](main.bicep) defines the Azure resources for the `dev` and `test` environments: SQL, Storage, Service Bus, Search, Azure OpenAI, Foundry, Container Apps, Static Web Apps, monitoring, runtime identities, and role assignments.
 
-All Azure resources are defined in `main.bicep`: shared services, SQL, runtime identities, Foundry, Container Apps, Static Web Apps, role assignments and the Foundry secret connection.
+Use this guide in deployment order, or jump to an operational task:
 
-Main resource names start with `workloadName`, followed by the environment. ACR and Storage use the compact prefix without hyphens; for example, ACR uses `<workloadName><environment>cr<uniqueSuffix>`. Child resources retain their service-specific names. Changing a resource name creates a new resource rather than renaming an existing one; registries created with the previous `cr<workloadName>...` pattern and their images are not migrated automatically.
+- [First deployment](#first-deployment)
+- [Environment setup](#environment-setup) and [GitHub settings table](#github-environment-settings)
+- [Infrastructure and service releases](#github-actions-deployment)
+- [SQL access](#sql-access)
+- [Service configuration](#service-configuration)
+- [Operations and troubleshooting](#deployment-behavior)
+- [Capacity and networking](#infrastructure-reference)
 
-## Current configured capacity
+## First deployment
 
-These are the repository's target allocations for both `dev` and `test`; existing Azure deployments keep their previous allocations until the corresponding deployment runs.
+1. Create the matching GitHub environment (`dev` or `test`), configure [OIDC access](#deployment-identity), and fill in the [settings table](#github-environment-settings) for the services you will deploy.
+2. Review `infra/parameters.<environment>.json` and run **Deploy infrastructure**. The default Container App images are placeholders; provisioning alone does not install the APIs.
+3. [Retrieve the frontend origin and deployment token](#retrieve-the-frontend-origin-and-deployment-token), save them in GitHub, and register the Entra redirect URI.
+4. [Grant the release identity SQL access](#grant-the-release-identity-sql-access), then run **Release Database migrations**.
+5. [Configure API and Background SQL access](#configure-runtime-sql-access-manually) before starting those services.
+6. Release **MarkItDown**, **PageIndex** if used, and **AgentHost**. Once Foundry creates AgentHost's identity, grant its runtime SQL access; rerun its release if it failed before routing.
+7. Release **API**, **Background**, and **Frontend**. Verify **Admin → Service health** and test a chat request.
 
-| Service | Configured resources | Scaling |
-| --- | --- | --- |
-| AgentHost, hosted in Foundry | 2 vCPU + 4 GiB per session | On-demand sessions; compute released after inactivity |
-| API, Container Apps | 2 vCPU + 4 GiB per replica | 1–3 replicas |
-| Background, Container Apps | 1 vCPU + 2 GiB per replica | 1 replica while running |
-| MarkItDown, Container Apps | 0.5 vCPU + 1 GiB per replica | 1–3 replicas |
+Use separate runs wherever the initial SQL grants require a manual step. Subsequent releases can use the combined **Release services** workflow.
 
-AgentHost allocation is defined in [release-agent.ps1](../.github/scripts/release-agent.ps1). Container Apps allocations and replica limits are defined in [main.bicep](main.bicep). The three Container Apps together allocate at least 3.5 vCPU and 7 GiB per environment while running at their configured minimums; AgentHost sessions add capacity separately. API can allocate up to 6 vCPU and 12 GiB across three replicas.
+## Environment setup
 
-To apply the increased capacity to an existing environment:
+### Deployment identity
 
-1. Run **Deploy infrastructure** to update API to 2 vCPU and 4 GiB, or follow [manual Container Apps capacity updates](#manually-update-container-apps-capacity) below. For an infrastructure deployment, set `API_IMAGE`, `BACKGROUND_IMAGE`, and `MARKITDOWN_IMAGE` to the current application images first, as described below, to preserve them. An API-only release preserves the existing resource allocation and does not apply Bicep changes.
-2. Run **Release AgentHost**, or select **AgentHost** in **Release services**, to publish a version with 2 vCPU and 4 GiB per session.
+Configure the deployment principal's federated credential with issuer `https://token.actions.githubusercontent.com`, audience `api://AzureADTokenExchange`, and subject `repo:<owner>/<repository>:environment:<environment>`. It needs deployment and role-assignment permissions at the resource-group scope; creating a resource group requires subscription permission.
 
-## Manually update Container Apps capacity
+### Infrastructure parameters
 
-You can change CPU and memory without rebuilding the image or running the infrastructure/release workflows. Azure creates a new revision using the existing image and settings; this is not an in-place resize of a running container. These instructions cover API, Background, and MarkItDown. AgentHost is hosted in Foundry and requires a new agent version instead.
-
-Use Azure CLI in PowerShell with permission to update the target Container App. Run the commands when no release or infrastructure deployment is in progress; manual CLI operations do not use the workflows' concurrency lock.
-
-### Select the app and inspect its current allocation
-
-Sign in, select the intended subscription, and list the apps. Use your actual resource group if you overrode the default name:
-
-```powershell
-az login
-az account set --subscription "<subscription-id>"
-$resourceGroup = 'rg-sharepointagent-dev' # Use rg-sharepointagent-test for test.
-az containerapp list --resource-group $resourceGroup --query "[].{name:name,state:properties.runningStatus}" --output table
-```
-
-Choose one app using this mapping. The CPU and memory values are the current repository targets, per replica:
-
-| Service | App name contains | Container name | CPU | Memory |
-| --- | --- | --- | --- | --- |
-| API | `-api-` | `api` | `2` | `4Gi` |
-| Background | `-wrk-` | `background` | `1` | `2Gi` |
-| MarkItDown | `-md-` | `markitdown` | `0.5` | `1Gi` |
-
-For example, select API and record the existing allocation and image before changing it:
-
-```powershell
-$appName = '<full-api-container-app-name-from-the-list>'
-$containerName = 'api'
-az containerapp show --resource-group $resourceGroup --name $appName `
-  --query "properties.template.{containers:containers[].{name:name,image:image,cpu:resources.cpu,memory:resources.memory},scale:scale}" `
-  --output json
-```
-
-### Update CPU and memory
-
-This example applies API's 2 vCPU / 4 GiB allocation. To resize Background or MarkItDown, change `$appName`, `$containerName`, and the resource values using the table above. Supply a CPU/memory combination supported by the app's workload profile.
-
-```powershell
-az containerapp update --resource-group $resourceGroup --name $appName `
-  --container-name $containerName --cpu 2 --memory '4Gi' --output none
-```
-
-Omitting image, environment, secrets, and scale options preserves those settings. Replica limits remain unchanged: API and MarkItDown use 1–3, while Background uses 1. The repository configures single-revision mode, so Azure moves traffic to the new revision when it is ready. Background restarts with the new allocation; allow ongoing work to complete before resizing where possible.
-
-### Verify the new revision
-
-```powershell
-az containerapp show --resource-group $resourceGroup --name $appName `
-  --query "properties.{state:runningStatus,latest:latestRevisionName,ready:latestReadyRevisionName,containers:template.containers[].{name:name,cpu:resources.cpu,memory:resources.memory}}" `
-  --output json
-
-az containerapp revision list --resource-group $resourceGroup --name $appName `
-  --query "[].{revision:name,active:properties.active,health:properties.healthState,replicas:properties.replicas}" `
-  --output table
-```
-
-Confirm the intended resources are shown and the latest revision becomes ready and healthy. For API and MarkItDown, also check their `/health` endpoint; for Background, check its logs and processing activity. To revert the allocation, run the update command again with the CPU and memory values recorded before the change; this creates another revision with the previous sizing.
-
-Manual changes affect only the selected app and environment. Component release workflows preserve its resource allocation, but the next **Deploy infrastructure** run reapplies `main.bicep`. Keep that file and the capacity table above aligned with any sizing you intend to retain. The API example already matches the repository's 2 vCPU / 4 GiB target.
-
-Reference: [Azure CLI Container Apps update](https://learn.microsoft.com/en-us/cli/azure/containerapp#az-containerapp-update) and [Container Apps revisions](https://learn.microsoft.com/en-us/azure/container-apps/revisions).
-
-## GitHub Actions deployment
-
-Use **Actions → Release services → Run workflow** to select `dev` or `test`, the branch or tag, and any combination of service checkboxes. All checkboxes start unchecked; select at least one. The workflow reuses the component releases at the same commit, preserving GitHub environment secrets and approval rules. Individual workflows also remain available.
-
-Selected components run sequentially: Database migrations → MarkItDown → AgentHost → API → Background → Frontend. Unselected components are skipped, while a failure or cancellation prevents later releases. Include required migrations when releasing dependent code. The final summary lists each component's result; completed deployments are not rolled back if a later component fails. The combined workflow holds the environment deployment lock for the entire batch, preventing standalone releases or infrastructure deployments from overlapping it.
-
-| Workflow | Responsibility |
-| --- | --- |
-| [release.yml](../.github/workflows/release.yml) | Release any selected combination of services in one workflow run |
-| [release-db-migration.yml](../.github/workflows/release-db-migration.yml) | Restore packages, generate and apply idempotent SQL migrations |
-| [release-api.yml](../.github/workflows/release-api.yml) | Build and deploy only API, configure its runtime settings and Foundry access, and check health |
-| [release-background.yml](../.github/workflows/release-background.yml) | Build and deploy only Background and wait for its revision to become ready |
-| [release-agent.yml](../.github/workflows/release-agent.yml) | Build AgentHost, update Foundry secrets, publish a hosted agent version, grant its identity Azure resource access, and route traffic |
-| [release-markitdown.yml](../.github/workflows/release-markitdown.yml) | Build and deploy MarkItDown and check health |
-| [release-frontend.yml](../.github/workflows/release-frontend.yml) | Read the saved API URL, build with `VITE_API_BASE_URL`, and publish to Azure Static Web Apps |
-
-For the first deployment, provision infrastructure, then run Database, MarkItDown, AgentHost, API, Background, and Frontend releases in that order. Split the initial deployment into separate runs wherever manual SQL grants are needed. API and Background never apply migrations. Runtime SQL users created with `WITH SID` use the managed identity client ID; Azure role assignments use its principal/object ID. Runtime database grants and identity repairs are manual; use the SQL below. After Database release, configure API/Background SQL access before starting them. For the first AgentHost release, configure its SQL access once Foundry creates the identity; if that release fails before routing, rerun it after granting access. Once those grants are configured, use the combined workflow for subsequent releases.
-
-
-Run the infrastructure workflow to create the Static Web App for each environment, then store its deployment token as `AZURE_STATIC_WEB_APPS_API_TOKEN` in the matching GitHub environment. Set `FRONTEND_ORIGIN` to its default HTTPS origin or configured custom domain, and register `<FRONTEND_ORIGIN>/auth-redirect.html` as an Entra **Single-page application** redirect URI. The API uses this origin for CORS. Each release publishes to that Static Web App's production site, rather than creating a preview environment. The template outputs `staticWebAppName` and `staticWebAppUrl`. Static Web Apps uses the Free tier by default; all supplied environment JSON files set `staticWebAppLocation` to `eastasia`. Change `staticWebAppSku` or the location in those files as needed.
-
-Rerunning one component release does not rebuild or redeploy another component. A frontend failure does not roll back the backend. SPA routes use `staticwebapp.config.json`; authentication continues through the application's Entra integration.
-
-Run **Actions → Deploy infrastructure → Run workflow** first. `infra.yml` provisions `main.bicep`, including API, Background and MarkItDown Container Apps with `mcr.microsoft.com/k8se/quickstart:latest`. The API and MarkItDown use port 80 and `/` readiness checks until released; Background has no ingress. Provisioning does not build images, run SQL migrations or publish a Foundry agent version.
-
-Component releases read the saved `infra-<environment>` deployment outputs and update only their deployment targets. They do not compile or redeploy `main.bicep`; shared infrastructure changes belong in `infra.yml`. API uses port 8080 and MarkItDown uses port 8000 with `/health` probes. Image tags contain the commit SHA, run ID and attempt.
-
-Configure `API_IMAGE`, `BACKGROUND_IMAGE` and `MARKITDOWN_IMAGE` in the selected GitHub environment using the settings table below. Set all three to existing application images, preferably immutable tags or digests in this environment's ACR. Infrastructure automatically enables application runtime settings, ports and health checks and reads the application secrets from the same GitHub environment. SQL migrations and runtime database grants must already exist; infrastructure does not run them. Partial image configuration is rejected.
-
-Leave all three variables unset for the default hello images. Re-running infrastructure with them unset resets ACA apps to hello images. Component release workflows build and deploy new images independently and does not update these GitHub variables; set them to the desired release references before the next infrastructure run. All deployment workflows share an environment concurrency group. AgentHost is published by Release AgentHost and is not controlled by these ACA image variables.
+Parameter files are `infra/parameters.<environment>.json`. Each supplied environment file sets `sqlLocation` to `southeastasia`. The template defaults SQL and other resources to the environment's `location` unless overridden. Configure `sqlLocation`, `foundryLocation` or `contentSafetyLocation` in the parameter files where needed. Confirm regional model/Foundry availability and quota. The chat model, version and capacity are configurable.
 
 ### GitHub environment settings
 
@@ -167,29 +82,32 @@ Configure these settings under **Settings → Environments → dev/test → Envi
 | `SQL_ENTRA_ADMIN_OBJECT_ID` | Variable | Object ID of the SQL administrator matching the configured principal type, not its application/client ID |
 | `SQL_ENTRA_ADMINISTRATOR_PRINCIPAL_TYPE` | Optional variable | `Application` (default), `Group` or `User`; use `Application` for a managed identity or service principal |
 
-### Document signing configuration mapping
+<a id="generate-the-markitdown-api-key"></a>
 
-Use the signing entries in [GitHub environment settings](#github-environment-settings). These settings apply to **API only**; Background, AgentHost, and Frontend do not need provider credentials.
+### Generate the MarkItDown and PageIndex API keys
 
-**Deployment support:** run **Release API**, or select API in **Release services**, after configuring these GitHub settings. The workflow validates required values for enabled providers before building and deploys credentials through Container Apps secrets and secret references. Missing enable flags default to `false`, explicitly disabling those providers; DocuSign `Demo` defaults to `true`. Disabled providers need no credentials. Existing unused Container Apps secrets are retained. `main.bicep` does not configure signing; rerun Release API after infrastructure deployment to reapply these settings. No signing credentials are passed to Background, AgentHost, or Frontend.
-
-Configure each provider independently; keep an unused provider disabled and omit its credentials. Use separate test and production credentials. Local user secrets use colons instead of double underscores, for example `DocumentSigning:AdobeSign:RefreshToken`. The old `Signing` section is no longer read. See [shared organization signing](../README.md#shared-organization-signing) for provider authorization and token renewal details.
-
-For initial Adobe authorization without Postman, set `DOCUMENTSIGNING__ADOBESIGN__AUTHURL`, `DOCUMENTSIGNING__ADOBESIGN__OAUTHREDIRECTURI`, `DOCUMENTSIGNING__ADOBESIGN__CLIENTID`, and the `DOCUMENTSIGNING__ADOBESIGN__CLIENTSECRET` secret. Keep Adobe `ENABLED=false` until tokens are obtained. The API release forwards those four settings even with signing disabled; no refresh token or API origin is required for this setup mode. Release both API and Frontend, then open **Admin → Document signing** as a Global Admin and authorize the shared sender. Copy the displayed refresh token and regional API origin into the matching GitHub secret/variable, set Adobe `ENABLED=true`, and release API. The page does not save tokens or change configuration. Subsequent authorization follows the same flow; removing the callback variable disables the token-generation page's action on the next API release.
-
-Configure the deployment principal's federated credential with issuer `https://token.actions.githubusercontent.com`, audience `api://AzureADTokenExchange`, and subject `repo:<owner>/<repository>:environment:<environment>`. It needs deployment and role-assignment permissions at the resource-group scope; creating a resource group requires subscription permission.
-
-Parameter files are `infra/parameters.<environment>.json`. Each supplied environment file sets `sqlLocation` to `southeastasia`. The template defaults SQL and other resources to the environment's `location` unless overridden. Configure `sqlLocation`, `foundryLocation` or `contentSafetyLocation` in the parameter files where needed. Confirm regional model/Foundry availability and quota. The chat model, version and capacity are configurable.
-
-For a direct deployment:
+Use the same PowerShell script for either service. Each run generates one cryptographically random 32-byte key encoded as Base64. Run it separately for MarkItDown and PageIndex:
 
 ```powershell
-az deployment group create --resource-group YOUR_RESOURCE_GROUP `
-  --template-file infra/main.bicep `
-  --parameters infra/parameters.dev.json sqlEntraAdminObjectId=YOUR_PRINCIPAL_OBJECT_ID
+$keyBytes = New-Object byte[] 32
+$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+try {
+    $rng.GetBytes($keyBytes)
+    [Convert]::ToBase64String($keyBytes)
+}
+finally {
+    $rng.Dispose()
+}
 ```
 
-## Retrieve the frontend origin and deployment token
+Under **GitHub repository → Settings → Environments → your environment → Environment secrets**, save the entire output as `MARKITDOWN_API_KEY` or `PAGEINDEX_SERVICE_API_KEY`, depending on which service you are configuring. Preserve trailing `=` characters in the Base64 value. Generate a separate key for each service and environment, and keep them out of source control.
+
+- **MarkItDown:** save `MARKITDOWN_API_KEY`. The deployment supplies it to the service and its callers. To rotate it, run **Release MarkItDown**, **Release API**, **Release Background**, and **Release AgentHost**.
+- **PageIndex:** save `PAGEINDEX_SERVICE_API_KEY` and run **Release PageIndex**. Callers must send that value in `X-Api-Key`; configure `PageIndex__ApiKey` separately for C# callers because their release workflows do not provision it. For local use, save the value in `backend/PageIndex/.env` and restart the service or recreate the container. This service key is separate from `PAGEINDEX_AZURE_API_KEY`, which authenticates Azure OpenAI calls.
+
+Generate keys once per environment and service, then reuse the saved values. When rotating a key, coordinate service and caller updates because requests fail while their keys differ.
+
+### Retrieve the frontend origin and deployment token
 
 After the infrastructure workflow succeeds, run the following in PowerShell while signed in to Azure CLI with the target subscription selected. Set `AZURE_RESOURCE_GROUP` to the deployed resource group and `DEPLOY_ENVIRONMENT` to the environment name in your shell's environment variables. Local PowerShell does not automatically inherit GitHub environment settings.
 
@@ -234,121 +152,74 @@ az staticwebapp secrets list `
 
 In **GitHub repository → Settings → Environments → your environment**, save the printed frontend URL as the **variable** `FRONTEND_ORIGIN` and the returned token as the **secret** `AZURE_STATIC_WEB_APPS_API_TOKEN`. If using a configured custom domain, use its HTTPS origin instead of the default URL. Register `<FRONTEND_ORIGIN>/auth-redirect.html` as an Entra SPA redirect URI. Repeat for each environment's Static Web App. Do not commit the token to the repository. See the [Azure CLI reference](https://learn.microsoft.com/en-us/cli/azure/staticwebapp/secrets?view=azure-cli-latest).
 
-## Generate the MarkItDown API key
+Run the infrastructure workflow to create the Static Web App for each environment, then store its deployment token as `AZURE_STATIC_WEB_APPS_API_TOKEN` in the matching GitHub environment. Set `FRONTEND_ORIGIN` to its default HTTPS origin or configured custom domain, and register `<FRONTEND_ORIGIN>/auth-redirect.html` as an Entra **Single-page application** redirect URI. The API uses this origin for CORS. Each release publishes to that Static Web App's production site, rather than creating a preview environment. The template outputs `staticWebAppName` and `staticWebAppUrl`. Static Web Apps uses the Free tier by default; all supplied environment JSON files set `staticWebAppLocation` to `eastasia`. Change `staticWebAppSku` or the location in those files as needed.
 
-Run this PowerShell script to generate a cryptographically random 32-byte key encoded as Base64:
+## GitHub Actions deployment
+
+### Provision infrastructure
+
+Run **Actions → Deploy infrastructure → Run workflow** first. `infra.yml` provisions `main.bicep`, including API, Background, MarkItDown, and PageIndex Container Apps with `mcr.microsoft.com/k8se/quickstart:latest`. API, MarkItDown, and PageIndex use port 80 and `/` readiness checks until released; Background has no ingress. Provisioning does not build images, run SQL migrations or publish a Foundry agent version.
+
+Component releases read the saved `infra-<environment>` deployment outputs and update only their deployment targets. They do not compile or redeploy `main.bicep`; shared infrastructure changes belong in `infra.yml`. API uses port 8080 and MarkItDown and PageIndex use port 8000 with `/health` probes. Image tags contain the commit SHA, run ID and attempt.
+
+For a direct deployment:
 
 ```powershell
-$keyBytes = New-Object byte[] 32
-$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-try {
-    $rng.GetBytes($keyBytes)
-    [Convert]::ToBase64String($keyBytes)
-}
-finally {
-    $rng.Dispose()
-}
+az deployment group create --resource-group YOUR_RESOURCE_GROUP `
+  --template-file infra/main.bicep `
+  --parameters infra/parameters.dev.json sqlEntraAdminObjectId=YOUR_PRINCIPAL_OBJECT_ID
 ```
 
-Save the output as the **secret** `MARKITDOWN_API_KEY` under **GitHub repository → Settings → Environments → your environment → Environment secrets**. Generate a separate key for each environment. The deployment supplies the same key to MarkItDown and its callers. Do not commit the key to the repository. If you replace it, run the MarkItDown, API, Background and AgentHost workflows to update the service and callers. Coordinate these runs because requests fail while their keys differ.
+### Preserve application images
 
-## Deployment behavior
+Configure `API_IMAGE`, `BACKGROUND_IMAGE` and `MARKITDOWN_IMAGE` in the selected GitHub environment using the [GitHub settings table](#github-environment-settings). Set all three to existing application images, preferably immutable tags or digests in this environment's ACR. Infrastructure automatically enables application runtime settings, ports and health checks and reads the application secrets from the same GitHub environment. SQL migrations and runtime database grants must already exist; infrastructure does not run them. Partial image configuration is rejected.
 
-### Start or stop MarkItDown and PageIndex
+Leave all three variables unset for the default hello images. Re-running infrastructure with them unset resets ACA apps to hello images. Component release workflows build and deploy new images independently and do not update these GitHub variables; set them to the desired release references before the next infrastructure run. All deployment workflows share an environment concurrency group. AgentHost is published by Release AgentHost and is not controlled by these ACA image variables.
+The infrastructure workflow currently accepts image variables for API, Background, and MarkItDown only. It does not supply PageIndex's image or credentials. Run **Release PageIndex** after infrastructure updates to restore its API image and settings; the three image variables above do not preserve PageIndex. For a direct Bicep deployment, see [PageIndex API](#pageindex-api).
 
-Open **Actions → Start or Stop MarkItDown** or **Actions → Start or Stop PageIndex**,
-select **Run workflow**, choose `dev` or `test`, and choose `start` or `stop`.
-Run infrastructure and the corresponding service release first.
+### Release services
 
-These workflows use the existing Azure OIDC environment secrets and optional
-`AZURE_RESOURCE_GROUP` variable in [GitHub environment settings](#github-environment-settings). They resolve the app from
-`markItDownContainerAppName` or `pageIndexContainerAppName` in the
-`infra-<environment>` deployment outputs. The shared
-[control script](../.github/scripts/manage-container-app.ps1) verifies the container
-name, skips an action when already in the requested state, and waits up to 15
-minutes for completion. Both workflows share the environment deployment lock
-with Background, infrastructure, and application releases.
+Use **Actions → Release services → Run workflow** to select `dev` or `test`, the branch or tag, and any combination of service checkboxes. All checkboxes start unchecked; select at least one. The workflow reuses the component releases at the same commit, preserving GitHub environment secrets and approval rules. Individual workflows also remain available.
 
-Stopping MarkItDown makes conversions unavailable; stopping PageIndex makes
-indexing requests unavailable. Starting reuses the deployed image and settings.
-After starting, use **Admin → Service health** to check API connectivity and
-container logs to investigate failures. The workflow confirms Azure running state,
-not application readiness. No images are rebuilt by these workflows.
+Selected components run sequentially: Database migrations → MarkItDown → PageIndex → AgentHost → API → Background → Frontend. Unselected components are skipped, while a failure or cancellation prevents later releases. Include required migrations when releasing dependent code. Review each selected job's result; completed deployments are not rolled back if a later component fails. The combined workflow holds the environment deployment lock for the entire batch, preventing standalone releases or infrastructure deployments from overlapping it.
 
-### Start or stop Background
+| Workflow | Responsibility |
+| --- | --- |
+| [infra.yml](../.github/workflows/infra.yml) | Provision or update shared infrastructure; does not build application images |
+| [release.yml](../.github/workflows/release.yml) | Release any selected combination of services in one workflow run |
+| [release-db-migration.yml](../.github/workflows/release-db-migration.yml) | Restore packages, generate and apply idempotent SQL migrations |
+| [release-api.yml](../.github/workflows/release-api.yml) | Build and deploy only API, configure its runtime settings and Foundry access, and check health |
+| [release-background.yml](../.github/workflows/release-background.yml) | Build and deploy only Background and wait for its revision to become ready |
+| [release-agent.yml](../.github/workflows/release-agent.yml) | Build AgentHost, update Foundry secrets, publish a hosted agent version, grant its identity Azure resource access, and route traffic |
+| [release-markitdown.yml](../.github/workflows/release-markitdown.yml) | Build and deploy MarkItDown and check health |
+| [release-pageindex.yml](../.github/workflows/release-pageindex.yml) | Build and deploy PageIndex and check health |
+| [release-frontend.yml](../.github/workflows/release-frontend.yml) | Read the saved API URL, build with `VITE_API_BASE_URL`, and publish to Azure Static Web Apps |
 
-Open **Actions → Start or Stop Background → Run workflow**, select `dev` or
-`test`, and choose `start` or `stop`. The [workflow](../.github/workflows/manage-background.yml)
-resolves the Background Container App from the `infra-<environment>` deployment's
-`workerContainerAppName` output. Run **Deploy infrastructure** and **Release
-Background** before using it to control the worker.
+Rerunning one component release does not rebuild or redeploy another component. A frontend failure does not roll back the backend. SPA routes use `staticwebapp.config.json`; authentication continues through the application's Entra integration.
 
-It uses the existing environment secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and
-`AZURE_SUBSCRIPTION_ID` for OIDC login, plus the optional `AZURE_RESOURCE_GROUP`
-variable (otherwise `rg-<workloadName>-<environment>`). The deployment identity needs
-permission to read the deployment and Container App and perform
-`Microsoft.App/containerApps/start/action` and `Microsoft.App/containerApps/stop/action`.
-The existing resource-group Contributor role includes these operations.
+## SQL access
 
-The pipeline calls Azure's [Container App start/stop operations](https://learn.microsoft.com/en-us/rest/api/resource-manager/containerapps/container-apps?view=rest-resource-manager-containerapps-2025-01-01),
-keeps the existing image and configuration, and waits up to 15 minutes for the
-requested running status. An app already in that state succeeds without another
-action. The workflow shares the environment deployment lock with releases.
-Its summary reports the final Azure running status; check container logs to verify
-that a started worker is processing successfully.
+Runtime SQL users created with `WITH SID` use the managed identity client ID; Azure role assignments use its principal/object ID. API and Background never apply migrations. Runtime grants and identity repairs are manual.
 
-Stopping pauses all work hosted by Background, including synchronization and
-subscription renewal. Pending queue messages remain subject to their expiry and
-delivery policies. Use `start` to resume the deployed worker. This is an operational
-control, not a persistent infrastructure setting; check the app state after later
-deployments.
+### Grant the release identity SQL access
 
-### PageIndex API
+If SQL uses your personal Entra account as administrator, the GitHub OIDC identity does not automatically have database access. A `Login failed for user '<token-identified principal>'` error during Release commonly indicates this missing setup. Azure Owner/Contributor permissions do not grant SQL database access.
 
-Infrastructure creates a separate PageIndex Container App with an ACR pull identity,
-HTTPS ingress, 1 CPU / 2 GiB memory, 1–3 replicas, and a readiness probe. As with
-MarkItDown, the default infrastructure deployment uses a placeholder image; run
-**Release PageIndex** after **Deploy infrastructure** to install the API. It is also
-an optional selection in **Release Services**.
+Connect to the deployed SQL server using SSMS or VS Code's MSSQL extension with Microsoft Entra authentication as the configured administrator. Select the application database (`sharepointagent` by default), not `master`. Allow your client IP through the SQL firewall if needed. Run the following once, replacing `github-action` if your deployment managed identity or service principal has another display name:
 
-Configure the PageIndex entries in [GitHub environment settings](#github-environment-settings)
-for each of `dev` and `test`; that table includes their container variable mappings.
-The workflow supplies `AZURE_API_BASE` from the infrastructure output
-`openAiEndpoint`, so no GitHub setting is needed for the endpoint.
-It does not read the local `.env` file. See [PageIndex configuration](../backend/PageIndex/README.md#github-release-configuration)
-for the distinction between GitHub settings and local runtime variables.
+```sql
+IF DATABASE_PRINCIPAL_ID(N'github-action') IS NULL
+BEGIN
+    CREATE USER [github-action] FROM EXTERNAL PROVIDER;
+END;
 
-The release builds `backend/PageIndex/Dockerfile`, pushes the `pageindex` image,
-stores keys as Container App secrets, and checks `/health` after deployment.
-`/health` does not validate Azure model credentials; test `/index` with summaries
-enabled to verify those settings.
+IF IS_ROLEMEMBER(N'db_owner', N'github-action') = 0
+BEGIN
+    ALTER ROLE [db_owner] ADD MEMBER [github-action];
+END;
+```
 
-Infrastructure outputs `pageIndexContainerAppName` and `pageIndexEndpoint`.
-API, Background, and AgentHost releases configure `PageIndex__Endpoint` from
-that output; Bicep also sets it for API and Background application images.
-Run **Release API** after updating the release scripts to apply the endpoint
-used by **Admin → Service health**. `/health` requires no API key.
-For C# indexing calls, configure `PageIndex__ApiKey` separately with the same
-service key; these releases do not provision that caller credential. The existing
-agent indexing pipeline is not automatically switched to PageIndex.
-
-For direct Bicep application-image deployments, supply `pageIndexImage`, secure
-`pageIndexServiceApiKey` and `pageIndexAzureApiKey`, and optionally
-`pageIndexDeploymentName` / `pageIndexAzureApiVersion`. Do not commit keys in
-parameter files.
-
-The deployed worker timeout is 210 seconds to leave headroom below the default
-[Container Apps HTTP ingress timeout](https://learn.microsoft.com/en-us/azure/container-apps/ingress-overview)
-of 240 seconds. Upload and queue time also count toward ingress time; large
-summary jobs can still exceed it. This API remains synchronous.
-
-### Distributed tracing
-
-Infrastructure provisions Application Insights using the environment's Log Analytics
-workspace. Dev/test release scripts configure API, Background, and AgentHost with
-the Azure Monitor exporter and the provisioned connection string. Redeploy infrastructure
-before releasing these hosts after this change. Local Aspire runs use OTLP instead.
-See [OpenTelemetry configuration](../docs/telemetry.md) for setup and trace-ID queries.
+Verify this is the identity whose client ID is configured as `AZURE_CLIENT_ID`. This grants database-scoped administration to the release identity so it can apply migrations. Runtime API, Background and AgentHost identities retain only reader/writer roles. Your account remains the server's Entra administrator. If a user with that name already exists, verify its identity before granting permissions. Repeat for each new database/server, including after changing the SQL server name, then retry Release. See [Microsoft's service-principal setup guide](https://learn.microsoft.com/en-us/azure/azure-sql/database/authentication-aad-service-principal-tutorial?view=azuresql).
 
 ### Configure runtime SQL access manually
 
@@ -465,47 +336,289 @@ The client IDs should match the CLI output, and both role columns should be `1`.
 
 Use the **client ID**, not the principal/object ID, for explicit SQL SIDs. Existing users created with the earlier principal-ID mapping must be repaired manually after reviewing their grants and ownership. Configure AgentHost after Foundry creates its identity. Repeat when an identity or database is recreated.
 
-### Grant the release identity SQL access
-
-If SQL uses your personal Entra account as administrator, the GitHub OIDC identity does not automatically have database access. A `Login failed for user '<token-identified principal>'` error during Release commonly indicates this missing setup. Azure Owner/Contributor permissions do not grant SQL database access.
-
-Connect to the deployed SQL server using SSMS or VS Code's MSSQL extension with Microsoft Entra authentication as the configured administrator. Select the application database (`sharepointagent` by default), not `master`. Allow your client IP through the SQL firewall if needed. Run the following once, replacing `github-action` if your deployment managed identity or service principal has another display name:
-
-```sql
-IF DATABASE_PRINCIPAL_ID(N'github-action') IS NULL
-BEGIN
-    CREATE USER [github-action] FROM EXTERNAL PROVIDER;
-END;
-
-IF IS_ROLEMEMBER(N'db_owner', N'github-action') = 0
-BEGIN
-    ALTER ROLE [db_owner] ADD MEMBER [github-action];
-END;
-```
-
-Verify this is the identity whose client ID is configured as `AZURE_CLIENT_ID`. This grants database-scoped administration to the release identity so it can apply migrations. Runtime API, Background and AgentHost identities retain only reader/writer roles. Your account remains the server's Entra administrator. If a user with that name already exists, verify its identity before granting permissions. Repeat for each new database/server, including after changing the SQL server name, then retry Release. See [Microsoft's service-principal setup guide](https://learn.microsoft.com/en-us/azure/azure-sql/database/authentication-aad-service-principal-tutorial?view=azuresql).
-
-### Release sequence
+### Migration behavior
 
 SQL migrations still connect as the GitHub OIDC deployment identity. When the SQL administrator is another application, group or user, grant the deployment identity the required SQL migration permissions beforehand. Changing the administrator type does not grant that access automatically. Foundry permissions remain assigned to the deployment identity independently of the SQL administrator.
-
-Provision infrastructure before the first release, then follow the component deployment order above. All workflows share an environment concurrency group to prevent overlapping infrastructure and application changes.
 
 SQL migrations run as the deployment principal, while runtime identities receive only `db_datareader` and `db_datawriter`. The workflow temporarily allows its runner IP through the SQL firewall and removes that rule in an `always()` cleanup step. Credential-bearing parameter files live only in the runner temporary directory and are deleted during cleanup; they are not uploaded as artifacts. Keep migrations compatible with the previously deployed application while rolling out a new version. A failed deployment does not automatically roll back schema or infrastructure changes.
 
 See [AgentHost configuration](../backend/SharePointAgent.AgentHost/README.md), [Foundry deployment](https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/deploy-hosted-agent) and [agent identity/routing](https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/manage-hosted-agent). The frontend is hosted separately.
 
-## Runtime configuration and networking
+## Service configuration
+
+### Document signing configuration mapping
+
+Use the signing entries in [GitHub environment settings](#github-environment-settings). These settings apply to **API only**; Background, AgentHost, and Frontend do not need provider credentials.
+
+**Deployment support:** run **Release API**, or select API in **Release services**, after configuring these GitHub settings. The workflow validates required values for enabled providers before building and deploys credentials through Container Apps secrets and secret references. Missing enable flags default to `false`, explicitly disabling those providers; DocuSign `Demo` defaults to `true`. Disabled providers need no credentials. Existing unused Container Apps secrets are retained. `main.bicep` does not configure signing; rerun Release API after infrastructure deployment to reapply these settings. No signing credentials are passed to Background, AgentHost, or Frontend.
+
+Configure each provider independently; keep an unused provider disabled and omit its credentials. Use separate test and production credentials. Local user secrets use colons instead of double underscores, for example `DocumentSigning:AdobeSign:RefreshToken`. The old `Signing` section is no longer read. See [shared organization signing](../README.md#shared-organization-signing) for provider authorization and token renewal details.
+
+For initial Adobe authorization without Postman, set `DOCUMENTSIGNING__ADOBESIGN__AUTHURL`, `DOCUMENTSIGNING__ADOBESIGN__OAUTHREDIRECTURI`, `DOCUMENTSIGNING__ADOBESIGN__CLIENTID`, and the `DOCUMENTSIGNING__ADOBESIGN__CLIENTSECRET` secret. Keep Adobe `ENABLED=false` until tokens are obtained. The API release forwards those four settings even with signing disabled; no refresh token or API origin is required for this setup mode. Release both API and Frontend, then open **Admin → Document signing** as a Global Admin and authorize the shared sender. Copy the displayed refresh token and regional API origin into the matching GitHub secret/variable, set Adobe `ENABLED=true`, and release API. The page does not save tokens or change configuration. Subsequent authorization follows the same flow; removing the callback variable disables the token-generation page's action on the next API release.
+
+### PageIndex API
+
+Infrastructure creates a separate PageIndex Container App with an ACR pull identity,
+HTTPS ingress, 1 CPU / 2 GiB memory, 1–3 replicas, and a readiness probe. As with
+MarkItDown, the default infrastructure deployment uses a placeholder image; run
+**Release PageIndex** after **Deploy infrastructure** to install the API. It is also
+an optional selection in **Release Services**.
+
+Configure the PageIndex entries in [GitHub environment settings](#github-environment-settings)
+for each of `dev` and `test`; that table includes their container variable mappings.
+The workflow supplies `AZURE_API_BASE` from the infrastructure output
+`openAiEndpoint`, so no GitHub setting is needed for the endpoint.
+It does not read the local `.env` file. See [PageIndex configuration](../backend/PageIndex/README.md#github-release-configuration)
+for the distinction between GitHub settings and local runtime variables.
+
+The release builds `backend/PageIndex/Dockerfile`, pushes the `pageindex` image,
+stores keys as Container App secrets, and checks `/health` after deployment.
+`/health` does not validate Azure model credentials; test `/index` with summaries
+enabled to verify those settings.
+
+Infrastructure outputs `pageIndexContainerAppName` and `pageIndexEndpoint`.
+API, Background, and AgentHost releases configure `PageIndex__Endpoint` from
+that output; Bicep also sets it for API and Background application images.
+Run **Release API** after updating the release scripts to apply the endpoint
+used by **Admin → Service health**. `/health` requires no API key.
+For C# indexing calls, configure `PageIndex__ApiKey` separately with the same
+service key; these releases do not provision that caller credential. The existing
+agent indexing pipeline is not automatically switched to PageIndex.
+
+For direct Bicep application-image deployments, supply `pageIndexImage`, secure
+`pageIndexServiceApiKey` and `pageIndexAzureApiKey`, and optionally
+`pageIndexDeploymentName` / `pageIndexAzureApiVersion`. Do not commit keys in
+parameter files.
+
+The deployed worker timeout is 210 seconds to leave headroom below the default
+[Container Apps HTTP ingress timeout](https://learn.microsoft.com/en-us/azure/container-apps/ingress-overview)
+of 240 seconds. Upload and queue time also count toward ingress time; large
+summary jobs can still exceed it. This API remains synchronous.
+
+### Content Safety
+
+`deployContentSafety=true` in the supplied parameter files provisions S0. The template configures API managed-identity access; AgentHost's role must be assigned when registering the hosted agent. `allowContentSafetyApiKeyAuth` controls local key authentication. Outputs include `contentSafetyEndpoint` and `contentSafetyResourceId`, never keys. Disabling the deployment flag does not delete a previously created resource in incremental deployment mode.
+
+## Deployment behavior
+
+### Health checks and common failures
+
+Use **Admin → Service health** to inspect MarkItDown, PageIndex, and the Background heartbeat. A running Container App or successful infrastructure deployment does not confirm that the application is ready.
+
+| Symptom | Check / recovery |
+| --- | --- |
+| Conversion returns 404, or health returns invalid JSON | Inspect the deployed image. If it is `mcr.microsoft.com/k8se/quickstart:latest`, run the corresponding component release. |
+| PageIndex health reports it could not connect | Check API's `PageIndex__Endpoint`; it must use the deployed HTTPS endpoint, not `http://localhost:8001`. Release API to apply the endpoint from infrastructure outputs. |
+| Service reports unhealthy after being stopped | Use the matching start workflow, then check application health and container logs. |
+| PageIndex health succeeds but indexing with summaries fails | Verify its Azure OpenAI credentials, endpoint, API version, and model deployment. The health endpoint does not make model calls. |
+| SQL login fails during release or at runtime | Check the appropriate [SQL identity and database grants](#sql-access); Azure role assignments alone do not grant SQL access. |
+
+For AgentHost, inspect the hosted agent version and routing in Foundry, then test a chat request through the API. Use its trace ID to investigate failures; the Admin service-health checks do not currently probe AgentHost.
+
+### Start or stop MarkItDown and PageIndex
+
+Open **Actions → Start or Stop MarkItDown** or **Actions → Start or Stop PageIndex**,
+select **Run workflow**, choose `dev` or `test`, and choose `start` or `stop`.
+Run infrastructure and the corresponding service release first.
+
+These workflows use the existing Azure OIDC environment secrets and optional
+`AZURE_RESOURCE_GROUP` variable in [GitHub environment settings](#github-environment-settings). They resolve the app from
+`markItDownContainerAppName` or `pageIndexContainerAppName` in the
+`infra-<environment>` deployment outputs. The shared
+[control script](../.github/scripts/manage-container-app.ps1) verifies the container
+name, skips an action when already in the requested state, and waits up to 15
+minutes for completion. Both workflows share the environment deployment lock
+with Background, infrastructure, and application releases.
+
+Stopping MarkItDown makes conversions unavailable; stopping PageIndex makes
+indexing requests unavailable. Starting reuses the deployed image and settings.
+After starting, use **Admin → Service health** to check API connectivity and
+container logs to investigate failures. The workflow confirms Azure running state,
+not application readiness. No images are rebuilt by these workflows.
+
+### Start or stop Background
+
+Open **Actions → Start or Stop Background → Run workflow**, select `dev` or
+`test`, and choose `start` or `stop`. The [workflow](../.github/workflows/manage-background.yml)
+resolves the Background Container App from the `infra-<environment>` deployment's
+`workerContainerAppName` output. Run **Deploy infrastructure** and **Release
+Background** before using it to control the worker.
+
+It uses the existing environment secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and
+`AZURE_SUBSCRIPTION_ID` for OIDC login, plus the optional `AZURE_RESOURCE_GROUP`
+variable (otherwise `rg-<workloadName>-<environment>`). The deployment identity needs
+permission to read the deployment and Container App and perform
+`Microsoft.App/containerApps/start/action` and `Microsoft.App/containerApps/stop/action`.
+The existing resource-group Contributor role includes these operations.
+
+The pipeline calls Azure's [Container App start/stop operations](https://learn.microsoft.com/en-us/rest/api/resource-manager/containerapps/container-apps?view=rest-resource-manager-containerapps-2025-01-01),
+keeps the existing image and configuration, and waits up to 15 minutes for the
+requested running status. An app already in that state succeeds without another
+action. The workflow shares the environment deployment lock with releases.
+Its summary reports the final Azure running status; check container logs to verify
+that a started worker is processing successfully.
+
+Stopping pauses all work hosted by Background, including synchronization and
+subscription renewal. Pending queue messages remain subject to their expiry and
+delivery policies. Use `start` to resume the deployed worker. This is an operational
+control, not a persistent infrastructure setting; check the app state after later
+deployments.
+
+### Distributed tracing
+
+Infrastructure provisions Application Insights using the environment's Log Analytics
+workspace. Dev/test release scripts configure API, Background, and AgentHost with
+the Azure Monitor exporter and the provisioned connection string. Redeploy infrastructure
+before releasing these hosts after this change. Local Aspire runs use OTLP instead.
+See [OpenTelemetry configuration](../docs/telemetry.md) for setup and trace-ID queries.
+
+### Report current capacity
+
+Run **Actions → Report Current Capacity → Run workflow**, selecting `dev` or
+`test`. The [workflow](../.github/workflows/report-capacity.yml) reads the deployed
+resources and publishes a table in the job summary:
+
+- API, Background, MarkItDown, and PageIndex: app state, active revisions,
+  CPU/memory per container per replica, and configured minimum/maximum replicas.
+- AgentHost: explicitly routed versions, status, traffic percentage, and
+  CPU/memory per session.
+
+This is a read-only configuration snapshot, not CPU utilization or live replica
+counts. It does not invoke AgentHost. It uses the existing OIDC secrets and
+resource-group setting, and waits on the shared deployment lock. If a service
+cannot be read, the summary retains the available results and the job fails with
+an incomplete-report notice. The identity needs Azure resource read access and
+Foundry agent/version read access.
+
+### Configure capacity with GitHub Actions
+
+Run either workflow from **Actions → Run workflow**. Both use the existing Azure
+OIDC secrets, optional `AZURE_RESOURCE_GROUP`, and the `dev`/`test` environment
+approval rules. They share the deployment lock with infrastructure, releases,
+and start/stop workflows. No additional GitHub settings are required.
+
+| Workflow | Inputs | Behavior |
+| --- | --- | --- |
+| [Configure Container App Capacity](../.github/workflows/configure-container-app-capacity.yml) | Environment, component (`Api`, `Background`, `MarkItDown`, `PageIndex`), CPU (`0.25`, `0.5`, `1`, `2`, `4`) | Sets memory to 2 GiB per vCPU, creates a revision using the existing image and settings, and waits for that revision to become ready. Replica limits stay unchanged. |
+| [Configure AgentHost Capacity](../.github/workflows/configure-agent-capacity.yml) | Environment, CPU (`0.5`, `1`, `2`) | Sets memory to 1, 2, or 4 GiB per session. Copies the currently routed version's definition, changes its capacity, waits for the new version to become active, then routes 100% of traffic to it. |
+
+Run infrastructure and the relevant component release first. Container Apps must
+be running in single-revision mode with one container. AgentHost must have an
+active hosted version with explicit 100% routing. The deployment identity needs
+Container App update access or Foundry agent version/routing access, respectively.
+Identical capacity requests make no changes. AgentHost failures before routing
+leave the previous version selected; inspect the job summary for the created and
+previous version numbers. No image builds, secret rotation, or SQL grants occur.
+
+These workflows change deployed capacity, not repository defaults. Container App
+releases preserve the allocation, but **Deploy infrastructure** reapplies Bicep
+capacity. **Release AgentHost** reapplies the allocation in `release-agent.ps1`.
+Update those defaults too if the change should persist across those deployments.
+To revert, rerun the capacity workflow with the previous CPU selection.
+
+The available pairs follow the documented [Foundry sandbox sizes](https://learn.microsoft.com/en-us/azure/foundry/agents/concepts/hosted-agents#sandbox-sizes)
+and [Container Apps workload profile limits](https://learn.microsoft.com/en-us/azure/container-apps/workload-profiles-overview).
+Changes remain subject to environment quota and platform availability.
+
+### Manually update Container Apps capacity
+
+You can change CPU and memory without rebuilding the image or running the infrastructure/release workflows. Azure creates a new revision using the existing image and settings; this is not an in-place resize of a running container. These instructions cover API, Background, MarkItDown, and PageIndex. AgentHost is hosted in Foundry and requires a new agent version instead.
+
+Use Azure CLI in PowerShell with permission to update the target Container App. Run the commands when no release or infrastructure deployment is in progress; manual CLI operations do not use the workflows' concurrency lock.
+
+#### Select the app and inspect its current allocation
+
+Sign in, select the intended subscription, and list the apps. Use your actual resource group if you overrode the default name:
+
+```powershell
+az login
+az account set --subscription "<subscription-id>"
+$resourceGroup = 'rg-sharepointagent-dev' # Use rg-sharepointagent-test for test.
+az containerapp list --resource-group $resourceGroup --query "[].{name:name,state:properties.runningStatus}" --output table
+```
+
+Choose one app using this mapping. The CPU and memory values are the current repository targets, per replica:
+
+| Service | App name contains | Container name | CPU | Memory |
+| --- | --- | --- | --- | --- |
+| API | `-api-` | `api` | `2` | `4Gi` |
+| Background | `-wrk-` | `background` | `1` | `2Gi` |
+| MarkItDown | `-md-` | `markitdown` | `0.5` | `1Gi` |
+| PageIndex | `-pi-` | `pageindex` | `1` | `2Gi` |
+
+For example, select API and record the existing allocation and image before changing it:
+
+```powershell
+$appName = '<full-api-container-app-name-from-the-list>'
+$containerName = 'api'
+az containerapp show --resource-group $resourceGroup --name $appName `
+  --query "properties.template.{containers:containers[].{name:name,image:image,cpu:resources.cpu,memory:resources.memory},scale:scale}" `
+  --output json
+```
+
+#### Update CPU and memory
+
+This example applies API's 2 vCPU / 4 GiB allocation. To resize Background, MarkItDown, or PageIndex, change `$appName`, `$containerName`, and the resource values using the table above. Supply a CPU/memory combination supported by the app's workload profile.
+
+```powershell
+az containerapp update --resource-group $resourceGroup --name $appName `
+  --container-name $containerName --cpu 2 --memory '4Gi' --output none
+```
+
+Omitting image, environment, secrets, and scale options preserves those settings. Replica limits remain unchanged: API, MarkItDown, and PageIndex use 1–3, while Background uses 1. The repository configures single-revision mode, so Azure moves traffic to the new revision when it is ready. Background restarts with the new allocation; allow ongoing work to complete before resizing where possible.
+
+#### Verify the new revision
+
+```powershell
+az containerapp show --resource-group $resourceGroup --name $appName `
+  --query "properties.{state:runningStatus,latest:latestRevisionName,ready:latestReadyRevisionName,containers:template.containers[].{name:name,cpu:resources.cpu,memory:resources.memory}}" `
+  --output json
+
+az containerapp revision list --resource-group $resourceGroup --name $appName `
+  --query "[].{revision:name,active:properties.active,health:properties.healthState,replicas:properties.replicas}" `
+  --output table
+```
+
+Confirm the intended resources are shown and the latest revision becomes ready and healthy. For API, MarkItDown, and PageIndex, also check their `/health` endpoint; for Background, check its logs and processing activity. To revert the allocation, run the update command again with the CPU and memory values recorded before the change; this creates another revision with the previous sizing.
+
+Manual changes affect only the selected app and environment. Component release workflows preserve its resource allocation, but the next **Deploy infrastructure** run reapplies `main.bicep`. Keep that file and the [capacity table](#current-configured-capacity) aligned with any sizing you intend to retain. The API example already matches the repository's 2 vCPU / 4 GiB target.
+
+Reference: [Azure CLI Container Apps update](https://learn.microsoft.com/en-us/cli/azure/containerapp#az-containerapp-update) and [Container Apps revisions](https://learn.microsoft.com/en-us/azure/container-apps/revisions).
+
+## Infrastructure reference
+
+### Current configured capacity
+
+These are the repository's target allocations for both `dev` and `test`; existing Azure deployments keep their previous allocations until the corresponding deployment runs.
+
+| Service | Configured resources | Scaling |
+| --- | --- | --- |
+| AgentHost, hosted in Foundry | 2 vCPU + 4 GiB per session | On-demand sessions; compute released after inactivity |
+| API, Container Apps | 2 vCPU + 4 GiB per replica | 1–3 replicas |
+| Background, Container Apps | 1 vCPU + 2 GiB per replica | 1 replica while running |
+| MarkItDown, Container Apps | 0.5 vCPU + 1 GiB per replica | 1–3 replicas |
+| PageIndex, Container Apps | 1 vCPU + 2 GiB per replica | 1–3 replicas |
+
+AgentHost allocation is defined in [release-agent.ps1](../.github/scripts/release-agent.ps1). Container Apps allocations and replica limits are defined in [main.bicep](main.bicep). The four Container Apps together allocate at least 4.5 vCPU and 9 GiB per environment while running at their configured minimums; AgentHost sessions add capacity separately. API can allocate up to 6 vCPU and 12 GiB across three replicas.
+
+To resize a deployed service using its current image, use the
+[capacity workflows](#configure-capacity-with-github-actions). To apply capacity
+defaults from the repository to an existing environment:
+
+1. Run **Deploy infrastructure** to update API to 2 vCPU and 4 GiB, or follow [manual Container Apps capacity updates](#manually-update-container-apps-capacity) in the operations section. For an infrastructure deployment, set `API_IMAGE`, `BACKGROUND_IMAGE`, and `MARKITDOWN_IMAGE` to the current application images first, as described under [Preserve application images](#preserve-application-images), to preserve them. An API-only release preserves the existing resource allocation and does not apply Bicep changes.
+2. Run **Release AgentHost**, or select **AgentHost** in **Release services**, to publish a version with 2 vCPU and 4 GiB per session.
+
+### Runtime configuration and networking
 
 Azure SQL uses Entra-only authentication and a Basic database (5 DTUs, maximum 2 GB) by default. Override `sqlDatabaseSku` with an S-series SKU when more capacity is needed. SQL permits authenticated connections from Azure services through the `0.0.0.0` firewall rule; this is Azure-wide, not subscription-only. Non-Azure deployment clients need their own firewall rule. Private networking is not configured.
 
-API and Background have separate user-assigned identities selected through `AZURE_CLIENT_ID`; SQL connection strings use their client IDs. Foundry creates AgentHost's execution identity. MarkItDown has only ACR image-pull access.
+API and Background have separate user-assigned identities selected through `AZURE_CLIENT_ID`; SQL connection strings use their client IDs. Foundry creates AgentHost's execution identity. MarkItDown and PageIndex identities have ACR image-pull access.
 
-API listens on 8080, MarkItDown on 8000, and Background has no ingress. Background stays at one replica. MarkItDown uses external HTTPS so Foundry can reach it, and requires `X-Api-Key` before accepting upload bodies; `/health` remains public. Supply the same key as `MARKITDOWN_API_KEY` on the MarkItDown and `MarkItDown:ApiKey` on callers. Local MarkItDown instances with no key configured retain unauthenticated behavior.
+API listens on 8080, MarkItDown and PageIndex on 8000, and Background has no ingress. Background stays at one replica. MarkItDown uses external HTTPS so Foundry can reach it, and requires `X-Api-Key` before accepting upload bodies; `/health` remains public. Supply the same key as `MARKITDOWN_API_KEY` on the MarkItDown and `MarkItDown:ApiKey` on callers. Local MarkItDown instances with no key configured retain unauthenticated behavior.
 
-## Content Safety
+### Resource naming
 
-`deployContentSafety=true` in the supplied parameter files provisions S0. The template configures API managed-identity access; AgentHost's role must be assigned when registering the hosted agent. `allowContentSafetyApiKeyAuth` controls local key authentication. Outputs include `contentSafetyEndpoint` and `contentSafetyResourceId`, never keys. Disabling the deployment flag does not delete a previously created resource in incremental deployment mode.
+Main resource names start with `workloadName`, followed by the environment. ACR and Storage use the compact prefix without hyphens; for example, ACR uses `<workloadName><environment>cr<uniqueSuffix>`. Child resources retain their service-specific names. Changing a resource name creates a new resource rather than renaming an existing one; registries created with the previous `cr<workloadName>...` pattern and their images are not migrated automatically.
 
 ## Validation
 
