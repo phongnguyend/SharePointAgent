@@ -12,5 +12,6 @@
   <Project Path="SharePointAgent.Domain/SharePointAgent.Domain.csproj" />
   <Project Path="SharePointAgent.Infrastructure/SharePointAgent.Infrastructure.csproj" />
   <Project Path="SharePointAgent.Persistence/SharePointAgent.Persistence.csproj" />
+  <Project Path="SharePointAgent.SandboxHost/SharePointAgent.SandboxHost.csproj" />
   <Project Path="SharePointAgent.Tests/SharePointAgent.Tests.csproj" />
 </Solution>

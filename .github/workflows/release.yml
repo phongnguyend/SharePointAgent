@@ -22,6 +22,14 @@ on:
         description: Release PageIndex
         type: boolean
         default: false
+      dynamic_sessions:
+        description: Release Dynamic Sessions
+        type: boolean
+        default: false
+      sandboxes:
+        description: Release Sandboxes image
+        type: boolean
+        default: false
       agent:
         description: Release AgentHost
         type: boolean
@@ -63,7 +71,7 @@ jobs:
           if ($selection.environment -notin @('dev', 'test')) {
             throw 'Select dev or test as the target environment.'
           }
-          $services = @('db_migration', 'markitdown', 'pageindex', 'agent', 'api', 'background', 'frontend')
+          $services = @('db_migration', 'markitdown', 'pageindex', 'dynamic_sessions', 'sandboxes', 'agent', 'api', 'background', 'frontend')
           $selected = @($services | Where-Object { $selection.$_ -eq $true })
           if ($selected.Count -eq 0) {
             throw 'Select at least one service to release.'
@@ -104,9 +112,29 @@ jobs:
       orchestrated: true
     secrets: inherit
 
+  dynamic_sessions:
+    name: Release Dynamic Sessions
+    needs: [validate, db_migration, markitdown, pageindex]
+    if: ${{ !cancelled() && !failure() && inputs.dynamic_sessions }}
+    uses: ./.github/workflows/release-dynamic-sessions.yml
+    with:
+      environment: ${{ inputs.environment }}
+      orchestrated: true
+    secrets: inherit
+
+  sandboxes:
+    name: Release Sandboxes
+    needs: [validate, db_migration, markitdown, pageindex, dynamic_sessions]
+    if: ${{ !cancelled() && !failure() && inputs.sandboxes }}
+    uses: ./.github/workflows/release-sandboxes.yml
+    with:
+      environment: ${{ inputs.environment }}
+      orchestrated: true
+    secrets: inherit
+
   agent:
     name: Release AgentHost
-    needs: [validate, db_migration, markitdown, pageindex]
+    needs: [validate, db_migration, markitdown, pageindex, dynamic_sessions, sandboxes]
     # Explicit status checks allow unselected predecessors to be skipped.
     if: ${{ !cancelled() && !failure() && inputs.agent }}
     uses: ./.github/workflows/release-agent.yml
@@ -117,7 +145,7 @@ jobs:
 
   api:
     name: Release API
-    needs: [validate, db_migration, markitdown, pageindex, agent]
+    needs: [validate, db_migration, markitdown, pageindex, dynamic_sessions, sandboxes, agent]
     # Explicit status checks allow unselected predecessors to be skipped.
     if: ${{ !cancelled() && !failure() && inputs.api }}
     uses: ./.github/workflows/release-api.yml
@@ -128,7 +156,7 @@ jobs:
 
   background:
     name: Release Background
-    needs: [validate, db_migration, markitdown, pageindex, agent, api]
+    needs: [validate, db_migration, markitdown, pageindex, dynamic_sessions, sandboxes, agent, api]
     # Explicit status checks allow unselected predecessors to be skipped.
     if: ${{ !cancelled() && !failure() && inputs.background }}
     uses: ./.github/workflows/release-background.yml
@@ -139,7 +167,7 @@ jobs:
 
   frontend:
     name: Release Frontend
-    needs: [validate, db_migration, markitdown, pageindex, agent, api, background]
+    needs: [validate, db_migration, markitdown, pageindex, dynamic_sessions, sandboxes, agent, api, background]
     # Explicit status checks allow unselected predecessors to be skipped.
     if: ${{ !cancelled() && !failure() && inputs.frontend }}
     uses: ./.github/workflows/release-frontend.yml
@@ -150,7 +178,7 @@ jobs:
 
   summary:
     name: Release summary
-    needs: [validate, db_migration, markitdown, agent, api, background, frontend]
+    needs: [validate, db_migration, markitdown, pageindex, dynamic_sessions, sandboxes, agent, api, background, frontend]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -171,7 +199,7 @@ jobs:
           "" >> $env:GITHUB_STEP_SUMMARY
           "| Service | Result |" >> $env:GITHUB_STEP_SUMMARY
           "| --- | --- |" >> $env:GITHUB_STEP_SUMMARY
-          foreach ($service in @('db_migration', 'markitdown', 'agent', 'api', 'background', 'frontend')) {
+          foreach ($service in @('db_migration', 'markitdown', 'pageindex', 'dynamic_sessions', 'sandboxes', 'agent', 'api', 'background', 'frontend')) {
             $result = 'Not selected'
             if ($selection.$service) {
               $result = $results.$service.result

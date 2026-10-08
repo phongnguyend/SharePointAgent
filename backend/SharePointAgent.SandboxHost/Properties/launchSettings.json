@@ -1,0 +1,13 @@
+{
+  "profiles": {
+    "SharePointAgent.SandboxHost": {
+      "commandName": "Project",
+      "launchBrowser": false,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Sandbox__RequireApiKey": "false"
+      },
+      "applicationUrl": "http://localhost:57960"
+    }
+  }
+}

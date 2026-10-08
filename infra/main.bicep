@@ -126,6 +126,24 @@ param pageIndexImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
 param pageIndexAzureApiVersion string = '2024-10-21'
 @description('Azure OpenAI deployment used for PageIndex summaries.')
 param pageIndexDeploymentName string = chatDeploymentName
+@description('Deploy the custom-container session pool that runs SharePointAgent.SandboxHost.')
+param deployDynamicSessions bool = false
+@description('Sandbox host image for the session pool; defaults to the public hello image until Release Dynamic Sessions runs.')
+param sandboxHostImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
+@description('Warm sessions kept ready for instant allocation. Ready sessions are billed while they wait.')
+@minValue(0)
+param dynamicSessionsReadySessions int = 1
+@minValue(1)
+param dynamicSessionsMaxSessions int = 20
+@description('Seconds a session survives after its last request before its files are destroyed.')
+@minValue(300)
+@maxValue(3600)
+param dynamicSessionsCooldownSeconds int = 1800
+@description('Allow session code to reach the internet, for example to pip or npm install packages.')
+param dynamicSessionsEgressEnabled bool = true
+@description('Deploy an Azure Container Apps sandbox group whose sandboxes boot SharePointAgent.SandboxHost. Confirm that Sandboxes is available in the subscription and region first.')
+param deploySandboxGroup bool = false
+param sandboxGroupLocation string = location
 @secure()
 param pageIndexServiceApiKey string = ''
 @secure()
@@ -901,6 +919,142 @@ resource workerIdentityDocument 'Microsoft.Authorization/roleAssignments@2022-04
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908')
   }
 }
+
+// Isolated code execution for agent tools. Each session or sandbox runs untrusted code, so its pull
+// identity is used only to fetch the image and is never exposed inside the session.
+var helloImage = 'mcr.microsoft.com/k8se/quickstart:latest'
+var dynamicSessionsName = '${compactPrefix}sessions${take(uniqueSuffix, 6)}'
+var dynamicSessionsPort = startsWith(sandboxHostImage, helloImage) ? 80 : 8080
+var dynamicSessionsHealthPath = startsWith(sandboxHostImage, helloImage) ? '/' : '/health'
+var sandboxGroupName = '${namePrefix}-sbx-${take(uniqueSuffix, 6)}'
+var sessionExecutorRole = '0fb8eba5-a2bb-4abe-b1c1-49dfad359bb0'
+var sandboxGroupDataOwnerRole = 'c24cf47c-5077-412d-a19c-45202126392c'
+
+resource dynamicSessionsIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = if (deployDynamicSessions) {
+  name: '${namePrefix}-sessions-pull'
+  location: location
+  tags: resourceTags
+}
+
+resource dynamicSessionsRegistry 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deployDynamicSessions) {
+  name: guid(containerRegistry.id, dynamicSessionsIdentity.id, acrPullRole)
+  scope: containerRegistry
+  properties: {
+    principalId: dynamicSessionsIdentity!.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', acrPullRole)
+  }
+}
+
+resource dynamicSessions 'Microsoft.App/sessionPools@2026-07-01' = if (deployDynamicSessions) {
+  name: dynamicSessionsName
+  location: location
+  tags: resourceTags
+  identity: { type: 'UserAssigned', userAssignedIdentities: { '${dynamicSessionsIdentity.id}': {} } }
+  properties: {
+    environmentId: containerAppsEnvironment.id
+    poolManagementType: 'Dynamic'
+    containerType: 'CustomContainer'
+    customContainerTemplate: {
+      containers: [{
+        name: 'sandboxhost'
+        image: sandboxHostImage
+        // The pool authenticates callers with Entra and forwards through ingress with a 240-second limit.
+        env: [
+          { name: 'Sandbox__RequireApiKey', value: 'false' }
+          { name: 'Sandbox__MaxTimeoutSeconds', value: '220' }
+        ]
+        resources: { cpu: 1, memory: '2Gi' }
+        probes: [
+          { type: 'Liveness', httpGet: { path: dynamicSessionsHealthPath, port: dynamicSessionsPort }, periodSeconds: 10, failureThreshold: 3 }
+          { type: 'Startup', httpGet: { path: dynamicSessionsHealthPath, port: dynamicSessionsPort }, periodSeconds: 5, failureThreshold: 30 }
+        ]
+      }]
+      ingress: { targetPort: dynamicSessionsPort }
+      registryCredentials: { server: containerRegistry.properties.loginServer, identity: dynamicSessionsIdentity.id }
+    }
+    // 'None' keeps the pull identity out of the sessions, where agent code could request its tokens.
+    managedIdentitySettings: [{ identity: dynamicSessionsIdentity.id, lifecycle: 'None' }]
+    dynamicPoolConfiguration: {
+      lifecycleConfiguration: { lifecycleType: 'Timed', cooldownPeriodInSeconds: dynamicSessionsCooldownSeconds }
+    }
+    scaleConfiguration: { maxConcurrentSessions: dynamicSessionsMaxSessions, readySessionInstances: dynamicSessionsReadySessions }
+    sessionNetworkConfiguration: { status: dynamicSessionsEgressEnabled ? 'EgressEnabled' : 'EgressDisabled' }
+  }
+  dependsOn: [dynamicSessionsRegistry]
+}
+
+resource apiDynamicSessions 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deployDynamicSessions) {
+  name: guid(dynamicSessions.id, apiIdentity.id, sessionExecutorRole)
+  scope: dynamicSessions
+  properties: {
+    principalId: apiIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', sessionExecutorRole)
+  }
+}
+
+// Lets Release Dynamic Sessions smoke-test the pool with the deployment identity.
+resource deployerDynamicSessions 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deployDynamicSessions) {
+  name: guid(dynamicSessions.id, deployer().objectId, sessionExecutorRole)
+  scope: dynamicSessions
+  properties: {
+    principalId: deployer().objectId
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', sessionExecutorRole)
+  }
+}
+
+resource sandboxesIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = if (deploySandboxGroup) {
+  name: '${namePrefix}-sandboxes-pull'
+  location: sandboxGroupLocation
+  tags: resourceTags
+}
+
+resource sandboxesRegistry 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deploySandboxGroup) {
+  name: guid(containerRegistry.id, sandboxesIdentity.id, acrPullRole)
+  scope: containerRegistry
+  properties: {
+    principalId: sandboxesIdentity!.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', acrPullRole)
+  }
+}
+
+// Sandboxes and their disk images are data-plane objects; this provisions only the group they live in.
+resource sandboxGroup 'Microsoft.App/sandboxGroups@2026-02-01-preview' = if (deploySandboxGroup) {
+  name: sandboxGroupName
+  location: sandboxGroupLocation
+  tags: resourceTags
+  identity: { type: 'UserAssigned', userAssignedIdentities: { '${sandboxesIdentity.id}': {} } }
+  properties: {}
+  dependsOn: [sandboxesRegistry]
+}
+
+resource apiSandboxGroup 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deploySandboxGroup) {
+  name: guid(sandboxGroup.id, apiIdentity.id, sandboxGroupDataOwnerRole)
+  scope: sandboxGroup
+  properties: {
+    principalId: apiIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', sandboxGroupDataOwnerRole)
+  }
+}
+
+// Lets the deployment identity register disk images after Release Sandboxes pushes a new image.
+resource deployerSandboxGroup 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deploySandboxGroup) {
+  name: guid(sandboxGroup.id, deployer().objectId, sandboxGroupDataOwnerRole)
+  scope: sandboxGroup
+  properties: {
+    principalId: deployer().objectId
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', sandboxGroupDataOwnerRole)
+  }
+}
+
+output dynamicSessionsPoolName string = deployDynamicSessions ? dynamicSessionsName : ''
+output dynamicSessionsPoolEndpoint string = dynamicSessions.?properties.poolManagementEndpoint ?? ''
+output sandboxGroupName string = deploySandboxGroup ? sandboxGroupName : ''
+output sandboxGroupId string = sandboxGroup.?id ?? ''
+output sandboxesPullIdentityId string = sandboxesIdentity.?id ?? ''
 
 output apiContainerAppName string = apiName
 output workerContainerAppName string = workerName

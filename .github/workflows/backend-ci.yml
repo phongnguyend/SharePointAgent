@@ -79,6 +79,9 @@ jobs:
           - image: background
             context: .
             file: backend/SharePointAgent.Background/Dockerfile
+          - image: sandboxhost
+            context: .
+            file: backend/SharePointAgent.SandboxHost/Dockerfile
           - image: markitdown
             context: backend/MarkItDown
             file: backend/MarkItDown/Dockerfile

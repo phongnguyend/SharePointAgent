@@ -1,0 +1,71 @@
+name: Release Sandboxes
+run-name: Release Sandboxes (${{ inputs.environment }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options: [dev, test]
+        default: dev
+  workflow_call:
+    inputs:
+      environment:
+        description: Target environment (dev or test)
+        required: true
+        type: string
+      orchestrated:
+        description: The calling release workflow holds the environment deployment lock
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  # Avoid waiting on the caller's environment lock during a combined release.
+  group: ${{ inputs.orchestrated && format('release-sandboxes-{0}-{1}', github.run_id, github.run_attempt) || format('deployment-{0}', inputs.environment) }}
+  cancel-in-progress: false
+
+jobs:
+  sandboxes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: ${{ inputs.environment }}
+    env:
+      DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      IMAGE_TAG: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Check settings
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:DEPLOY_ENVIRONMENT -notin @('dev', 'test')) {
+            throw 'Select dev or test as the target environment.'
+          }
+          $settings = (Get-Content "infra/parameters.$env:DEPLOY_ENVIRONMENT.json" -Raw | ConvertFrom-Json).parameters
+          if ($settings.environmentName.value -ne $env:DEPLOY_ENVIRONMENT) {
+            throw 'Parameter environment does not match the selected environment.'
+          }
+          $resourceGroup = $env:AZURE_RESOURCE_GROUP
+          if ([string]::IsNullOrWhiteSpace($resourceGroup)) {
+            $resourceGroup = "rg-$($settings.workloadName.value)-$env:DEPLOY_ENVIRONMENT"
+          }
+          "RESOURCE_GROUP=$resourceGroup" >> $env:GITHUB_ENV
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Build, test, and publish the sandbox image
+        run: ./.github/scripts/release-sandboxes.ps1

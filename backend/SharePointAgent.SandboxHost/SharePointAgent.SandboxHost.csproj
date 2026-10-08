@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <!-- No project references on purpose: this image runs untrusted code, so it carries nothing of the
+       main application — no connection strings, no SharePoint or Azure clients, no shared settings. -->
+
+</Project>

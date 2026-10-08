@@ -72,6 +72,7 @@ Configure these settings under **Settings → Environments → dev/test → Envi
 | `PAGEINDEX_AZURE_API_VERSION` | Optional variable | Release PageIndex: defaults to `2024-10-21`; select a version supported by the deployment. Container key: `AZURE_API_VERSION`. |
 | `PAGEINDEX_INDEX_MODEL` | Optional variable | Release PageIndex: defaults to `azure/<chatDeploymentName>` from infrastructure; use `azure/<deployment-name>`. Container key: `PAGEINDEX_INDEX_MODEL`. |
 | `PAGEINDEX_SERVICE_API_KEY` | Secret | Release PageIndex: separately generated service key, at least 32 characters; see [key generation](../backend/PageIndex/README.md#generate-the-service-api-key). Container key: `PAGEINDEX_SERVICE_API_KEY`. |
+| `SANDBOX_HOST_IMAGE` | Optional variable | Sandbox host image the Dynamic Sessions pool runs, e.g. `YOUR_REGISTRY.azurecr.io/sandboxhost:EXISTING_TAG`; keeps it when infrastructure is redeployed. Independent of the three application image variables; Sandboxes use registered disk images instead. Bicep parameter: `sandboxHostImage`. |
 | `SHAREPOINT_CLIENT_ID` | Variable | Existing SharePoint/Entra application client ID in the SharePoint tenant |
 | `SHAREPOINT_CLIENT_SECRET` | Secret | Graph application credential |
 | `SHAREPOINT_CLIENT_STATE` | Secret | Webhook validation secret, at least 16 characters |
@@ -181,7 +182,7 @@ The infrastructure workflow currently accepts image variables for API, Backgroun
 
 Use **Actions → Release services → Run workflow** to select `dev` or `test`, the branch or tag, and any combination of service checkboxes. All checkboxes start unchecked; select at least one. The workflow reuses the component releases at the same commit, preserving GitHub environment secrets and approval rules. Individual workflows also remain available.
 
-Selected components run sequentially: Database migrations → MarkItDown → PageIndex → AgentHost → API → Background → Frontend. Unselected components are skipped, while a failure or cancellation prevents later releases. Include required migrations when releasing dependent code. Review each selected job's result; completed deployments are not rolled back if a later component fails. The combined workflow holds the environment deployment lock for the entire batch, preventing standalone releases or infrastructure deployments from overlapping it.
+Selected components run sequentially: Database migrations → MarkItDown → PageIndex → Dynamic Sessions → Sandboxes → AgentHost → API → Background → Frontend. Unselected components are skipped, while a failure or cancellation prevents later releases. Include required migrations when releasing dependent code. Review each selected job's result; completed deployments are not rolled back if a later component fails. The combined workflow holds the environment deployment lock for the entire batch, preventing standalone releases or infrastructure deployments from overlapping it.
 
 | Workflow | Responsibility |
 | --- | --- |
@@ -193,6 +194,8 @@ Selected components run sequentially: Database migrations → MarkItDown → Pag
 | [release-agent.yml](../.github/workflows/release-agent.yml) | Build AgentHost, update Foundry secrets, publish a hosted agent version, grant its identity Azure resource access, and route traffic |
 | [release-markitdown.yml](../.github/workflows/release-markitdown.yml) | Build and deploy MarkItDown and check health |
 | [release-pageindex.yml](../.github/workflows/release-pageindex.yml) | Build and deploy PageIndex and check health |
+| [release-dynamic-sessions.yml](../.github/workflows/release-dynamic-sessions.yml) | Build and smoke-test the Dynamic Sessions host image, update the session pool, and smoke-test a real session |
+| [release-sandboxes.yml](../.github/workflows/release-sandboxes.yml) | Build, smoke-test, and push the Sandboxes host image |
 | [release-frontend.yml](../.github/workflows/release-frontend.yml) | Read the saved API URL, build with `VITE_API_BASE_URL`, and publish to Azure Static Web Apps |
 
 Rerunning one component release does not rebuild or redeploy another component. A frontend failure does not roll back the backend. SPA routes use `staticwebapp.config.json`; authentication continues through the application's Entra integration.
@@ -394,6 +397,18 @@ The deployed worker timeout is 210 seconds to leave headroom below the default
 [Container Apps HTTP ingress timeout](https://learn.microsoft.com/en-us/azure/container-apps/ingress-overview)
 of 240 seconds. Upload and queue time also count toward ingress time; large
 summary jobs can still exceed it. This API remains synchronous.
+
+### Isolated code execution
+
+The [sandbox host](../backend/SharePointAgent.SandboxHost/README.md) gives future agent tools a file system and a PowerShell, Python, Node.js, and Bash runner inside an isolated environment. One `sandboxhost` image is deployed to both targets below; they differ only in the settings each deployment passes. Nothing calls them yet: no API or AgentHost setting points at them.
+
+**Dynamic Sessions.** `deployDynamicSessions=true` (on in the supplied `dev` and `test` files, off in `local`) creates a custom-container session pool in the Container Apps environment. It has its own ACR pull identity, which is kept out of the sessions (`lifecycle: None`), so agent code cannot request its tokens. The pool runs 1 vCPU / 2 GiB per session, with `dynamicSessionsReadySessions` warm sessions (default 1, billed while waiting), up to `dynamicSessionsMaxSessions` (default 20), and a timed lifecycle that destroys a session `dynamicSessionsCooldownSeconds` (default 1800) after its last request. `dynamicSessionsEgressEnabled` (default true) controls internet access from sessions. The API identity, and the identity that deploys the template, receive **Azure ContainerApps Session Executor** on the pool; the release smoke test uses the second. Outputs: `dynamicSessionsPoolName` and `dynamicSessionsPoolEndpoint`.
+
+Like the other services, the pool starts on the hello image. Run **Release Dynamic Sessions** to install the host. The release builds the image, runs it on the runner, and checks all four languages plus a file round trip before pushing. It then switches the pool to the image, port 8080, `/health` liveness and startup probes, and the pool's settings (`Sandbox__RequireApiKey=false`, `Sandbox__MaxTimeoutSeconds=220`), and repeats the check through the pool endpoint in a fresh session, which it then stops. To keep the image across infrastructure runs, set `SANDBOX_HOST_IMAGE` to the reference in the release summary.
+
+**Sandboxes.** `deploySandboxGroup=true` (off in every supplied file) creates a `Microsoft.App/sandboxGroups` group in `sandboxGroupLocation`, with a user-assigned identity that has ACR pull access. The API identity and the deploying identity receive **Container Apps SandboxGroup Data Owner** on the group. Confirm that Container Apps sandboxes are available in your subscription and region before enabling it. The template uses the documented `2026-02-01-preview` API, for which Bicep has no type information, so property errors appear only at deployment. Outputs: `sandboxGroupName`, `sandboxGroupId`, and `sandboxesPullIdentityId`.
+
+Sandboxes are created at run time by callers, so **Release Sandboxes** does not update a running resource. It builds the image, applies the same local smoke test, and pushes `sandboxhost:<tag>` to ACR; when both releases run in one **Release services** run, the second reuses the image the first pushed. Then register that image as a disk image in the group: in the portal, open **Disk images**, select **Create**, enter the image as the base image URL, and choose managed-identity registry authentication with `sandboxesPullIdentityId`. The release does not automate this step, because the disk-image API and CLI are not yet documented for private registries.
 
 ### Chat dictation
 
@@ -602,6 +617,7 @@ These are the repository's target allocations for both `dev` and `test`; existin
 | Background, Container Apps | 1 vCPU + 2 GiB per replica | 1 replica while running |
 | MarkItDown, Container Apps | 0.5 vCPU + 1 GiB per replica | 1–3 replicas |
 | PageIndex, Container Apps | 1 vCPU + 2 GiB per replica | 1–3 replicas |
+| Dynamic Sessions, session pool | 1 vCPU + 2 GiB per session | `dynamicSessionsReadySessions` warm (default 1), up to `dynamicSessionsMaxSessions` (default 20) |
 
 AgentHost allocation is defined in [release-agent.ps1](../.github/scripts/release-agent.ps1). Container Apps allocations and replica limits are defined in [main.bicep](main.bicep). The four Container Apps together allocate at least 4.5 vCPU and 9 GiB per environment while running at their configured minimums; AgentHost sessions add capacity separately. API can allocate up to 6 vCPU and 12 GiB across three replicas.
 
