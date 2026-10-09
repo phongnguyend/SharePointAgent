@@ -1,0 +1,129 @@
+name: Deploy Ollaya Infrastructure
+run-name: Deploy Ollaya Infrastructure (${{ inputs.environment }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options: [dev, test]
+        default: dev
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deployment-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: ${{ inputs.environment }}
+    env:
+      DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      OLLAYA_IMAGE: ${{ vars.OLLAYA_IMAGE }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Check deployment settings
+        env:
+          OLLAYA_API_KEY: ${{ secrets.OLLAYA_API_KEY }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:DEPLOY_ENVIRONMENT -notin @('dev', 'test')) {
+            throw 'Select dev or test as the target environment.'
+          }
+          $settings = (Get-Content "infra/parameters.$env:DEPLOY_ENVIRONMENT.json" -Raw | ConvertFrom-Json).parameters
+          $parametersFile = "infra/Ollaya/parameters.$env:DEPLOY_ENVIRONMENT.json"
+          $ollayaSettings = (Get-Content $parametersFile -Raw | ConvertFrom-Json).parameters
+          if ($settings.environmentName.value -ne $env:DEPLOY_ENVIRONMENT -or $ollayaSettings.environmentName.value -ne $env:DEPLOY_ENVIRONMENT) {
+            throw 'Parameter environment does not match the selected environment.'
+          }
+          if ($ollayaSettings.workloadName.value -ne $settings.workloadName.value) {
+            throw 'workloadName in infra/Ollaya/parameters must match infra/parameters, so resource names line up.'
+          }
+          if (-not [string]::IsNullOrWhiteSpace($env:OLLAYA_IMAGE) -and $env:OLLAYA_API_KEY.Length -lt 32) {
+            throw 'OLLAYA_IMAGE is set, so OLLAYA_API_KEY must be set to 32+ characters: the Ollaya ingress is external.'
+          }
+          $resourceGroup = $env:AZURE_RESOURCE_GROUP
+          if ([string]::IsNullOrWhiteSpace($resourceGroup)) {
+            $resourceGroup = "rg-$($settings.workloadName.value)-$env:DEPLOY_ENVIRONMENT"
+          }
+          "RESOURCE_GROUP=$resourceGroup" >> $env:GITHUB_ENV
+          "PARAMETERS_FILE=$parametersFile" >> $env:GITHUB_ENV
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Prepare parameters from the shared infrastructure
+        env:
+          OLLAYA_API_KEY: ${{ secrets.OLLAYA_API_KEY }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $outputs = az deployment group show --resource-group $env:RESOURCE_GROUP --name "infra-$env:DEPLOY_ENVIRONMENT" `
+            --query properties.outputs -o json | ConvertFrom-Json
+          if (-not $outputs.containerRegistryName.value) {
+            throw 'Run Deploy infrastructure before deploying Ollaya.'
+          }
+          # Deployments made before the logAnalyticsWorkspaceName output existed fall back to the resource group's workspace.
+          $workspace = [string]$outputs.logAnalyticsWorkspaceName.value
+          if ([string]::IsNullOrWhiteSpace($workspace)) {
+            $workspaces = @(az monitor log-analytics workspace list --resource-group $env:RESOURCE_GROUP --query '[].name' -o tsv)
+            if ($workspaces.Count -ne 1) {
+              throw 'Run Deploy infrastructure so it outputs logAnalyticsWorkspaceName.'
+            }
+            $workspace = $workspaces[0]
+          }
+          # Region, replicas, and names come from infra/Ollaya/parameters.<environment>.json.
+          $parameters = @{
+            containerRegistryName = @{ value = $outputs.containerRegistryName.value }
+            logAnalyticsWorkspaceName = @{ value = $workspace }
+          }
+          # Without OLLAYA_IMAGE the app runs the hello image, like the other services before their first release.
+          if (-not [string]::IsNullOrWhiteSpace($env:OLLAYA_IMAGE)) {
+            $parameters.ollayaImage = @{ value = $env:OLLAYA_IMAGE.Trim() }
+            $parameters.ollayaApiKey = @{ value = $env:OLLAYA_API_KEY }
+          }
+          $path = "$env:RUNNER_TEMP/ollaya.parameters.json"
+          New-Item -ItemType File -Path $path -Force | Out-Null
+          chmod 600 $path
+          @{ parameters = $parameters } | ConvertTo-Json -Depth 10 | Set-Content $path
+      - name: Deploy Ollaya
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          az bicep build --file infra/Ollaya/main.bicep --outfile "$env:RUNNER_TEMP/ollaya.json"
+          az deployment group validate --resource-group $env:RESOURCE_GROUP `
+            --template-file "$env:RUNNER_TEMP/ollaya.json" --parameters $env:PARAMETERS_FILE "$env:RUNNER_TEMP/ollaya.parameters.json" --output none
+          $outputs = az deployment group create --resource-group $env:RESOURCE_GROUP --name "ollaya-$env:DEPLOY_ENVIRONMENT" `
+            --mode Incremental --template-file "$env:RUNNER_TEMP/ollaya.json" --parameters $env:PARAMETERS_FILE "$env:RUNNER_TEMP/ollaya.parameters.json" `
+            --query properties.outputs -o json | ConvertFrom-Json
+          "## Ollaya infrastructure deployed" >> $env:GITHUB_STEP_SUMMARY
+          "- Environment: $($outputs.ollayaEnvironmentName.value) in $($outputs.ollayaLocation.value)" >> $env:GITHUB_STEP_SUMMARY
+          "- Container App: $($outputs.ollayaContainerAppName.value)" >> $env:GITHUB_STEP_SUMMARY
+          "- Endpoint: $($outputs.ollayaEndpoint.value)" >> $env:GITHUB_STEP_SUMMARY
+          if ([string]::IsNullOrWhiteSpace($env:OLLAYA_IMAGE)) {
+            "Running the hello image. Run Release Ollaya to install Ollaya and winnow:e4b." >> $env:GITHUB_STEP_SUMMARY
+          }
+      - name: Remove temporary files
+        if: always()
+        run: |
+          foreach ($name in @('ollaya.json', 'ollaya.parameters.json')) {
+            $path = Join-Path $env:RUNNER_TEMP $name
+            if (Test-Path -LiteralPath $path) {
+              Remove-Item -LiteralPath $path -Force
+            }
+          }

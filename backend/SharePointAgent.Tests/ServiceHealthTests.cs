@@ -26,7 +26,7 @@ public sealed class ServiceHealthTests
         {
             Assert.Null(request.Headers.Authorization);
             Assert.False(request.Headers.Contains("X-Api-Key"));
-            Assert.EndsWith("/health", request.RequestUri!.AbsoluteUri);
+            Assert.Equal(request.RequestUri!.Host == "ollaya.test" ? "/" : "/health", request.RequestUri.AbsolutePath);
             return Task.FromResult(request.RequestUri.Host == "markitdown.test"
                 ? Json(HttpStatusCode.OK, "{\"status\":\"ok\"}")
                 : Json(HttpStatusCode.ServiceUnavailable, "sensitive upstream error"));
@@ -37,6 +37,22 @@ public sealed class ServiceHealthTests
         Assert.Equal("unhealthy", results[1].Status);
         Assert.Contains("503", results[1].Message);
         Assert.DoesNotContain("sensitive", results[1].Message);
+    }
+
+    [Fact]
+    public async Task OllayaIsHealthyWhenItsPlainTextLivenessRouteAnswers()
+    {
+        using var http = new HttpClient(new Handler((request, _) =>
+        {
+            Assert.Null(request.Headers.Authorization);
+            return Task.FromResult(request.RequestUri!.Host == "ollaya.test"
+                ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("Ollaya is running") }
+                : Json(HttpStatusCode.OK, "{\"status\":\"ok\"}"));
+        }));
+        var results = await new ServiceHealthMonitor(http, Config()).CheckAsync(CancellationToken.None);
+        var ollaya = Assert.Single(results, result => result.Name == "Ollaya");
+        Assert.Equal("healthy", ollaya.Status);
+        Assert.All(results, result => Assert.Equal("healthy", result.Status));
     }
 
     [Theory]
@@ -61,6 +77,7 @@ public sealed class ServiceHealthTests
         var results = await new ServiceHealthMonitor(http, config).CheckAsync(CancellationToken.None);
         Assert.Equal("not-configured", results[0].Status);
         Assert.Equal("misconfigured", results[1].Status);
+        Assert.Equal("not-configured", results[2].Status);
         Assert.All(results, result => Assert.Null(result.ResponseTimeMs));
     }
 
@@ -94,7 +111,9 @@ public sealed class ServiceHealthTests
         ["MarkItDown:Endpoint"] = "https://markitdown.test",
         ["MarkItDown:ApiKey"] = "not-sent",
         ["PageIndex:Endpoint"] = "https://pageindex.test",
-        ["PageIndex:ApiKey"] = "not-sent"
+        ["PageIndex:ApiKey"] = "not-sent",
+        ["Ollaya:Endpoint"] = "https://ollaya.test",
+        ["Ollaya:ApiKey"] = "not-sent"
     }).Build();
 
     private static HttpResponseMessage Json(HttpStatusCode status, string body) => new(status)

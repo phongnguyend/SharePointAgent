@@ -1,0 +1,26 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": {
+      "value": "dev"
+    },
+    "maxReplicas": {
+      "value": 1
+    },
+    "minReplicas": {
+      "value": 0
+    },
+    "ollayaLocation": {
+      "value": "eastus"
+    },
+    "tags": {
+      "value": {
+        "application": "SharePointAgent"
+      }
+    },
+    "workloadName": {
+      "value": "sharepointagent"
+    }
+  }
+}

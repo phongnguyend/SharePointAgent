@@ -68,6 +68,9 @@ Configure these settings under **Settings → Environments → dev/test → Envi
 | `FRONTEND_ORIGIN` | Variable | Frontend HTTPS origin for CORS; configure its Entra redirect URI separately |
 | `MARKITDOWN_API_KEY` | Secret | Shared MarkItDown authentication key, at least 32 characters |
 | `MARKITDOWN_IMAGE` | Optional variable | Existing MarkItDown image, e.g. `YOUR_REGISTRY.azurecr.io/markitdown:EXISTING_TAG`; set all three image variables together |
+| `OLLAYA_API_KEY` | Secret | Deploy Ollaya infrastructure and Release Ollaya: bearer key the Ollaya server requires, at least 32 characters; Ollaya ingress is external. API, Background, and AgentHost releases pass it as `Ollaya__ApiKey` when set. Container key: `OLLAYA_API_KEY`. |
+| `OLLAYA_IMAGE` | Optional variable | Released Ollaya image, e.g. `YOUR_REGISTRY.azurecr.io/ollaya:EXISTING_TAG`; keeps it when Deploy Ollaya infrastructure runs again. Bicep parameter: `ollayaImage`. |
+| `OLLAYA_MODEL` | Optional variable | Release Ollaya: model baked into the image and used by the smoke test; defaults to `winnow:e4b`. |
 | `PAGEINDEX_AZURE_API_KEY` | Secret | Release PageIndex: key for the provisioned Azure OpenAI resource; key authentication must be enabled. Container key: `AZURE_API_KEY`. |
 | `PAGEINDEX_AZURE_API_VERSION` | Optional variable | Release PageIndex: defaults to `2024-10-21`; select a version supported by the deployment. Container key: `AZURE_API_VERSION`. |
 | `PAGEINDEX_INDEX_MODEL` | Optional variable | Release PageIndex: defaults to `azure/<chatDeploymentName>` from infrastructure; use `azure/<deployment-name>`. Container key: `PAGEINDEX_INDEX_MODEL`. |
@@ -182,7 +185,7 @@ The infrastructure workflow currently accepts image variables for API, Backgroun
 
 Use **Actions → Release services → Run workflow** to select `dev` or `test`, the branch or tag, and any combination of service checkboxes. All checkboxes start unchecked; select at least one. The workflow reuses the component releases at the same commit, preserving GitHub environment secrets and approval rules. Individual workflows also remain available.
 
-Selected components run sequentially: Database migrations → MarkItDown → PageIndex → Dynamic Sessions → Sandboxes → AgentHost → API → Background → Frontend. Unselected components are skipped, while a failure or cancellation prevents later releases. Include required migrations when releasing dependent code. Review each selected job's result; completed deployments are not rolled back if a later component fails. The combined workflow holds the environment deployment lock for the entire batch, preventing standalone releases or infrastructure deployments from overlapping it.
+Selected components run sequentially: Database migrations → MarkItDown → PageIndex → Ollaya → Dynamic Sessions → Sandboxes → AgentHost → API → Background → Frontend. Unselected components are skipped, while a failure or cancellation prevents later releases. Include required migrations when releasing dependent code. Review each selected job's result; completed deployments are not rolled back if a later component fails. The combined workflow holds the environment deployment lock for the entire batch, preventing standalone releases or infrastructure deployments from overlapping it.
 
 | Workflow | Responsibility |
 | --- | --- |
@@ -194,6 +197,8 @@ Selected components run sequentially: Database migrations → MarkItDown → Pag
 | [release-agent.yml](../.github/workflows/release-agent.yml) | Build AgentHost, update Foundry secrets, publish a hosted agent version, grant its identity Azure resource access, and route traffic |
 | [release-markitdown.yml](../.github/workflows/release-markitdown.yml) | Build and deploy MarkItDown and check health |
 | [release-pageindex.yml](../.github/workflows/release-pageindex.yml) | Build and deploy PageIndex and check health |
+| [infra-ollaya.yml](../.github/workflows/infra-ollaya.yml) | Deploy only `infra/Ollaya/main.bicep`: Ollaya's own environment with a serverless T4 profile, its pull identity, and the Container App |
+| [release-ollaya.yml](../.github/workflows/release-ollaya.yml) | Build the Ollaya image with the model baked in, roll it out, and smoke-test a real decision |
 | [release-dynamic-sessions.yml](../.github/workflows/release-dynamic-sessions.yml) | Build and smoke-test the Dynamic Sessions host image, update the session pool, and smoke-test a real session |
 | [release-sandboxes.yml](../.github/workflows/release-sandboxes.yml) | Build, smoke-test, and push the Sandboxes host image |
 | [release-frontend.yml](../.github/workflows/release-frontend.yml) | Read the saved API URL, build with `VITE_API_BASE_URL`, and publish to Azure Static Web Apps |
@@ -397,6 +402,27 @@ The deployed worker timeout is 210 seconds to leave headroom below the default
 [Container Apps HTTP ingress timeout](https://learn.microsoft.com/en-us/azure/container-apps/ingress-overview)
 of 240 seconds. Upload and queue time also count toward ingress time; large
 summary jobs can still exceed it. This API remains synchronous.
+
+### Ollaya decision model
+
+[Ollaya](../backend/Ollaya/README.md) serves the `winnow:e4b` decision model for the application to call, as MarkItDown and PageIndex are. The model needs about 9 GB of GPU memory, more than a Consumption replica's 8 GiB, so it runs on a serverless NVIDIA T4 GPU, in a Container Apps environment of its own.
+
+**Its own environment.** [Ollaya/main.bicep](Ollaya/main.bicep) creates a workload profiles environment with the Consumption and `Consumption-GPU-NC8as-T4` profiles, in `ollayaLocation` from [Ollaya/parameters.&lt;environment&gt;.json](Ollaya/parameters.dev.json) (`eastus` in the supplied files). It reuses the registry and the Log Analytics workspace from [main.bicep](main.bicep), and leaves the shared environment untouched. That lets Ollaya follow GPU availability and quota to another region, and it adds no base cost: the environment has no dedicated profiles, so only a running GPU replica is billed. Pay-as-you-go and enterprise subscriptions have T4 quota by default; otherwise request **Managed Environment Consumption T4 GPUs** on the Ollaya environment's **Quota** page.
+
+**Reaching it from another environment or region.** The apps call Ollaya over its public HTTPS endpoint with the API key, the same way AgentHost in Foundry reaches MarkItDown, so it does not matter which environment or region either side runs in. A different region adds a cross-region round trip to each decision and egress charges, and the decision states, which may contain document content, are processed in that region; check that against data-residency requirements. A distant region also slows cold starts, because each new replica pulls the image from the registry across regions.
+
+**Changing region.** An environment cannot move, so the environment, app, and pull identity names include a suffix derived from the region. Changing `ollayaLocation` deploys a new set with a new endpoint; release the API, Background, and AgentHost afterwards to pick it up, then delete the old environment, app, and identity.
+
+**Deploy and release.**
+
+1. **Deploy Ollaya infrastructure** ([infra-ollaya.yml](../.github/workflows/infra-ollaya.yml)) deploys only [Ollaya/main.bicep](Ollaya/main.bicep), as deployment `ollaya-<environment>`, after **Deploy infrastructure** has created the registry and workspace. It creates the environment, an ACR pull identity, and the Container App: 8 vCPU, 56 GiB, and one T4 per replica, `minReplicas`–`maxReplicas` replicas (0–1 in the supplied files), external HTTPS ingress, and liveness and readiness probes on `GET /`. Like the other services, the app starts on the hello image unless `OLLAYA_IMAGE` is set. Outputs: `ollayaEnvironmentName`, `ollayaLocation`, `ollayaContainerAppName`, and `ollayaEndpoint`.
+2. **Release Ollaya** ([release-ollaya.yml](../.github/workflows/release-ollaya.yml)) builds [backend/Ollaya/Dockerfile](../backend/Ollaya/Dockerfile) in ACR Tasks, which downloads the 8 GB model into the image. It then switches the app to the image, port 11435, the `OLLAYA_API_KEY` secret, and `/` probes. It waits for a replica to start, checks that a request without the key gets 401, and asks the model a real question. Set `OLLAYA_IMAGE` to the image in the release summary so the next infrastructure run keeps it. It is also a **Release services** checkbox.
+
+**Calling it.** The API, Background, and AgentHost releases set `Ollaya__Endpoint` from the `ollaya-<environment>` outputs (blank until Ollaya is deployed) and `Ollaya__ApiKey` from `OLLAYA_API_KEY` when it is set; AgentHost receives the key through the Foundry `agent-secrets` connection, like MarkItDown's. Release those apps after the first Ollaya deployment to pick up the endpoint. Code calls it through `OllayaClient`, and **Admin → Service health** checks `GET /` without the key.
+
+**Cost and latency.** With `minReplicas` 0 the GPU scales to zero and costs nothing while idle, but the first request after idling waits for a replica to start, pull the image (about 11 GB), and load the model, which can take several minutes. `Ollaya:TimeoutSeconds` is 300 for this reason. Set `minReplicas` to 1 in the Ollaya parameter file to keep it warm at the cost of a continuously running T4. A premium registry with artifact streaming, or geo-replication to the Ollaya region, shortens cold starts.
+
+**Infrastructure redeploys.** Running **Deploy infrastructure** with application images rewrites the API and Background environment variables from [main.bicep](main.bicep), which does not know the Ollaya endpoint; release those apps again afterwards, as for any setting that the releases own.
 
 ### Isolated code execution
 
@@ -617,6 +643,7 @@ These are the repository's target allocations for both `dev` and `test`; existin
 | Background, Container Apps | 1 vCPU + 2 GiB per replica | 1 replica while running |
 | MarkItDown, Container Apps | 0.5 vCPU + 1 GiB per replica | 1–3 replicas |
 | PageIndex, Container Apps | 1 vCPU + 2 GiB per replica | 1–3 replicas |
+| Ollaya, own Container Apps environment (serverless T4 GPU) | 8 vCPU + 56 GiB + 1 T4 per replica | 0–1 replicas; scales to zero when idle |
 | Dynamic Sessions, session pool | 1 vCPU + 2 GiB per session | `dynamicSessionsReadySessions` warm (default 1), up to `dynamicSessionsMaxSessions` (default 20) |
 
 AgentHost allocation is defined in [release-agent.ps1](../.github/scripts/release-agent.ps1). Container Apps allocations and replica limits are defined in [main.bicep](main.bicep). The four Container Apps together allocate at least 4.5 vCPU and 9 GiB per environment while running at their configured minimums; AgentHost sessions add capacity separately. API can allocate up to 6 vCPU and 12 GiB across three replicas.

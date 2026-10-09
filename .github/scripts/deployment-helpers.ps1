@@ -24,6 +24,16 @@ function Invoke-Database($Query, $InputFile) {
   }
   Invoke-Sqlcmd @arguments | Out-Null
 }
+# Ollaya is deployed by its own template (infra/Ollaya), so its endpoint comes from that deployment, if any.
+function Get-OllayaEndpoint {
+  $PSNativeCommandUseErrorActionPreference = $false
+  $endpoint = az deployment group show --resource-group $env:RESOURCE_GROUP --name "ollaya-$env:DEPLOY_ENVIRONMENT" `
+    --query properties.outputs.ollayaEndpoint.value -o tsv 2>$null
+  if ($LASTEXITCODE -ne 0) {
+    return ''
+  }
+  return [string]$endpoint
+}
 function Grant-Role($PrincipalId, $Role, $Scope) {
   az role assignment create --assignee-object-id $PrincipalId --assignee-principal-type ServicePrincipal --role $Role --scope $Scope --output none
 }

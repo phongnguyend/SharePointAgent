@@ -36,6 +36,23 @@ public static class DependencyInjection
         return services;
     }
 
+    /// <summary>
+    /// Registers <see cref="OllayaClient"/>. Ollaya is optional, so a host starts without it; the endpoint
+    /// is validated only once it is set.
+    /// </summary>
+    public static IServiceCollection AddOllayaClient(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<OllayaOptions>().Bind(configuration.GetSection(OllayaOptions.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(o => !o.IsConfigured || (Uri.TryCreate(o.Endpoint, UriKind.Absolute, out var uri) &&
+                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)),
+                "Ollaya:Endpoint must be an absolute HTTP or HTTPS URL.")
+            .ValidateOnStart();
+        services.AddHttpClient<OllayaClient>((sp, client) =>
+            client.Timeout = TimeSpan.FromSeconds(sp.GetRequiredService<IOptions<OllayaOptions>>().Value.TimeoutSeconds));
+        return services;
+    }
+
     public static IServiceCollection AddContentSafety(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<ContentSafetyOptions>().Bind(configuration.GetSection(ContentSafetyOptions.SectionName))

@@ -15,6 +15,7 @@ InvocationsServer.Run<ChatAgentInvocation>(args: args, configure: builder =>
         builder.Configuration["LocalWorkingDirectory:Directory"] = Path.Combine(sessionHome, "sharepoint-agent");
     }
     builder.Services.AddHostedChatAgentServices(builder.Configuration);
+    builder.Services.AddOllayaClient(builder.Configuration);
 });
 
 public partial class Program;

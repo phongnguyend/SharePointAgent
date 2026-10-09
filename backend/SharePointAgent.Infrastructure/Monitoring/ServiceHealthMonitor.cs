@@ -11,16 +11,20 @@ public sealed record ServiceHealthStatus(string Name, string Status, string Mess
 public sealed class ServiceHealthMonitor(HttpClient http, IConfiguration configuration)
 {
     public Task<ServiceHealthStatus[]> CheckAsync(CancellationToken cancellationToken) =>
-        Task.WhenAll(CheckServiceAsync("MarkItDown", cancellationToken), CheckServiceAsync("PageIndex", cancellationToken));
+        Task.WhenAll(
+            CheckServiceAsync("MarkItDown", "/health", IsStatusOk, cancellationToken),
+            CheckServiceAsync("PageIndex", "/health", IsStatusOk, cancellationToken),
+            CheckServiceAsync("Ollaya", "/", IsOllayaRunning, cancellationToken));
 
-    private async Task<ServiceHealthStatus> CheckServiceAsync(string name, CancellationToken cancellationToken)
+    private async Task<ServiceHealthStatus> CheckServiceAsync(string name, string defaultHealthPath,
+        Func<string, bool> isHealthy, CancellationToken cancellationToken)
     {
         var endpoint = configuration[$"{name}:Endpoint"];
         if (string.IsNullOrWhiteSpace(endpoint))
         {
             return new(name, "not-configured", $"Set {name}:Endpoint in the API configuration.", null, DateTimeOffset.UtcNow);
         }
-        var path = configuration[$"{name}:HealthPath"] ?? "/health";
+        var path = configuration[$"{name}:HealthPath"] ?? defaultHealthPath;
         if (!Uri.TryCreate(endpoint.TrimEnd('/') + "/" + path.TrimStart('/'), UriKind.Absolute, out var url) ||
             url.Scheme is not ("http" or "https") || url.UserInfo.Length > 0 || url.Query.Length > 0 || url.Fragment.Length > 0)
         {
@@ -32,16 +36,14 @@ public sealed class ServiceHealthMonitor(HttpClient http, IConfiguration configu
         timeout.CancelAfter(TimeSpan.FromSeconds(10));
         try
         {
-            // Both services expose an anonymous health endpoint. No service API key is needed.
+            // Every service exposes an anonymous health endpoint. No service API key is needed.
             using var response = await http.GetAsync(url, timeout.Token);
             if (!response.IsSuccessStatusCode)
             {
                 return Result("unhealthy", $"Health endpoint returned HTTP {(int)response.StatusCode}.");
             }
-            using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(timeout.Token), cancellationToken: timeout.Token);
-            if (body.RootElement.ValueKind != JsonValueKind.Object ||
-                !body.RootElement.TryGetProperty("status", out var status) ||
-                status.ValueKind != JsonValueKind.String || status.GetString() != "ok")
+            var body = await response.Content.ReadAsStringAsync(timeout.Token);
+            if (!isHealthy(body))
             {
                 return Result("unhealthy", "Health endpoint returned an unexpected response.");
             }
@@ -61,5 +63,20 @@ public sealed class ServiceHealthMonitor(HttpClient http, IConfiguration configu
         }
 
         ServiceHealthStatus Result(string status, string message) => new(name, status, message, timer.ElapsedMilliseconds, DateTimeOffset.UtcNow);
+    }
+
+    /// <summary>MarkItDown and PageIndex answer <c>{"status":"ok"}</c>; a hello page or any other JSON is not healthy.</summary>
+    private static bool IsStatusOk(string body)
+    {
+        using var document = JsonDocument.Parse(body);
+        return document.RootElement.ValueKind == JsonValueKind.Object &&
+            document.RootElement.TryGetProperty("status", out var status) &&
+            status.ValueKind == JsonValueKind.String && status.GetString() == "ok";
+    }
+
+    /// <summary>Ollaya's liveness route answers in plain text rather than JSON.</summary>
+    private static bool IsOllayaRunning(string body)
+    {
+        return body.Contains("Ollaya is running", StringComparison.Ordinal);
     }
 }

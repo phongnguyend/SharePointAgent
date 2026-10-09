@@ -15,6 +15,7 @@ builder.Services.AddChatServices(builder.Configuration);
 builder.Services.AddAttachmentFileServices(builder.Configuration);
 builder.Services.AddDocumentSigningServices(builder.Configuration);
 builder.Services.AddIndexedFileReindexServices(builder.Configuration);
+builder.Services.AddOllayaClient(builder.Configuration);
 builder.Services.AddAppIdentity();
 builder.Services.AddSingleton<BackgroundHealthMonitor>();
 builder.Services.AddHttpClient<ServiceHealthMonitor>(client =>

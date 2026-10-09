@@ -19,6 +19,9 @@ $connection = @{ properties = @{
     markItDownApiKey = $env:MARKITDOWN_API_KEY
   } }
 } }
+if (-not [string]::IsNullOrWhiteSpace($env:OLLAYA_API_KEY)) {
+  $connection.properties.credentials.keys.ollayaApiKey = $env:OLLAYA_API_KEY
+}
 $path = Write-RequestBody 'foundry-secrets' $connection
 try {
   az rest --method put --url "https://management.azure.com$($hosting.foundryProjectId)/connections/agent-secrets?api-version=2025-06-01" --body "@$path" --output none
@@ -55,10 +58,14 @@ $environment = @{
   Uploads__ContainerName = $outputs.uploadContainerName.value
   MarkItDown__Endpoint = $outputs.markItDownEndpoint.value
   PageIndex__Endpoint = [string]$outputs.pageIndexEndpoint.value
+  Ollaya__Endpoint = (Get-OllayaEndpoint)
   MarkItDown__ApiKey = (Connection-Secret 'markItDownApiKey')
   ContentSafety__Enabled = ([bool]$settings.deployContentSafety.value).ToString().ToLowerInvariant()
   ContentSafety__UseManagedIdentity = 'true'
   ContentSafety__Endpoint = $outputs.contentSafetyEndpoint.value
+}
+if (-not [string]::IsNullOrWhiteSpace($env:OLLAYA_API_KEY)) {
+  $environment.Ollaya__ApiKey = (Connection-Secret 'ollayaApiKey')
 }
 $definition = @{
   kind = 'hosted'

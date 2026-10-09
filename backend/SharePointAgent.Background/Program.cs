@@ -5,6 +5,7 @@ using SharePointAgent.Infrastructure.Monitoring;
 var builder = Host.CreateApplicationBuilder(args);
 builder.AddApplicationTelemetry("sharepointagent-background");
 builder.Services.AddChangeProcessorServices(builder.Configuration);
+builder.Services.AddOllayaClient(builder.Configuration);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<WorkerHealthState>();
 builder.Services.AddHostedService<WorkerHeartbeatService>();

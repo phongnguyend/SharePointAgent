@@ -30,6 +30,7 @@ $commonValues = @{
   AzureOpenAI__TranscriptionDeployment = [string]$outputs.transcriptionDeploymentName.value
   MarkItDown__Endpoint = $outputs.markItDownEndpoint.value
   PageIndex__Endpoint = [string]$outputs.pageIndexEndpoint.value
+  Ollaya__Endpoint = (Get-OllayaEndpoint)
   DocumentIntelligence__UsedManagedIdentity = 'true'
   DocumentIntelligence__Endpoint = [string]$outputs.documentIntelligenceEndpoint.value
 }
@@ -43,6 +44,11 @@ $secrets = @(
   @{ name = 'webhook-client-state'; value = $env:SHAREPOINT_CLIENT_STATE }
   @{ name = 'markitdown-api-key'; value = $env:MARKITDOWN_API_KEY }
 )
+# Optional until Ollaya is released; an empty Container Apps secret is rejected, so it is added only when set.
+if (-not [string]::IsNullOrWhiteSpace($env:OLLAYA_API_KEY)) {
+  $commonEnvironment += @{ name = 'Ollaya__ApiKey'; secretRef = 'ollaya-api-key' }
+  $secrets += @{ name = 'ollaya-api-key'; value = $env:OLLAYA_API_KEY }
+}
 if ($Component -eq 'Api') {
   . "$PSScriptRoot/document-signing-settings.ps1"
   $signing = Get-DocumentSigningSettings
