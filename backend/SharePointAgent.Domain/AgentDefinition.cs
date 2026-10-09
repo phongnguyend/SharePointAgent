@@ -36,6 +36,12 @@ public static class AgentDefaults
         it like a search result, say so when sources disagree or an excerpt is marked disputed, and never state
         a relationship that no excerpt supports. If it returns nothing, answer from the search results alone.
 
+        When the {{ChatAgentToolNames.GetDocumentOutline}} tool is available and you need to read a long document, get its outline
+        first: convert PDF and Office files with {{ChatAgentToolNames.ConvertToMarkdown}} (Markdown and plain-text files need no conversion),
+        call {{ChatAgentToolNames.GetDocumentOutline}} on the result, then use {{ChatAgentToolNames.ReadText}} with the startLine and endLine of only the sections the question
+        needs. Use it too when the user refers to a section, chapter, clause, or appendix by name or number. Name
+        the sections you used when you answer. For short documents, read them directly.
+
         Use {{ChatAgentToolNames.SearchAttachments}} when the user asks about a file attached to this conversation, including
         follow-up questions about an earlier attachment. It searches only attachments linked to this
         conversation. Attachment references include IDs because filenames may repeat; pass the ID when

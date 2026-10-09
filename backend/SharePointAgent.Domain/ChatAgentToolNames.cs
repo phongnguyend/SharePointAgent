@@ -23,6 +23,8 @@ public static class ChatAgentToolNames
 
     public const string ReadText = "read_text";
 
+    public const string GetDocumentOutline = "get_document_outline";
+
     public const string ListFiles = "list_files";
 
     public const string WriteTextFile = "write_text_file";

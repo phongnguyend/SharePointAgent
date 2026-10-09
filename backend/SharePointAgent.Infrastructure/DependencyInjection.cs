@@ -190,6 +190,13 @@ public static class DependencyInjection
         services.AddSingleton<IAgentFileBrowser, LocalAgentFileBrowser>();
         services.AddSingleton<ChatAgentContextLoader>();
         services.AddGraphRetrievalServices(configuration);
+
+        // The outline tool is offered only where the PageIndex service is configured.
+        if (!string.IsNullOrWhiteSpace(configuration[$"{PageIndexOptions.SectionName}:{nameof(PageIndexOptions.Endpoint)}"]))
+        {
+            services.AddPageIndexClient(configuration);
+            services.AddSingleton<AgentDocumentOutlines>();
+        }
         services.AddSingleton<ChatAgentService>();
         services.AddSingleton<IChatAgentExecutor>(sp => sp.GetRequiredService<ChatAgentService>());
         return services;
