@@ -72,10 +72,11 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($resourceGroup)) {
             $resourceGroup = "rg-$($settings.workloadName.value)-$env:DEPLOY_ENVIRONMENT"
           }
-          $apiUrl = az deployment group show --resource-group $resourceGroup --name "infra-$env:DEPLOY_ENVIRONMENT" --query properties.outputs.apiUrl.value -o tsv
+          . ./.github/scripts/deployment-outputs.ps1
+          $apiUrl = Get-OptionalDeploymentOutput 'container-apps' 'apiUrl' $resourceGroup $env:DEPLOY_ENVIRONMENT
           $uri = [uri]$apiUrl
           if (-not $uri.IsAbsoluteUri -or $uri.Scheme -ne 'https' -or $uri.AbsolutePath -ne '/' -or $uri.Query -or $uri.Fragment) {
-            throw 'Infrastructure did not return a valid HTTPS API origin. Run Deploy infrastructure first.'
+            throw 'Infrastructure did not return a valid HTTPS API origin. Run Deploy Container Apps infrastructure first.'
           }
           "api_url=$($uri.GetLeftPart([System.UriPartial]::Authority))" >> $env:GITHUB_OUTPUT
       - uses: actions/setup-node@v4

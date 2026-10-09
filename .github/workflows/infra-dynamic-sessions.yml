@@ -66,10 +66,10 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
-          $outputs = az deployment group show --resource-group $env:RESOURCE_GROUP --name "infra-$env:DEPLOY_ENVIRONMENT" `
-            --query properties.outputs -o json | ConvertFrom-Json
+          . ./.github/scripts/deployment-outputs.ps1
+          $outputs = Get-InfrastructureOutputs
           if (-not $outputs.containerAppsEnvironmentName.value) {
-            throw 'Run Deploy infrastructure before deploying Dynamic Sessions.'
+            throw 'Run Deploy infrastructure and Deploy Container Apps infrastructure before deploying Dynamic Sessions.'
           }
           # The pool joins the existing Container Apps environment, so it takes that environment's region.
           $environmentLocation = az containerapp env show --resource-group $env:RESOURCE_GROUP `

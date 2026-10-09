@@ -50,7 +50,7 @@ See [standalone Aspire dashboard](https://learn.microsoft.com/en-us/dotnet/aspir
 the environment's Log Analytics workspace. API, Background, and AgentHost use
 the same Application Insights resource, with distinct service names.
 
-Run **Deploy infrastructure** first, then release API, Background, and AgentHost.
+Run **Deploy infrastructure** and **Deploy Container Apps infrastructure** first, then release API, Background, and AgentHost.
 The release scripts read the infrastructure output and supply:
 
 ```dotenv

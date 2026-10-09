@@ -16,8 +16,17 @@ if ([string]::IsNullOrWhiteSpace($ResourceGroup)) {
     $ResourceGroup = "rg-$($settings.workloadName.value)-$EnvironmentName"
 }
 # Select only resource names and the project URL; deployment outputs can contain credentials.
-$outputs = az deployment group show --resource-group $ResourceGroup --name "infra-$EnvironmentName" `
-    --query 'properties.outputs.{Api:apiContainerAppName.value,Background:workerContainerAppName.value,MarkItDown:markItDownContainerAppName.value,PageIndex:pageIndexContainerAppName.value,project:hosting.value.foundryProjectEndpoint}' -o json | ConvertFrom-Json
+$apps = az deployment group show --resource-group $ResourceGroup --name "container-apps-$EnvironmentName" `
+    --query 'properties.outputs.{Api:apiContainerAppName.value,Background:workerContainerAppName.value,MarkItDown:markItDownContainerAppName.value,PageIndex:pageIndexContainerAppName.value}' -o json | ConvertFrom-Json
+$project = az deployment group show --resource-group $ResourceGroup --name "infra-$EnvironmentName" `
+    --query 'properties.outputs.hosting.value.foundryProjectEndpoint' -o tsv
+$outputs = [pscustomobject]@{
+    Api = $apps.Api
+    Background = $apps.Background
+    MarkItDown = $apps.MarkItDown
+    PageIndex = $apps.PageIndex
+    project = $project
+}
 $lines = [Collections.Generic.List[string]]::new()
 $errors = [Collections.Generic.List[string]]::new()
 function Cell($Value) {

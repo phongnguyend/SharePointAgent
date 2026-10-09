@@ -113,12 +113,12 @@ jobs:
       - name: Read provisioned infrastructure
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          $result = az deployment group show --resource-group $env:RESOURCE_GROUP `
-            --name "infra-$env:DEPLOY_ENVIRONMENT" --query properties.outputs --output json
+          . ./.github/scripts/deployment-outputs.ps1
+          $result = Get-InfrastructureOutputs
           if (-not $result) {
             throw 'Run Deploy infrastructure before releasing applications.'
           }
-          $result | Set-Content "$env:RUNNER_TEMP/shared-outputs.json"
+          $result | ConvertTo-Json -Depth 20 | Set-Content "$env:RUNNER_TEMP/shared-outputs.json"
       - name: Build and push API
         run: |
           . "$env:GITHUB_WORKSPACE/.github/scripts/deployment-helpers.ps1"

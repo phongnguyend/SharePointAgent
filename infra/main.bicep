@@ -102,31 +102,11 @@ param serviceBusTopicName string = 'sharepoint-changes'
 @description('Service Bus subscription name used by the worker.')
 param serviceBusSubscriptionName string = 'search-indexer'
 
-@description('Deploy the Graph RAG resources: a Cosmos DB for NoSQL account, the graph-indexing queue, and the snapshot archive container. Off by default; the application runs unchanged without them.')
-param deployGraphRag bool = false
-
-@description('Turn on graph extraction in the worker. Requires deployGraphRag.')
-param enableGraphRagIndexing bool = false
-
-@description('Compute graph retrieval and record its metrics without showing results to users. Requires deployGraphRag.')
-param enableGraphRagShadowRetrieval bool = false
-
-@description('Add verified graph-derived chunks to chat answers. Enable only after shadow retrieval and evaluation. Requires deployGraphRag.')
-param enableGraphRagRetrieval bool = false
-
 @description('Use a serverless Cosmos DB account. Switch to provisioned throughput once partitioning and RU use have been benchmarked on representative data.')
 param graphRagCosmosServerless bool = true
 
 @description('Let the API identity write to the graph, which administrator entity merges need. When false the API can only read it.')
 param graphRagAllowAdminMerges bool = false
-
-@description('Where the agent working directory lives when the API runs the agent itself (ChatAgent:Mode Local): this host disk, a dynamic session (needs infra/DynamicSessions), or a sandbox bound per workspace (needs infra/Sandboxes). Foundry mode already runs the agent in its own session sandbox.')
-@allowed([
-  'Local'
-  'DynamicSessions'
-  'Sandboxes'
-])
-param agentWorkspaceMode string = 'Local'
 
 @description('Azure AI Search service SKU.')
 @allowed([
@@ -137,38 +117,6 @@ param agentWorkspaceMode string = 'Local'
 ])
 param searchSku string = 'basic'
 
-@description('Use release images and runtime settings. False provisions hello containers without application secrets.')
-param deployApplicationImages bool = false
-
-@description('API image reference. Set to an existing ACR tag or digest and enable deployApplicationImages for runtime settings.')
-param apiImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
-@description('Background worker image reference; defaults to the public hello image.')
-param backgroundImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
-@description('MarkItDown image reference; defaults to the public hello image.')
-param markItDownImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
-@description('PageIndex API image reference; defaults to the public hello image.')
-param pageIndexImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
-@description('Azure OpenAI API version for PageIndex summary calls.')
-param pageIndexAzureApiVersion string = '2024-10-21'
-@description('Azure OpenAI deployment used for PageIndex summaries.')
-param pageIndexDeploymentName string = chatDeploymentName
-@secure()
-param pageIndexServiceApiKey string = ''
-@secure()
-param pageIndexAzureApiKey string = ''
-param sharePointTenantId string = ''
-param sharePointClientId string = ''
-param sharePointSiteHostname string = ''
-param sharePointSitePath string = ''
-param sharePointDocumentLibraryName string = ''
-param frontendOrigin string = ''
-param bootstrapAdminEmail string = ''
-@secure()
-param sharePointClientSecret string = ''
-@secure()
-param sharePointClientState string = ''
-@secure()
-param markItDownApiKey string = ''
 
 var namePrefix = toLower('${workloadName}-${environmentName}')
 var compactPrefix = replace(namePrefix, '-', '')
@@ -185,7 +133,6 @@ var documentIntelligenceAccountName = take(toLower('${namePrefix}-docintel-${uni
 var contentSafetyAccountName = take(toLower('${namePrefix}-safety-${uniqueSuffix}'), 64)
 var containerRegistryName = '${compactPrefix}cr${uniqueSuffix}'
 var logAnalyticsWorkspaceName = take(toLower('${namePrefix}-logs-${uniqueSuffix}'), 63)
-var containerAppsEnvironmentName = take(toLower('${namePrefix}-cae-${uniqueSuffix}'), 60)
 // Keep the workload/environment visible and retain a suffix within Storage's 24-character limit.
 var graphCosmosAccountName = take(toLower('${namePrefix}-graph-${uniqueSuffix}'), 44)
 var storageAccountName = '${compactPrefix}${take(uniqueSuffix, 4)}'
@@ -247,21 +194,6 @@ resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
   }
 }
 
-resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2025-01-01' = {
-  name: containerAppsEnvironmentName
-  location: location
-  tags: resourceTags
-  properties: {
-    appLogsConfiguration: {
-      destination: 'log-analytics'
-      logAnalyticsConfiguration: {
-        customerId: logAnalyticsWorkspace.properties.customerId
-        sharedKey: logAnalyticsWorkspace.listKeys().primarySharedKey
-      }
-    }
-  }
-}
-
 resource uploadStorage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: storageAccountName
   location: location
@@ -288,7 +220,7 @@ resource uploadContainer 'Microsoft.Storage/storageAccounts/blobServices/contain
 }
 
 // Graph RAG snapshot archive: the versioned source the graph projection is rebuilt from.
-resource graphSnapshotContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = if (deployGraphRag) {
+resource graphSnapshotContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
   parent: uploadBlobService
   name: 'graph-snapshots'
   properties: { publicAccess: 'None' }
@@ -296,7 +228,7 @@ resource graphSnapshotContainer 'Microsoft.Storage/storageAccounts/blobServices/
 
 // Graph RAG projection. Local (key) auth is disabled: the applications use data-plane RBAC with managed
 // identity, and only this template can change the containers.
-resource graphCosmos 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = if (deployGraphRag) {
+resource graphCosmos 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
   name: graphCosmosAccountName
   location: location
   tags: resourceTags
@@ -314,7 +246,7 @@ resource graphCosmos 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = if (de
   }
 }
 
-resource graphDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-11-15' = if (deployGraphRag) {
+resource graphDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-11-15' = {
   parent: graphCosmos
   name: 'graphrag'
   properties: { resource: { id: 'graphrag' } }
@@ -329,7 +261,7 @@ var graphContainers = [
   { name: 'graphDocumentState', paths: ['/tenantId/?', '/status/?'] }
 ]
 
-resource graphContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-11-15' = [for container in graphContainers: if (deployGraphRag) {
+resource graphContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-11-15' = [for container in graphContainers: {
   parent: graphDatabase
   name: container.name
   properties: {
@@ -347,8 +279,9 @@ resource graphContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
   }
 }]
 
-// Snapshots of dynamic-session working directories, and sandbox bindings, for isolated agent workspaces.
-resource agentWorkspacesContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = if (agentWorkspaceMode != 'Local') {
+// Snapshots of dynamic-session working directories, and sandbox bindings, for isolated agent workspaces
+// (agentWorkspaceMode in infra/ContainerApps). Kept even in Local mode, where it stays empty.
+resource agentWorkspacesContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
   parent: uploadBlobService
   name: 'agent-workspaces'
   properties: { publicAccess: 'None' }
@@ -399,7 +332,7 @@ resource serviceBusSubscription 'Microsoft.ServiceBus/namespaces/topics/subscrip
 
 // Graph indexing requests. Poison messages are dead-lettered by the worker with a reason code; the
 // delivery count is a backstop for a worker that crashes while holding a message.
-resource graphIndexingQueue 'Microsoft.ServiceBus/namespaces/queues@2024-01-01' = if (deployGraphRag) {
+resource graphIndexingQueue 'Microsoft.ServiceBus/namespaces/queues@2024-01-01' = {
   parent: serviceBusNamespace
   name: 'graph-indexing'
   properties: {
@@ -564,16 +497,6 @@ resource workerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-0
   location: location
   tags: resourceTags
 }
-resource markItDownIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: '${namePrefix}-markitdown-pull'
-  location: location
-  tags: resourceTags
-}
-resource pageIndexIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: '${namePrefix}-pageindex-pull'
-  location: location
-  tags: resourceTags
-}
 resource foundry 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
   name: '${namePrefix}-foundry-${uniqueSuffix}'
   location: foundryLocation
@@ -621,14 +544,13 @@ output containerRegistryName string = containerRegistry.name
 output staticWebAppName string = staticWebApp.name
 output staticWebAppUrl string = 'https://${staticWebApp.properties.defaultHostname}'
 output containerRegistryLoginServer string = containerRegistry.properties.loginServer
-output containerAppsEnvironmentName string = containerAppsEnvironment.name
 // Ollaya's own environment (infra/Ollaya) sends its logs to the same workspace.
 output logAnalyticsWorkspaceName string = logAnalyticsWorkspace.name
 output applicationInsightsName string = applicationInsights.name
 output applicationInsightsConnectionString string = applicationInsights.properties.ConnectionString
 output uploadStorageServiceUri string = uploadStorage.properties.primaryEndpoints.blob
 output uploadContainerName string = uploadContainer.name
-output graphCosmosEndpoint string = graphCosmos.?properties.documentEndpoint ?? ''
+output graphCosmosEndpoint string = graphCosmos.properties.documentEndpoint
 
 resource chatDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = {
   parent: openAiAccount
@@ -673,230 +595,11 @@ output openAiResourceId string = openAiAccount.id
 output searchResourceId string = searchService.id
 output storageResourceId string = uploadStorage.id
 
-var apiName = '${namePrefix}-api-${take(uniqueSuffix, 6)}'
-var workerName = '${namePrefix}-wrk-${take(uniqueSuffix, 6)}'
-var markItDownName = '${namePrefix}-md-${take(uniqueSuffix, 6)}'
-var pageIndexName = '${namePrefix}-pi-${take(uniqueSuffix, 6)}'
-var sqlServerFqdn = sql.properties.fullyQualifiedDomainName
-var foundryEndpoint = 'https://${foundry.name}.services.ai.azure.com/api/projects/${project.name}/agents/sharepoint-agent/endpoint/protocols/invocations?api-version=v1'
-
-var markItDownUrl = 'https://${markItDownName}.${containerAppsEnvironment.properties.defaultDomain}'
-var pageIndexUrl = 'https://${pageIndexName}.${containerAppsEnvironment.properties.defaultDomain}'
-var apiEndpoint = 'https://${apiName}.${containerAppsEnvironment.properties.defaultDomain}'
-var graphRagEnv = deployGraphRag ? [
-  { name: 'GraphRag__IndexingEnabled', value: string(enableGraphRagIndexing) }
-  { name: 'GraphRag__ShadowRetrieval', value: string(enableGraphRagShadowRetrieval) }
-  { name: 'GraphRag__RetrievalEnabled', value: string(enableGraphRagRetrieval) }
-  { name: 'GraphRag__Cosmos__UsedManagedIdentity', value: 'true' }
-  { name: 'GraphRag__Cosmos__Endpoint', value: graphCosmos.?properties.documentEndpoint ?? '' }
-  { name: 'GraphRag__Archive__UsedManagedIdentity', value: 'true' }
-  { name: 'GraphRag__Archive__ServiceUri', value: uploadStorage.properties.primaryEndpoints.blob }
-] : []
-var commonEnv = [
-  { name: 'Monitoring__OpenTelemetry__Exporter', value: 'AzureMonitor' }
-  { name: 'Monitoring__OpenTelemetry__Environment', value: environmentName }
-  { name: 'Monitoring__OpenTelemetry__AzureMonitor__ConnectionString', value: applicationInsights.properties.ConnectionString }
-  { name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' }
-  { name: 'SqlServer__AutoMigrate', value: 'false' }
-  { name: 'SharePoint__TenantId', value: sharePointTenantId }
-  { name: 'SharePoint__ClientId', value: sharePointClientId }
-  { name: 'SharePoint__ClientSecret', secretRef: 'graph-client-secret' }
-  { name: 'SharePoint__ClientState', secretRef: 'webhook-client-state' }
-  { name: 'SharePoint__SiteHostname', value: sharePointSiteHostname }
-  { name: 'SharePoint__SitePath', value: sharePointSitePath }
-  { name: 'SharePoint__DocumentLibraryName', value: sharePointDocumentLibraryName }
-  { name: 'SharePoint__NotificationUrl', value: '${apiEndpoint}/api/sharepoint/webhook' }
-  { name: 'ServiceBus__Enabled', value: 'true' }
-  { name: 'ServiceBus__UsedManagedIdentity', value: 'true' }
-  { name: 'ServiceBus__FullyQualifiedNamespace', value: '${serviceBusNamespace.name}.servicebus.windows.net' }
-  { name: 'ServiceBus__TopicName', value: serviceBusTopicName }
-  { name: 'ServiceBus__SubscriptionName', value: serviceBusSubscriptionName }
-  { name: 'AzureSearch__UsedManagedIdentity', value: 'true' }
-  { name: 'AzureSearch__Endpoint', value: 'https://${searchService.name}.search.windows.net' }
-  { name: 'AzureOpenAI__UsedManagedIdentity', value: 'true' }
-  { name: 'AzureOpenAI__Endpoint', value: openAiAccount.properties.endpoint }
-  { name: 'AzureOpenAI__EmbeddingDeployment', value: embeddingDeploymentName }
-  { name: 'AzureOpenAI__ChatDeployment', value: chatDeploymentName }
-  { name: 'AzureOpenAI__TranscriptionDeployment', value: deployTranscription ? transcriptionDeploymentName : '' }
-  { name: 'MarkItDown__Endpoint', value: markItDownUrl }
-  { name: 'PageIndex__Endpoint', value: pageIndexUrl }
-  { name: 'MarkItDown__ApiKey', secretRef: 'markitdown-api-key' }
-  { name: 'DocumentIntelligence__UsedManagedIdentity', value: 'true' }
-  { name: 'DocumentIntelligence__Endpoint', value: documentIntelligenceAccount.?properties.endpoint ?? '' }
-]
-var secrets = [
-  { name: 'graph-client-secret', value: sharePointClientSecret }
-  { name: 'webhook-client-state', value: sharePointClientState }
-  { name: 'markitdown-api-key', value: markItDownApiKey }
-]
-
-resource markItDown 'Microsoft.App/containerApps@2025-01-01' = {
-  name: markItDownName
-  location: location
-  tags: resourceTags
-  identity: { type: 'UserAssigned', userAssignedIdentities: { '${markItDownIdentity.id}': {} } }
-  properties: {
-    environmentId: containerAppsEnvironment.id
-    configuration: {
-      activeRevisionsMode: 'Single'
-      ingress: { external: true, allowInsecure: false, targetPort: deployApplicationImages ? 8000 : 80, transport: 'http' }
-      registries: [{ server: containerRegistry.properties.loginServer, identity: markItDownIdentity.id }]
-      secrets: deployApplicationImages ? [{ name: 'markitdown-api-key', value: markItDownApiKey }] : []
-    }
-    template: {
-      containers: [{
-        name: 'markitdown'
-        image: markItDownImage
-        env: deployApplicationImages ? [{ name: 'MARKITDOWN_API_KEY', secretRef: 'markitdown-api-key' }] : []
-        resources: { cpu: json('0.5'), memory: '1Gi' }
-        probes: [{ type: 'Readiness', httpGet: { path: deployApplicationImages ? '/health' : '/', port: deployApplicationImages ? 8000 : 80 }, periodSeconds: 10 }]
-      }]
-      scale: { minReplicas: 1, maxReplicas: 3 }
-    }
-  }
-  dependsOn: [markItDownRegistry]
-}
-resource pageIndex 'Microsoft.App/containerApps@2025-01-01' = {
-  name: pageIndexName
-  location: location
-  tags: resourceTags
-  identity: { type: 'UserAssigned', userAssignedIdentities: { '${pageIndexIdentity.id}': {} } }
-  properties: {
-    environmentId: containerAppsEnvironment.id
-    configuration: {
-      activeRevisionsMode: 'Single'
-      ingress: { external: true, allowInsecure: false, targetPort: deployApplicationImages ? 8000 : 80, transport: 'http' }
-      registries: [{ server: containerRegistry.properties.loginServer, identity: pageIndexIdentity.id }]
-      secrets: deployApplicationImages ? [
-        { name: 'pageindex-api-key', value: pageIndexServiceApiKey }
-        { name: 'pageindex-azure-api-key', value: pageIndexAzureApiKey }
-      ] : []
-    }
-    template: {
-      containers: [{
-        name: 'pageindex'
-        image: pageIndexImage
-        env: deployApplicationImages ? [
-          { name: 'PAGEINDEX_SERVICE_API_KEY', secretRef: 'pageindex-api-key' }
-          { name: 'AZURE_API_KEY', secretRef: 'pageindex-azure-api-key' }
-          { name: 'AZURE_API_BASE', value: openAiAccount.properties.endpoint }
-          { name: 'AZURE_API_VERSION', value: pageIndexAzureApiVersion }
-          { name: 'PAGEINDEX_INDEX_MODEL', value: 'azure/${pageIndexDeploymentName}' }
-          { name: 'PAGEINDEX_MAX_FILE_BYTES', value: '26214400' }
-          { name: 'PAGEINDEX_TIMEOUT_SECONDS', value: '210' }
-          { name: 'PAGEINDEX_MAX_CONCURRENCY', value: '2' }
-        ] : []
-        resources: { cpu: json('1.0'), memory: '2Gi' }
-        probes: [{ type: 'Readiness', httpGet: { path: deployApplicationImages ? '/health' : '/', port: deployApplicationImages ? 8000 : 80 }, periodSeconds: 10 }]
-      }]
-      scale: { minReplicas: 1, maxReplicas: 3 }
-    }
-  }
-  dependsOn: [pageIndexRegistry]
-}
-
-resource api 'Microsoft.App/containerApps@2025-01-01' = {
-  name: apiName
-  location: location
-  tags: resourceTags
-  identity: { type: 'UserAssigned', userAssignedIdentities: { '${apiIdentity.id}': {} } }
-  properties: {
-    environmentId: containerAppsEnvironment.id
-    configuration: {
-      activeRevisionsMode: 'Single'
-      ingress: { external: true, allowInsecure: false, targetPort: deployApplicationImages ? 8080 : 80, transport: 'http' }
-      registries: [{ server: containerRegistry.properties.loginServer, identity: apiIdentity.id }]
-      secrets: deployApplicationImages ? secrets : []
-    }
-    template: {
-      containers: [{
-        name: 'api'
-        image: apiImage
-        env: deployApplicationImages ? concat(commonEnv, graphRagEnv, [
-          { name: 'AZURE_CLIENT_ID', value: apiIdentity.properties.clientId }
-          { name: 'SqlServer__ConnectionString', value: 'Server=tcp:${sqlServerFqdn},1433;Database=${sqlDatabaseName};Authentication=Active Directory Managed Identity;User Id=${apiIdentity.properties.clientId};Encrypt=True;TrustServerCertificate=False;' }
-          { name: 'ChatAgent__Mode', value: 'Foundry' }
-          { name: 'AgentWorkspace__Mode', value: agentWorkspaceMode }
-          { name: 'AgentWorkspace__DynamicSessions__ManagedIdentityClientId', value: apiIdentity.properties.clientId }
-          { name: 'AgentWorkspace__Snapshots__UsedManagedIdentity', value: 'true' }
-          { name: 'AgentWorkspace__Snapshots__ServiceUri', value: uploadStorage.properties.primaryEndpoints.blob }
-          { name: 'AgentWorkspace__Sandboxes__SubscriptionId', value: subscription().subscriptionId }
-          { name: 'AgentWorkspace__Sandboxes__ResourceGroup', value: resourceGroup().name }
-          { name: 'AgentWorkspace__Sandboxes__ManagedIdentityClientId', value: apiIdentity.properties.clientId }
-          { name: 'ChatAgent__Foundry__Endpoint', value: foundryEndpoint }
-          { name: 'ChatAgent__Foundry__ManagedIdentityClientId', value: apiIdentity.properties.clientId }
-          { name: 'Uploads__UsedManagedIdentity', value: 'true' }
-          { name: 'Uploads__ServiceUri', value: uploadStorage.properties.primaryEndpoints.blob }
-          { name: 'Uploads__ContainerName', value: 'chat-uploads' }
-          { name: 'Cors__AllowedOrigins__0', value: frontendOrigin }
-          { name: 'AppIdentity__BootstrapAdminEmails__0', value: bootstrapAdminEmail }
-          { name: 'ContentSafety__Enabled', value: string(deployContentSafety) }
-          { name: 'ContentSafety__Endpoint', value: contentSafetyAccount.?properties.endpoint ?? '' }
-          { name: 'ContentSafety__UseManagedIdentity', value: 'true' }
-          { name: 'ContentSafety__ManagedIdentityClientId', value: apiIdentity.properties.clientId }
-        ]) : []
-        resources: { cpu: json('2.0'), memory: '4Gi' }
-        probes: [{ type: 'Readiness', httpGet: { path: deployApplicationImages ? '/health' : '/', port: deployApplicationImages ? 8080 : 80 }, periodSeconds: 10 }]
-      }]
-      scale: { minReplicas: 1, maxReplicas: 3 }
-    }
-  }
-  dependsOn: [markItDown, apiRegistry, apiBus, apiIdentitySearch, apiIdentitySearchService, apiIdentityOpenAI, apiBlob, apiSafety, apiIdentityDocument, apiGraphCosmos]
-}
-resource background 'Microsoft.App/containerApps@2025-01-01' = {
-  name: workerName
-  location: location
-  tags: resourceTags
-  identity: { type: 'UserAssigned', userAssignedIdentities: { '${workerIdentity.id}': {} } }
-  properties: {
-    environmentId: containerAppsEnvironment.id
-    configuration: {
-      activeRevisionsMode: 'Single'
-      registries: [{ server: containerRegistry.properties.loginServer, identity: workerIdentity.id }]
-      secrets: deployApplicationImages ? secrets : []
-    }
-    template: {
-      containers: [{
-        name: 'background'
-        image: backgroundImage
-        env: deployApplicationImages ? concat(commonEnv, graphRagEnv, [
-          { name: 'AZURE_CLIENT_ID', value: workerIdentity.properties.clientId }
-          { name: 'SqlServer__ConnectionString', value: 'Server=tcp:${sqlServerFqdn},1433;Database=${sqlDatabaseName};Authentication=Active Directory Managed Identity;User Id=${workerIdentity.properties.clientId};Encrypt=True;TrustServerCertificate=False;' }
-        ]) : []
-        resources: { cpu: json('1.0'), memory: '2Gi' }
-      }]
-      // A continuous Service Bus receiver and scheduled reconciliation worker.
-      scale: { minReplicas: 1, maxReplicas: 1 }
-    }
-  }
-  dependsOn: [markItDown, workerRegistry, workerBus, workerIdentitySearch, workerIdentitySearchService, workerIdentityOpenAI, workerIdentityDocument, workerGraphCosmos, workerGraphArchive, workerGraphQueueSend]
-}
-
 resource apiRegistry 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(containerRegistry.id, apiIdentity.id, '7f951dda-4ed3-4680-a7ca-43fe172d538d')
   scope: containerRegistry
   properties: {
     principalId: apiIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
-  }
-}
-
-resource pageIndexRegistry 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(containerRegistry.id, pageIndexIdentity.id, acrPullRole)
-  scope: containerRegistry
-  properties: {
-    principalId: pageIndexIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', acrPullRole)
-  }
-}
-
-resource markItDownRegistry 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(containerRegistry.id, markItDownIdentity.id, '7f951dda-4ed3-4680-a7ca-43fe172d538d')
-  scope: containerRegistry
-  properties: {
-    principalId: markItDownIdentity.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
   }
@@ -998,7 +701,7 @@ resource workerIdentityOpenAI 'Microsoft.Authorization/roleAssignments@2022-04-0
 var cosmosDataReaderRole = '00000000-0000-0000-0000-000000000001'
 var cosmosDataContributorRole = '00000000-0000-0000-0000-000000000002'
 
-resource workerGraphCosmos 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-11-15' = if (deployGraphRag) {
+resource workerGraphCosmos 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-11-15' = {
   parent: graphCosmos
   name: guid(graphCosmosAccountName, workerIdentity.id, cosmosDataContributorRole)
   properties: {
@@ -1008,7 +711,7 @@ resource workerGraphCosmos 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignm
   }
 }
 
-resource apiGraphCosmos 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-11-15' = if (deployGraphRag) {
+resource apiGraphCosmos 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-11-15' = {
   parent: graphCosmos
   name: guid(graphCosmosAccountName, apiIdentity.id, graphRagAllowAdminMerges ? cosmosDataContributorRole : cosmosDataReaderRole)
   properties: {
@@ -1018,7 +721,7 @@ resource apiGraphCosmos 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignment
   }
 }
 
-resource workerGraphArchive 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deployGraphRag) {
+resource workerGraphArchive 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(uploadStorage.id, workerIdentity.id, 'graph-snapshots', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
   scope: graphSnapshotContainer
   properties: {
@@ -1028,7 +731,7 @@ resource workerGraphArchive 'Microsoft.Authorization/roleAssignments@2022-04-01'
   }
 }
 
-resource workerGraphQueueSend 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deployGraphRag) {
+resource workerGraphQueueSend 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(serviceBusNamespace.id, workerIdentity.id, 'graph-indexing', '69a216fc-b8fb-44d8-bc22-1f3c2cd27a39')
   scope: graphIndexingQueue
   properties: {
@@ -1075,31 +778,5 @@ resource workerIdentityDocument 'Microsoft.Authorization/roleAssignments@2022-04
     principalId: workerIdentity.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908')
-  }
-}
-
-output apiContainerAppName string = apiName
-output workerContainerAppName string = workerName
-output markItDownContainerAppName string = markItDownName
-output apiUrl string = apiEndpoint
-output markItDownEndpoint string = markItDownUrl
-output pageIndexContainerAppName string = pageIndexName
-output pageIndexEndpoint string = pageIndexUrl
-
-// Hosted environment variables reference this connection instead of containing raw secrets.
-resource foundrySecrets 'Microsoft.CognitiveServices/accounts/projects/connections@2025-06-01' = if (deployApplicationImages) {
-  parent: project
-  name: 'agent-secrets'
-  properties: {
-    category: 'CustomKeys'
-    authType: 'CustomKeys'
-    target: 'https://sharepoint-agent.invalid'
-    credentials: {
-      keys: {
-        graphClientSecret: sharePointClientSecret
-        webhookClientState: sharePointClientState
-        markItDownApiKey: markItDownApiKey
-      }
-    }
   }
 }

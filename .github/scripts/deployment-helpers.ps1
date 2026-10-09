@@ -4,7 +4,7 @@ $outputs = Get-Content "$env:RUNNER_TEMP/shared-outputs.json" -Raw | ConvertFrom
 $hosting = $outputs.hosting.value
 $settings = (Get-Content $env:PARAMETERS_FILE -Raw | ConvertFrom-Json).parameters
 . "$PSScriptRoot/container-apps.ps1"
-. "$PSScriptRoot/optional-deployments.ps1"
+. "$PSScriptRoot/deployment-outputs.ps1"
 function Invoke-Database($Query, $InputFile) {
   Import-Module SqlServer
   $token = az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv

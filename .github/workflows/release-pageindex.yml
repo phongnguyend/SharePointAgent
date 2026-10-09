@@ -86,9 +86,10 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
           . "$env:GITHUB_WORKSPACE/.github/scripts/container-apps.ps1"
-          $outputs = az deployment group show --resource-group $env:RESOURCE_GROUP --name "infra-$env:DEPLOY_ENVIRONMENT" --query properties.outputs -o json | ConvertFrom-Json
+          . "$env:GITHUB_WORKSPACE/.github/scripts/deployment-outputs.ps1"
+          $outputs = Get-InfrastructureOutputs
           if (-not $outputs.pageIndexContainerAppName.value) {
-            throw 'Run Deploy infrastructure before releasing PageIndex.'
+            throw 'Run Deploy infrastructure and Deploy Container Apps infrastructure before releasing PageIndex.'
           }
           Push-Location backend/PageIndex
           try {

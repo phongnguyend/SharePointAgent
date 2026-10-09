@@ -7,7 +7,7 @@ $outputs = az deployment group show --resource-group $env:RESOURCE_GROUP --name 
 if (-not $outputs.containerRegistryName.value) {
   throw 'Run Deploy infrastructure before releasing Dynamic Sessions.'
 }
-. "$PSScriptRoot/optional-deployments.ps1"
+. "$PSScriptRoot/deployment-outputs.ps1"
 $poolName = Get-OptionalDeploymentOutput 'dynamic-sessions' 'dynamicSessionsPoolName'
 $endpoint = Get-DynamicSessionsPoolEndpoint
 if (-not $poolName) {

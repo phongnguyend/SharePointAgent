@@ -40,11 +40,11 @@ $outputName = switch ($Component) {
         'ollayaContainerAppName'
     }
 }
-# Ollaya has its own template and environment (infra/Ollaya), so its name comes from that deployment.
+# Ollaya has its own template and environment (infra/Ollaya); the other apps come from infra/ContainerApps.
 $deploymentName = if ($Component -eq 'Ollaya') {
     "ollaya-$EnvironmentName"
 } else {
-    "infra-$EnvironmentName"
+    "container-apps-$EnvironmentName"
 }
 $containerName = $Component.ToLowerInvariant()
 

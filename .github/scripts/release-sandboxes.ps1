@@ -13,7 +13,7 @@ $image = Publish-SandboxHostImage $outputs
 
 "## Sandboxes image published" >> $env:GITHUB_STEP_SUMMARY
 "- Image: $image" >> $env:GITHUB_STEP_SUMMARY
-. "$PSScriptRoot/optional-deployments.ps1"
+. "$PSScriptRoot/deployment-outputs.ps1"
 $sandboxGroupName = Get-SandboxGroupName
 if ($sandboxGroupName) {
   $pullIdentityId = Get-OptionalDeploymentOutput 'sandboxes' 'sandboxesPullIdentityId'

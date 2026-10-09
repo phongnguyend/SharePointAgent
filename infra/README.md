@@ -1,6 +1,13 @@
 # Azure infrastructure
 
-[main.bicep](main.bicep) defines the Azure resources for the `dev` and `test` environments: SQL, Storage, Service Bus, Search, Azure OpenAI, Foundry, Container Apps, Static Web Apps, monitoring, runtime identities, and role assignments.
+[main.bicep](main.bicep) defines the shared Azure resources for the `dev` and `test` environments: SQL, Storage, Service Bus, Search, Azure OpenAI, Foundry, the container registry, Static Web Apps, monitoring, the API and Background runtime identities, and role assignments. Components with their own template and workflow deploy on top of it:
+
+| Folder | Deployment | Contents |
+| --- | --- | --- |
+| [ContainerApps](ContainerApps/main.bicep) | `container-apps-<environment>` | The Container Apps environment and the API, Background, MarkItDown, and PageIndex apps |
+| [DynamicSessions](DynamicSessions/main.bicep) | `dynamic-sessions-<environment>` | The sandbox host session pool, in the Container Apps environment |
+| [Sandboxes](Sandboxes/main.bicep) | `sandboxes-<environment>` | The sandbox group |
+| [Ollaya](Ollaya/main.bicep) | `ollaya-<environment>` | Ollaya's own GPU environment and app |
 
 Use this guide in deployment order, or jump to an operational task:
 
@@ -15,7 +22,7 @@ Use this guide in deployment order, or jump to an operational task:
 ## First deployment
 
 1. Create the matching GitHub environment (`dev` or `test`), configure [OIDC access](#deployment-identity), and fill in the [settings table](#github-environment-settings) for the services you will deploy.
-2. Review `infra/parameters.<environment>.json` and run **Deploy infrastructure**. The default Container App images are placeholders; provisioning alone does not install the APIs.
+2. Review `infra/parameters.<environment>.json` and run **Deploy infrastructure**, then review `infra/ContainerApps/parameters.<environment>.json` and run **Deploy Container Apps infrastructure**. The default Container App images are placeholders; provisioning alone does not install the APIs.
 3. [Retrieve the frontend origin and deployment token](#retrieve-the-frontend-origin-and-deployment-token), save them in GitHub, and register the Entra redirect URI.
 4. [Grant the release identity SQL access](#grant-the-release-identity-sql-access), then run **Release Database migrations**.
 5. [Configure API and Background SQL access](#configure-runtime-sql-access-manually) before starting those services.
@@ -163,9 +170,9 @@ Run the infrastructure workflow to create the Static Web App for each environmen
 
 ### Provision infrastructure
 
-Run **Actions → Deploy infrastructure → Run workflow** first. `infra.yml` provisions `main.bicep`, including API, Background, MarkItDown, and PageIndex Container Apps with `mcr.microsoft.com/k8se/quickstart:latest`. API, MarkItDown, and PageIndex use port 80 and `/` readiness checks until released; Background has no ingress. Provisioning does not build images, run SQL migrations or publish a Foundry agent version.
+Run **Actions → Deploy infrastructure → Run workflow** first. `infra.yml` provisions `main.bicep`. Then run **Deploy Container Apps infrastructure**: [infra-container-apps.yml](../.github/workflows/infra-container-apps.yml) passes the `infra-<environment>` outputs to [ContainerApps/main.bicep](ContainerApps/main.bicep) as its `infrastructure` parameter and creates the Container Apps environment with the API, Background, MarkItDown, and PageIndex apps on `mcr.microsoft.com/k8se/quickstart:latest`, as deployment `container-apps-<environment>`. Resource names are unchanged from when `main.bicep` created them, so the first run adopts the existing environment and apps. API, MarkItDown, and PageIndex use port 80 and `/` readiness checks until released; Background has no ingress. Provisioning does not build images, run SQL migrations or publish a Foundry agent version.
 
-Component releases read the saved `infra-<environment>` deployment outputs and update only their deployment targets. They do not compile or redeploy `main.bicep`; shared infrastructure changes belong in `infra.yml`. API uses port 8080 and MarkItDown and PageIndex use port 8000 with `/health` probes. Image tags contain the commit SHA, run ID and attempt.
+Component releases read the saved `infra-<environment>` and `container-apps-<environment>` deployment outputs, merged by [deployment-outputs.ps1](../.github/scripts/deployment-outputs.ps1), and update only their deployment targets. They do not compile or redeploy either template; infrastructure changes belong in `infra.yml` and `infra-container-apps.yml`. API uses port 8080 and MarkItDown and PageIndex use port 8000 with `/health` probes. Image tags contain the commit SHA, run ID and attempt.
 
 For a direct deployment:
 
@@ -175,12 +182,14 @@ az deployment group create --resource-group YOUR_RESOURCE_GROUP `
   --parameters infra/parameters.dev.json sqlEntraAdminObjectId=YOUR_PRINCIPAL_OBJECT_ID
 ```
 
+Then deploy [ContainerApps/main.bicep](ContainerApps/main.bicep) with `infra/ContainerApps/parameters.dev.json`, `location`, and an `infrastructure` object mapping each `infra-dev` output name to its value.
+
 ### Preserve application images
 
-Configure `API_IMAGE`, `BACKGROUND_IMAGE` and `MARKITDOWN_IMAGE` in the selected GitHub environment using the [GitHub settings table](#github-environment-settings). Set all three to existing application images, preferably immutable tags or digests in this environment's ACR. Infrastructure automatically enables application runtime settings, ports and health checks and reads the application secrets from the same GitHub environment. SQL migrations and runtime database grants must already exist; infrastructure does not run them. Partial image configuration is rejected.
+Configure `API_IMAGE`, `BACKGROUND_IMAGE` and `MARKITDOWN_IMAGE` in the selected GitHub environment using the [GitHub settings table](#github-environment-settings). Set all three to existing application images, preferably immutable tags or digests in this environment's ACR. **Deploy Container Apps infrastructure** automatically enables application runtime settings, ports and health checks and reads the application secrets from the same GitHub environment. SQL migrations and runtime database grants must already exist; infrastructure does not run them. Partial image configuration is rejected.
 
-Leave all three variables unset for the default hello images. Re-running infrastructure with them unset resets ACA apps to hello images. Component release workflows build and deploy new images independently and do not update these GitHub variables; set them to the desired release references before the next infrastructure run. All deployment workflows share an environment concurrency group. AgentHost is published by Release AgentHost and is not controlled by these ACA image variables.
-The infrastructure workflow currently accepts image variables for API, Background, and MarkItDown only. It does not supply PageIndex's image or credentials. Run **Release PageIndex** after infrastructure updates to restore its API image and settings; the three image variables above do not preserve PageIndex. For a direct Bicep deployment, see [PageIndex API](#pageindex-api).
+Leave all three variables unset for the default hello images. Re-running **Deploy Container Apps infrastructure** with them unset resets ACA apps to hello images; **Deploy infrastructure** does not touch the apps. Component release workflows build and deploy new images independently and do not update these GitHub variables; set them to the desired release references before the next Container Apps infrastructure run. All deployment workflows share an environment concurrency group. AgentHost is published by Release AgentHost and is not controlled by these ACA image variables.
+The Container Apps infrastructure workflow currently accepts image variables for API, Background, and MarkItDown only. It does not supply PageIndex's image or credentials. Run **Release PageIndex** after Container Apps infrastructure updates to restore its API image and settings; the three image variables above do not preserve PageIndex. For a direct Bicep deployment, see [PageIndex API](#pageindex-api).
 
 ### Release services
 
@@ -191,6 +200,7 @@ Selected components run sequentially: Database migrations → MarkItDown → Pag
 | Workflow | Responsibility |
 | --- | --- |
 | [infra.yml](../.github/workflows/infra.yml) | Provision or update shared infrastructure; does not build application images |
+| [infra-container-apps.yml](../.github/workflows/infra-container-apps.yml) | Deploy only `infra/ContainerApps/main.bicep`: the Container Apps environment and the API, Background, MarkItDown, and PageIndex apps, with application images and settings when the image variables are set |
 | [release.yml](../.github/workflows/release.yml) | Release any selected combination of services in one workflow run |
 | [release-db-migration.yml](../.github/workflows/release-db-migration.yml) | Restore packages, generate and apply idempotent SQL migrations |
 | [release-api.yml](../.github/workflows/release-api.yml) | Build and deploy only API, configure its runtime settings and Foundry access, and check health |
@@ -372,7 +382,7 @@ For initial Adobe authorization without Postman, set `DOCUMENTSIGNING__ADOBESIGN
 Infrastructure creates a separate PageIndex Container App with an ACR pull identity,
 HTTPS ingress, 1 CPU / 2 GiB memory, 1–3 replicas, and a readiness probe. As with
 MarkItDown, the default infrastructure deployment uses a placeholder image; run
-**Release PageIndex** after **Deploy infrastructure** to install the API. It is also
+**Release PageIndex** after **Deploy Container Apps infrastructure** to install the API. It is also
 an optional selection in **Release Services**.
 
 Configure the PageIndex entries in [GitHub environment settings](#github-environment-settings)
@@ -396,7 +406,7 @@ For C# indexing calls, configure `PageIndex__ApiKey` separately with the same
 service key; these releases do not provision that caller credential. The existing
 agent indexing pipeline is not automatically switched to PageIndex.
 
-For direct Bicep application-image deployments, supply `pageIndexImage`, secure
+For direct [ContainerApps/main.bicep](ContainerApps/main.bicep) application-image deployments, supply `pageIndexImage`, secure
 `pageIndexServiceApiKey` and `pageIndexAzureApiKey`, and optionally
 `pageIndexDeploymentName` / `pageIndexAzureApiVersion`. Do not commit keys in
 parameter files.
@@ -425,13 +435,13 @@ summary jobs can still exceed it. This API remains synchronous.
 
 **Cost and latency.** With `minReplicas` 0 the GPU scales to zero and costs nothing while idle, but the first request after idling waits for a replica to start, pull the image (about 11 GB), and load the model, which can take several minutes. `Ollaya:TimeoutSeconds` is 300 for this reason. Set `minReplicas` to 1 in the Ollaya parameter file to keep it warm at the cost of a continuously running T4. A premium registry with artifact streaming, or geo-replication to the Ollaya region, shortens cold starts.
 
-**Infrastructure redeploys.** Running **Deploy infrastructure** with application images rewrites the API and Background environment variables from [main.bicep](main.bicep), which does not know the Ollaya endpoint; release those apps again afterwards, as for any setting that the releases own.
+**Infrastructure redeploys.** Running **Deploy Container Apps infrastructure** with application images rewrites the API and Background environment variables from [ContainerApps/main.bicep](ContainerApps/main.bicep), which does not know the Ollaya endpoint; release those apps again afterwards, as for any setting that the releases own.
 
 ### Isolated code execution
 
-The [sandbox host](../backend/SharePointAgent.SandboxHost/README.md) gives future agent tools a file system and a PowerShell, Python, Node.js, and Bash runner inside an isolated environment. One `sandboxhost` image is deployed to both targets below; they differ only in the settings each deployment passes. The API uses them as isolated agent workspaces when it runs the agent itself (`ChatAgent:Mode` `Local`): `agentWorkspaceMode` (`Local` by default, `DynamicSessions`, or `Sandboxes`) becomes `AgentWorkspace__Mode`, and the API receives the pool endpoint, sandbox group, and disk image as `AgentWorkspace__DynamicSessions__*` and `AgentWorkspace__Sandboxes__*` settings. In Foundry mode the agent already runs in its own session sandbox.
+The [sandbox host](../backend/SharePointAgent.SandboxHost/README.md) gives future agent tools a file system and a PowerShell, Python, Node.js, and Bash runner inside an isolated environment. One `sandboxhost` image is deployed to both targets below; they differ only in the settings each deployment passes. The API uses them as isolated agent workspaces when it runs the agent itself (`ChatAgent:Mode` `Local`): `agentWorkspaceMode` in `infra/ContainerApps/parameters.<environment>.json` (`Local` by default, `DynamicSessions`, or `Sandboxes`) becomes `AgentWorkspace__Mode`, and the API receives the pool endpoint, sandbox group, and disk image as `AgentWorkspace__DynamicSessions__*` and `AgentWorkspace__Sandboxes__*` settings. In Foundry mode the agent already runs in its own session sandbox.
 
-Each target has its own template and workflow, like Ollaya, deployed after **Deploy infrastructure** has created the registry, environment, and API identity. [main.bicep](main.bicep) cannot know the pool endpoint, sandbox group, or disk image, because they exist only after these deployments. **Release API** sets `AgentWorkspace__DynamicSessions__PoolManagementEndpoint` and `AgentWorkspace__Sandboxes__SandboxGroup` from the `dynamic-sessions-<environment>` and `sandboxes-<environment>` deployment outputs, and `AgentWorkspace__Sandboxes__DiskImageId` from `SANDBOX_DISK_IMAGE_ID`, skipping any that are not available yet. Run **Release API** after deploying either target, and again after **Deploy infrastructure** with application images, which rewrites the API environment variables without them. Resource names are unchanged from when [main.bicep](main.bicep) created them, so the first run of each workflow adopts an existing pool or group instead of recreating it.
+Each target has its own template and workflow, like Ollaya, deployed after **Deploy infrastructure** has created the registry and API identity and **Deploy Container Apps infrastructure** has created the environment. [ContainerApps/main.bicep](ContainerApps/main.bicep) cannot know the pool endpoint, sandbox group, or disk image, because they exist only after these deployments. **Release API** sets `AgentWorkspace__DynamicSessions__PoolManagementEndpoint` and `AgentWorkspace__Sandboxes__SandboxGroup` from the `dynamic-sessions-<environment>` and `sandboxes-<environment>` deployment outputs, and `AgentWorkspace__Sandboxes__DiskImageId` from `SANDBOX_DISK_IMAGE_ID`, skipping any that are not available yet. Run **Release API** after deploying either target, and again after **Deploy Container Apps infrastructure** with application images, which rewrites the API environment variables without them. Resource names are unchanged from when [main.bicep](main.bicep) created them, so the first run of each workflow adopts an existing pool or group instead of recreating it.
 
 **Dynamic Sessions.** **Deploy Dynamic Sessions infrastructure** ([infra-dynamic-sessions.yml](../.github/workflows/infra-dynamic-sessions.yml)) deploys [DynamicSessions/main.bicep](DynamicSessions/main.bicep) as deployment `dynamic-sessions-<environment>`. It creates a custom-container session pool in the existing Container Apps environment, in that environment's region. It has its own ACR pull identity, which is kept out of the sessions (`lifecycle: None`), so agent code cannot request its tokens. The pool runs 1 vCPU / 2 GiB per session, with `readySessions` warm sessions (default 1, billed while waiting), up to `maxSessions` (default 20), and a timed lifecycle that destroys a session `cooldownSeconds` (default 1800) after its last request. `egressEnabled` (default true) controls internet access from sessions. Set these in `infra/DynamicSessions/parameters.<environment>.json`. The API identity, and the identity that deploys the template, receive **Azure ContainerApps Session Executor** on the pool; the release smoke test uses the second. Outputs: `dynamicSessionsPoolName` and `dynamicSessionsPoolEndpoint`.
 
@@ -494,8 +504,8 @@ With `minReplicas` 0, Ollaya already scales to zero when idle and bills no GPU t
 
 Open **Actions → Start or Stop Background → Run workflow**, select `dev` or
 `test`, and choose `start` or `stop`. The [workflow](../.github/workflows/manage-background.yml)
-resolves the Background Container App from the `infra-<environment>` deployment's
-`workerContainerAppName` output. Run **Deploy infrastructure** and **Release
+resolves the Background Container App from the `container-apps-<environment>` deployment's
+`workerContainerAppName` output. Run **Deploy Container Apps infrastructure** and **Release
 Background** before using it to control the worker.
 
 It uses the existing environment secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and
@@ -565,7 +575,7 @@ leave the previous version selected; inspect the job summary for the created and
 previous version numbers. No image builds, secret rotation, or SQL grants occur.
 
 These workflows change deployed capacity, not repository defaults. Container App
-releases preserve the allocation, but **Deploy infrastructure** reapplies Bicep
+releases preserve the allocation, but **Deploy Container Apps infrastructure** reapplies Bicep
 capacity. **Release AgentHost** reapplies the allocation in `release-agent.ps1`.
 Update those defaults too if the change should persist across those deployments.
 To revert, rerun the capacity workflow with the previous CPU selection.
@@ -635,7 +645,7 @@ az containerapp revision list --resource-group $resourceGroup --name $appName `
 
 Confirm the intended resources are shown and the latest revision becomes ready and healthy. For API, MarkItDown, and PageIndex, also check their `/health` endpoint; for Background, check its logs and processing activity. To revert the allocation, run the update command again with the CPU and memory values recorded before the change; this creates another revision with the previous sizing.
 
-Manual changes affect only the selected app and environment. Component release workflows preserve its resource allocation, but the next **Deploy infrastructure** run reapplies `main.bicep`. Keep that file and the [capacity table](#current-configured-capacity) aligned with any sizing you intend to retain. The API example already matches the repository's 2 vCPU / 4 GiB target.
+Manual changes affect only the selected app and environment. Component release workflows preserve its resource allocation, but the next **Deploy Container Apps infrastructure** run reapplies `ContainerApps/main.bicep`. Keep that file and the [capacity table](#current-configured-capacity) aligned with any sizing you intend to retain. The API example already matches the repository's 2 vCPU / 4 GiB target.
 
 Reference: [Azure CLI Container Apps update](https://learn.microsoft.com/en-us/cli/azure/containerapp#az-containerapp-update) and [Container Apps revisions](https://learn.microsoft.com/en-us/azure/container-apps/revisions).
 
@@ -655,13 +665,13 @@ These are the repository's target allocations for both `dev` and `test`; existin
 | Ollaya, own Container Apps environment (serverless T4 GPU) | 8 vCPU + 56 GiB + 1 T4 per replica | 0–1 replicas; scales to zero when idle |
 | Dynamic Sessions, session pool | 1 vCPU + 2 GiB per session | `readySessions` warm (default 1), up to `maxSessions` (default 20) |
 
-AgentHost allocation is defined in [release-agent.ps1](../.github/scripts/release-agent.ps1). Container Apps allocations and replica limits are defined in [main.bicep](main.bicep). The four Container Apps together allocate at least 4.5 vCPU and 9 GiB per environment while running at their configured minimums; AgentHost sessions add capacity separately. API can allocate up to 6 vCPU and 12 GiB across three replicas.
+AgentHost allocation is defined in [release-agent.ps1](../.github/scripts/release-agent.ps1). Container Apps allocations and replica limits are defined in [ContainerApps/main.bicep](ContainerApps/main.bicep). The four Container Apps together allocate at least 4.5 vCPU and 9 GiB per environment while running at their configured minimums; AgentHost sessions add capacity separately. API can allocate up to 6 vCPU and 12 GiB across three replicas.
 
 To resize a deployed service using its current image, use the
 [capacity workflows](#configure-capacity-with-github-actions). To apply capacity
 defaults from the repository to an existing environment:
 
-1. Run **Deploy infrastructure** to update API to 2 vCPU and 4 GiB, or follow [manual Container Apps capacity updates](#manually-update-container-apps-capacity) in the operations section. For an infrastructure deployment, set `API_IMAGE`, `BACKGROUND_IMAGE`, and `MARKITDOWN_IMAGE` to the current application images first, as described under [Preserve application images](#preserve-application-images), to preserve them. An API-only release preserves the existing resource allocation and does not apply Bicep changes.
+1. Run **Deploy Container Apps infrastructure** to update API to 2 vCPU and 4 GiB, or follow [manual Container Apps capacity updates](#manually-update-container-apps-capacity) in the operations section. For a Container Apps infrastructure deployment, set `API_IMAGE`, `BACKGROUND_IMAGE`, and `MARKITDOWN_IMAGE` to the current application images first, as described under [Preserve application images](#preserve-application-images), to preserve them. An API-only release preserves the existing resource allocation and does not apply Bicep changes.
 2. Run **Release AgentHost**, or select **AgentHost** in **Release services**, to publish a version with 2 vCPU and 4 GiB per session.
 
 ### Runtime configuration and networking
@@ -678,4 +688,4 @@ Main resource names start with `workloadName`, followed by the environment. ACR 
 
 ## Validation
 
-Compile `main.bicep` with `az bicep build`. Compilation does not verify subscription quota, permissions, networking or Foundry regional availability. Application deployments use actual images and change runtime configuration; review them before applying to an existing environment.
+Compile `main.bicep` and the templates in its subfolders with `az bicep build`. Compilation does not verify subscription quota, permissions, networking or Foundry regional availability. Application deployments use actual images and change runtime configuration; review them before applying to an existing environment.

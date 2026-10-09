@@ -69,72 +69,6 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      - name: Prepare runtime settings for configured application images
-        env:
-          API_IMAGE: ${{ vars.API_IMAGE }}
-          BACKGROUND_IMAGE: ${{ vars.BACKGROUND_IMAGE }}
-          MARKITDOWN_IMAGE: ${{ vars.MARKITDOWN_IMAGE }}
-          SHAREPOINT_TENANT_ID: ${{ vars.SHAREPOINT_TENANT_ID }}
-          SHAREPOINT_CLIENT_ID: ${{ vars.SHAREPOINT_CLIENT_ID }}
-          SHAREPOINT_CLIENT_SECRET: ${{ secrets.SHAREPOINT_CLIENT_SECRET }}
-          SHAREPOINT_CLIENT_STATE: ${{ secrets.SHAREPOINT_CLIENT_STATE }}
-          MARKITDOWN_API_KEY: ${{ secrets.MARKITDOWN_API_KEY }}
-          SHAREPOINT_SITE_HOSTNAME: ${{ vars.SHAREPOINT_SITE_HOSTNAME }}
-          SHAREPOINT_SITE_PATH: ${{ vars.SHAREPOINT_SITE_PATH }}
-          SHAREPOINT_DOCUMENT_LIBRARY_NAME: ${{ vars.SHAREPOINT_DOCUMENT_LIBRARY_NAME }}
-          FRONTEND_ORIGIN: ${{ vars.FRONTEND_ORIGIN }}
-          BOOTSTRAP_ADMIN_EMAIL: ${{ vars.BOOTSTRAP_ADMIN_EMAIL }}
-        run: |
-          $PSNativeCommandUseErrorActionPreference = $true
-          $parameters = @{}
-          $images = @{
-            apiImage = $env:API_IMAGE
-            backgroundImage = $env:BACKGROUND_IMAGE
-            markItDownImage = $env:MARKITDOWN_IMAGE
-          }
-          $configured = @($images.Values | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count
-          if ($configured -ne 0 -and $configured -ne 3) {
-            throw 'Set all three GitHub environment variables API_IMAGE, BACKGROUND_IMAGE and MARKITDOWN_IMAGE, or leave all three unset for hello images.'
-          }
-          $useApplicationImages = $configured -eq 3
-          $parameters.deployApplicationImages = @{ value = $useApplicationImages }
-          foreach ($image in $images.Keys) {
-            $reference = 'mcr.microsoft.com/k8se/quickstart:latest'
-            if ($useApplicationImages) {
-              $reference = $images[$image].Trim()
-              if ($reference -like 'mcr.microsoft.com/k8se/quickstart*') {
-                throw 'Image variables must reference application images. Leave all three unset to use hello images.'
-              }
-            }
-            $parameters[$image] = @{ value = $reference }
-          }
-          if ($useApplicationImages) {
-            $mapping = @{
-              sharePointTenantId = 'SHAREPOINT_TENANT_ID'
-              sharePointClientId = 'SHAREPOINT_CLIENT_ID'
-              sharePointClientSecret = 'SHAREPOINT_CLIENT_SECRET'
-              sharePointClientState = 'SHAREPOINT_CLIENT_STATE'
-              markItDownApiKey = 'MARKITDOWN_API_KEY'
-              sharePointSiteHostname = 'SHAREPOINT_SITE_HOSTNAME'
-              sharePointSitePath = 'SHAREPOINT_SITE_PATH'
-              sharePointDocumentLibraryName = 'SHAREPOINT_DOCUMENT_LIBRARY_NAME'
-              frontendOrigin = 'FRONTEND_ORIGIN'
-              bootstrapAdminEmail = 'BOOTSTRAP_ADMIN_EMAIL'
-            }
-            foreach ($key in $mapping.Keys) {
-              $value = [Environment]::GetEnvironmentVariable($mapping[$key])
-              if ([string]::IsNullOrWhiteSpace($value)) {
-                throw "Set $($mapping[$key]) in this GitHub environment."
-              }
-              $parameters[$key] = @{ value = $value }
-            }
-            if ($env:SHAREPOINT_CLIENT_STATE.Length -lt 16 -or $env:MARKITDOWN_API_KEY.Length -lt 32) {
-              throw 'SHAREPOINT_CLIENT_STATE requires 16+ characters; MARKITDOWN_API_KEY requires 32+ characters.'
-            }
-          }
-          $path = "$env:RUNNER_TEMP/runtime.parameters.json"
-          @{ parameters = $parameters } | ConvertTo-Json -Depth 5 | Set-Content $path
-          chmod 600 $path
       - name: Compile templates
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
@@ -144,15 +78,15 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $true
           az group create --name $env:RESOURCE_GROUP --location $env:AZURE_RESOURCE_GROUP_LOCATION --output none
           az deployment group validate --resource-group $env:RESOURCE_GROUP `
-            --template-file "$env:RUNNER_TEMP/main.json" --parameters $env:PARAMETERS_FILE "$env:RUNNER_TEMP/runtime.parameters.json" `
+            --template-file "$env:RUNNER_TEMP/main.json" --parameters $env:PARAMETERS_FILE `
             sqlEntraAdminObjectId=$env:SQL_ENTRA_ADMIN_OBJECT_ID sqlEntraAdministratorPrincipalType=$env:SQL_ENTRA_ADMINISTRATOR_PRINCIPAL_TYPE --output none
           az deployment group what-if --resource-group $env:RESOURCE_GROUP `
-            --template-file "$env:RUNNER_TEMP/main.json" --parameters $env:PARAMETERS_FILE "$env:RUNNER_TEMP/runtime.parameters.json" `
+            --template-file "$env:RUNNER_TEMP/main.json" --parameters $env:PARAMETERS_FILE `
             sqlEntraAdminObjectId=$env:SQL_ENTRA_ADMIN_OBJECT_ID sqlEntraAdministratorPrincipalType=$env:SQL_ENTRA_ADMINISTRATOR_PRINCIPAL_TYPE
           $result = az deployment group create --resource-group $env:RESOURCE_GROUP `
             --name "infra-$env:DEPLOY_ENVIRONMENT" `
             --mode Incremental --template-file "$env:RUNNER_TEMP/main.json" `
-            --parameters $env:PARAMETERS_FILE "$env:RUNNER_TEMP/runtime.parameters.json" sqlEntraAdminObjectId=$env:SQL_ENTRA_ADMIN_OBJECT_ID sqlEntraAdministratorPrincipalType=$env:SQL_ENTRA_ADMINISTRATOR_PRINCIPAL_TYPE `
+            --parameters $env:PARAMETERS_FILE sqlEntraAdminObjectId=$env:SQL_ENTRA_ADMIN_OBJECT_ID sqlEntraAdministratorPrincipalType=$env:SQL_ENTRA_ADMINISTRATOR_PRINCIPAL_TYPE `
             --query properties.outputs --output json
           $result | Set-Content "$env:RUNNER_TEMP/shared-outputs.json"
       - name: Provisioning summary
@@ -161,11 +95,11 @@ jobs:
           $outputs = Get-Content "$env:RUNNER_TEMP/shared-outputs.json" -Raw | ConvertFrom-Json
           "- Static Web App: $($outputs.staticWebAppName.value)" >> $env:GITHUB_STEP_SUMMARY
           "- Frontend origin: $($outputs.staticWebAppUrl.value)" >> $env:GITHUB_STEP_SUMMARY
-          "API, Background and MarkItDown use GitHub environment image variables, falling back to hello images when all three are unset. Run Release Database first, then the independent MarkItDown, AgentHost, API, Background and Frontend release workflows." >> $env:GITHUB_STEP_SUMMARY
+          "Next, run Deploy Container Apps infrastructure for the environment and apps, then Release Database and the release workflows." >> $env:GITHUB_STEP_SUMMARY
       - name: Remove temporary files
         if: always()
         run: |
-          foreach ($name in @('main.json', 'shared-outputs.json', 'runtime.parameters.json')) {
+          foreach ($name in @('main.json', 'shared-outputs.json')) {
             $path = Join-Path $env:RUNNER_TEMP $name
             if (Test-Path -LiteralPath $path) {
               Remove-Item -LiteralPath $path -Force

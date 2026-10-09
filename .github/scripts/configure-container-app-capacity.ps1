@@ -24,7 +24,8 @@ if ($settings.environmentName.value -ne $EnvironmentName) {
 if ([string]::IsNullOrWhiteSpace($ResourceGroup)) {
     $ResourceGroup = "rg-$($settings.workloadName.value)-$EnvironmentName"
 }
-$outputs = az deployment group show --resource-group $ResourceGroup --name "infra-$EnvironmentName" --query properties.outputs -o json | ConvertFrom-Json
+. "$PSScriptRoot/deployment-outputs.ps1"
+$outputs = Get-InfrastructureOutputs $ResourceGroup $EnvironmentName
 
 function Write-CapacitySummary([string] $Details) {
     Write-Host $Details
@@ -36,7 +37,7 @@ function Write-CapacitySummary([string] $Details) {
 $outputName = @{ Api = 'apiContainerAppName'; Background = 'workerContainerAppName'; MarkItDown = 'markItDownContainerAppName'; PageIndex = 'pageIndexContainerAppName' }[$Component]
 $appName = $outputs.$outputName.value
 if ([string]::IsNullOrWhiteSpace($appName)) {
-    throw 'Container App output is missing. Run Deploy infrastructure first.'
+    throw 'Container App output is missing. Run Deploy Container Apps infrastructure first.'
 }
 $app = az containerapp show --resource-group $ResourceGroup --name $appName -o json | ConvertFrom-Json
 $containerName = $Component.ToLowerInvariant()

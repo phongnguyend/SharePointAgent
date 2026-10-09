@@ -1,0 +1,169 @@
+name: Deploy Container Apps Infrastructure
+run-name: Deploy Container Apps Infrastructure (${{ inputs.environment }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options: [local, dev, test]
+        default: dev
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deployment-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: ${{ inputs.environment }}
+    env:
+      DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Check deployment settings
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $settings = (Get-Content "infra/parameters.$env:DEPLOY_ENVIRONMENT.json" -Raw | ConvertFrom-Json).parameters
+          $parametersFile = "infra/ContainerApps/parameters.$env:DEPLOY_ENVIRONMENT.json"
+          $appSettings = (Get-Content $parametersFile -Raw | ConvertFrom-Json).parameters
+          if ($settings.environmentName.value -ne $env:DEPLOY_ENVIRONMENT -or $appSettings.environmentName.value -ne $env:DEPLOY_ENVIRONMENT) {
+            throw 'Parameter environment does not match the selected environment.'
+          }
+          if ($appSettings.workloadName.value -ne $settings.workloadName.value) {
+            throw 'workloadName in infra/ContainerApps/parameters must match infra/parameters, so resource names line up.'
+          }
+          $resourceGroup = $env:AZURE_RESOURCE_GROUP
+          if ([string]::IsNullOrWhiteSpace($resourceGroup)) {
+            $resourceGroup = "rg-$($settings.workloadName.value)-$env:DEPLOY_ENVIRONMENT"
+          }
+          "RESOURCE_GROUP=$resourceGroup" >> $env:GITHUB_ENV
+          "PARAMETERS_FILE=$parametersFile" >> $env:GITHUB_ENV
+          # The environment cannot move, so it stays in the region the shared infrastructure uses.
+          "APP_LOCATION=$($settings.location.value)" >> $env:GITHUB_ENV
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Prepare parameters from the shared infrastructure and application images
+        env:
+          API_IMAGE: ${{ vars.API_IMAGE }}
+          BACKGROUND_IMAGE: ${{ vars.BACKGROUND_IMAGE }}
+          MARKITDOWN_IMAGE: ${{ vars.MARKITDOWN_IMAGE }}
+          SHAREPOINT_TENANT_ID: ${{ vars.SHAREPOINT_TENANT_ID }}
+          SHAREPOINT_CLIENT_ID: ${{ vars.SHAREPOINT_CLIENT_ID }}
+          SHAREPOINT_CLIENT_SECRET: ${{ secrets.SHAREPOINT_CLIENT_SECRET }}
+          SHAREPOINT_CLIENT_STATE: ${{ secrets.SHAREPOINT_CLIENT_STATE }}
+          MARKITDOWN_API_KEY: ${{ secrets.MARKITDOWN_API_KEY }}
+          SHAREPOINT_SITE_HOSTNAME: ${{ vars.SHAREPOINT_SITE_HOSTNAME }}
+          SHAREPOINT_SITE_PATH: ${{ vars.SHAREPOINT_SITE_PATH }}
+          SHAREPOINT_DOCUMENT_LIBRARY_NAME: ${{ vars.SHAREPOINT_DOCUMENT_LIBRARY_NAME }}
+          FRONTEND_ORIGIN: ${{ vars.FRONTEND_ORIGIN }}
+          BOOTSTRAP_ADMIN_EMAIL: ${{ vars.BOOTSTRAP_ADMIN_EMAIL }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $outputs = az deployment group show --resource-group $env:RESOURCE_GROUP --name "infra-$env:DEPLOY_ENVIRONMENT" `
+            --query properties.outputs -o json | ConvertFrom-Json
+          if (-not $outputs.containerRegistryName.value) {
+            throw 'Run Deploy infrastructure before deploying Container Apps.'
+          }
+          $infrastructure = @{}
+          foreach ($output in $outputs.PSObject.Properties) {
+            $infrastructure[$output.Name] = $output.Value.value
+          }
+          $parameters = @{
+            location = @{ value = $env:APP_LOCATION }
+            infrastructure = @{ value = $infrastructure }
+          }
+          $images = @{
+            apiImage = $env:API_IMAGE
+            backgroundImage = $env:BACKGROUND_IMAGE
+            markItDownImage = $env:MARKITDOWN_IMAGE
+          }
+          $configured = @($images.Values | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count
+          if ($configured -ne 0 -and $configured -ne 3) {
+            throw 'Set all three GitHub environment variables API_IMAGE, BACKGROUND_IMAGE and MARKITDOWN_IMAGE, or leave all three unset for hello images.'
+          }
+          $useApplicationImages = $configured -eq 3
+          $parameters.deployApplicationImages = @{ value = $useApplicationImages }
+          foreach ($image in $images.Keys) {
+            $reference = 'mcr.microsoft.com/k8se/quickstart:latest'
+            if ($useApplicationImages) {
+              $reference = $images[$image].Trim()
+              if ($reference -like 'mcr.microsoft.com/k8se/quickstart*') {
+                throw 'Image variables must reference application images. Leave all three unset to use hello images.'
+              }
+            }
+            $parameters[$image] = @{ value = $reference }
+          }
+          if ($useApplicationImages) {
+            $mapping = @{
+              sharePointTenantId = 'SHAREPOINT_TENANT_ID'
+              sharePointClientId = 'SHAREPOINT_CLIENT_ID'
+              sharePointClientSecret = 'SHAREPOINT_CLIENT_SECRET'
+              sharePointClientState = 'SHAREPOINT_CLIENT_STATE'
+              markItDownApiKey = 'MARKITDOWN_API_KEY'
+              sharePointSiteHostname = 'SHAREPOINT_SITE_HOSTNAME'
+              sharePointSitePath = 'SHAREPOINT_SITE_PATH'
+              sharePointDocumentLibraryName = 'SHAREPOINT_DOCUMENT_LIBRARY_NAME'
+              frontendOrigin = 'FRONTEND_ORIGIN'
+              bootstrapAdminEmail = 'BOOTSTRAP_ADMIN_EMAIL'
+            }
+            foreach ($key in $mapping.Keys) {
+              $value = [Environment]::GetEnvironmentVariable($mapping[$key])
+              if ([string]::IsNullOrWhiteSpace($value)) {
+                throw "Set $($mapping[$key]) in this GitHub environment."
+              }
+              $parameters[$key] = @{ value = $value }
+            }
+            if ($env:SHAREPOINT_CLIENT_STATE.Length -lt 16 -or $env:MARKITDOWN_API_KEY.Length -lt 32) {
+              throw 'SHAREPOINT_CLIENT_STATE requires 16+ characters; MARKITDOWN_API_KEY requires 32+ characters.'
+            }
+          }
+          $path = "$env:RUNNER_TEMP/container-apps.parameters.json"
+          New-Item -ItemType File -Path $path -Force | Out-Null
+          chmod 600 $path
+          @{ parameters = $parameters } | ConvertTo-Json -Depth 10 | Set-Content $path
+      - name: Deploy Container Apps
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          az bicep build --file infra/ContainerApps/main.bicep --outfile "$env:RUNNER_TEMP/container-apps.json"
+          az deployment group validate --resource-group $env:RESOURCE_GROUP `
+            --template-file "$env:RUNNER_TEMP/container-apps.json" --parameters $env:PARAMETERS_FILE "$env:RUNNER_TEMP/container-apps.parameters.json" --output none
+          az deployment group what-if --resource-group $env:RESOURCE_GROUP `
+            --template-file "$env:RUNNER_TEMP/container-apps.json" --parameters $env:PARAMETERS_FILE "$env:RUNNER_TEMP/container-apps.parameters.json"
+          $outputs = az deployment group create --resource-group $env:RESOURCE_GROUP --name "container-apps-$env:DEPLOY_ENVIRONMENT" `
+            --mode Incremental --template-file "$env:RUNNER_TEMP/container-apps.json" --parameters $env:PARAMETERS_FILE "$env:RUNNER_TEMP/container-apps.parameters.json" `
+            --query properties.outputs -o json | ConvertFrom-Json
+          "## Container Apps infrastructure deployed" >> $env:GITHUB_STEP_SUMMARY
+          "- Environment: $($outputs.containerAppsEnvironmentName.value)" >> $env:GITHUB_STEP_SUMMARY
+          "- API: $($outputs.apiUrl.value)" >> $env:GITHUB_STEP_SUMMARY
+          "- MarkItDown: $($outputs.markItDownEndpoint.value)" >> $env:GITHUB_STEP_SUMMARY
+          "- PageIndex: $($outputs.pageIndexEndpoint.value)" >> $env:GITHUB_STEP_SUMMARY
+          "API, Background and MarkItDown use GitHub environment image variables, falling back to hello images when all three are unset. Run Release Database first, then the independent MarkItDown, AgentHost, API, Background and Frontend release workflows." >> $env:GITHUB_STEP_SUMMARY
+      - name: Remove temporary files
+        if: always()
+        run: |
+          foreach ($name in @('container-apps.json', 'container-apps.parameters.json')) {
+            $path = Join-Path $env:RUNNER_TEMP $name
+            if (Test-Path -LiteralPath $path) {
+              Remove-Item -LiteralPath $path -Force
+            }
+          }
