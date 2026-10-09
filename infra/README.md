@@ -542,8 +542,20 @@ Run **Actions → Report Current Capacity → Run workflow**, selecting `dev` or
 `test`. The [workflow](../.github/workflows/report-capacity.yml) reads the deployed
 resources and publishes a table in the job summary:
 
-- API, Background, MarkItDown, and PageIndex: app state, active revisions,
+- API, Background, MarkItDown, PageIndex, and Ollaya: app state, active revisions,
   CPU/memory per container per replica, and configured minimum/maximum replicas.
+  Ollaya's app comes from the `ollaya-<environment>` deployment and is listed as
+  not deployed, rather than failing the report, when that deployment is absent.
+- Dynamic Sessions: pool state, CPU/memory per session, ready and maximum
+  sessions, cooldown, and egress.
+- Sandboxes: sandbox group state and region, the API's `AgentWorkspace__Mode`,
+  and the CPU, memory, and auto-suspend the API applies to each sandbox it
+  creates (application defaults where the API does not set them). Live
+  sandboxes are not counted.
+
+Dynamic Sessions and Sandboxes are listed as not deployed when their
+`dynamic-sessions-<environment>` or `sandboxes-<environment>` deployment is
+absent.
 - AgentHost: explicitly routed versions, status, traffic percentage, and
   CPU/memory per session.
 
