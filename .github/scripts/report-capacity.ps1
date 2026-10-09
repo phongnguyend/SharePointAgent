@@ -15,14 +15,39 @@ if ($settings.environmentName.value -ne $EnvironmentName) {
 if ([string]::IsNullOrWhiteSpace($ResourceGroup)) {
     $ResourceGroup = "rg-$($settings.workloadName.value)-$EnvironmentName"
 }
+. "$PSScriptRoot/deployment-outputs.ps1"
 # Select only resource names and the project URL; deployment outputs can contain credentials.
-$apps = az deployment group show --resource-group $ResourceGroup --name "container-apps-$EnvironmentName" `
-    --query 'properties.outputs.{Api:apiContainerAppName.value,Background:workerContainerAppName.value,MarkItDown:markItDownContainerAppName.value,PageIndex:pageIndexContainerAppName.value}' -o json | ConvertFrom-Json
+function Get-AppNames($Deployment) {
+    $PSNativeCommandUseErrorActionPreference = $false
+    $names = az deployment group show --resource-group $ResourceGroup --name "$Deployment-$EnvironmentName" `
+        --query 'properties.outputs.{Api:apiContainerAppName.value,Background:workerContainerAppName.value,MarkItDown:markItDownContainerAppName.value,PageIndex:pageIndexContainerAppName.value}' -o json 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $names) {
+        return $null
+    }
+    $names = $names | ConvertFrom-Json
+    if ([string]::IsNullOrWhiteSpace($names.Api)) {
+        return $null
+    }
+    return $names
+}
+# Before the first Deploy Container Apps infrastructure run, the apps are still named by the infra
+# deployment that created them.
+$apps = Get-AppNames 'container-apps'
+if (-not $apps) {
+    $apps = Get-AppNames 'infra'
+}
+if (-not $apps) {
+    $apps = [pscustomobject]@{}
+}
+$PSNativeCommandUseErrorActionPreference = $false
 $project = az deployment group show --resource-group $ResourceGroup --name "infra-$EnvironmentName" `
-    --query 'properties.outputs.hosting.value.foundryProjectEndpoint' -o tsv
+    --query 'properties.outputs.hosting.value.foundryProjectEndpoint' -o tsv 2>$null
+if ($LASTEXITCODE -ne 0) {
+    $project = ''
+}
+$PSNativeCommandUseErrorActionPreference = $true
 # Ollaya, Dynamic Sessions, and Sandboxes are optional and have their own templates, so a missing
 # deployment is reported as not deployed rather than as an error.
-. "$PSScriptRoot/deployment-outputs.ps1"
 $ollaya = Get-OptionalDeploymentOutput 'ollaya' 'ollayaContainerAppName' $ResourceGroup $EnvironmentName
 $outputs = [pscustomobject]@{
     Api = $apps.Api
@@ -58,7 +83,9 @@ foreach ($component in @('Api', 'Background', 'MarkItDown', 'PageIndex', 'Ollaya
             continue
         }
         if ([string]::IsNullOrWhiteSpace($name)) {
-            throw 'Infrastructure output is missing.'
+            $errors.Add("$component is not in the container-apps-$EnvironmentName or infra-$EnvironmentName deployment outputs. Run Deploy Container Apps infrastructure.")
+            $lines.Add("| $component | Not found | - | - | - | - | - | - |")
+            continue
         }
         $app = az containerapp show --resource-group $ResourceGroup --name $name `
             --query '{state:properties.runningStatus}' -o json | ConvertFrom-Json
