@@ -32,8 +32,8 @@ public sealed record DocumentOutline(
 /// asking again for an unchanged file costs nothing, and a file without headings is answered without calling
 /// the service at all.
 /// <para>
-/// PageIndex does not know about SharePoint permissions. Callers pass only files the agent may already read,
-/// which <see cref="AgentTextFiles.ResolveReadable"/> decides.
+/// PageIndex does not know about SharePoint permissions. Only files in the agent's working directory are
+/// sent, read through the same workspace every other tool uses.
 /// </para>
 /// </summary>
 public sealed partial class AgentDocumentOutlines(
@@ -55,10 +55,10 @@ public sealed partial class AgentDocumentOutlines(
 
     public const string NoHeadingsWarning = "This file has no headings, so it has no outline. Read it with read_text and follow nextLine.";
 
-    public async Task<DocumentOutline> GetAsync(string fullPath, bool includeSummaries, CancellationToken cancellationToken)
+    public async Task<DocumentOutline> GetAsync(IAgentWorkspace workspace, string path, bool includeSummaries, CancellationToken cancellationToken)
     {
-        var name = Path.GetFileName(fullPath);
-        if (!OutlinedExtensions.Contains(Path.GetExtension(fullPath)))
+        var name = Path.GetFileName(workspace.Normalize(path));
+        if (!OutlinedExtensions.Contains(Path.GetExtension(name)))
         {
             // Other text formats, such as CSV and JSON, have no sections; converting them is refused as well.
             throw new ArgumentException(uploads.Value.IsTextFile(name)
@@ -66,7 +66,9 @@ public sealed partial class AgentDocumentOutlines(
                 : $"Outlines are built from Markdown. Use {ChatAgentToolNames.ConvertToMarkdown} first, then pass the localPath it returns.");
         }
 
-        var content = await File.ReadAllBytesAsync(fullPath, cancellationToken);
+        var file = await workspace.ReadAsync(path, cancellationToken, MaxBytes);
+        var fullPath = file.Path;
+        var content = file.Content;
         var text = Encoding.UTF8.GetString(content);
         var totalLines = CountLines(text);
         if (!HeadingPattern().IsMatch(text))

@@ -5,6 +5,7 @@ using Azure.AI.OpenAI;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Microsoft.EntityFrameworkCore;
 using SharePointAgent.Persistence;
 using OpenAI.Chat;
@@ -35,10 +36,13 @@ public sealed class ChatAgentService(
     ChatMessageAttachmentFileService attachmentFiles,
     AgentSharePointFiles files,
     ILogger<ChatAgentService> logger,
-    AgentFileSystem workingDirectory,
+    IAgentWorkspaceProvider workspaces,
     IDbContextFactory<SharePointIndexDbContext> contextFactory,
-    AgentMarkdownConverter markdownConverter,
-    ImageTextRecognizer textRecognizer,
+    MarkItDownClient markItDown,
+    DocumentIntelligenceClient documentIntelligence,
+    IOptions<UploadOptions> uploadOptions,
+    IOptions<DocumentIntelligenceOptions> documentIntelligenceOptions,
+    IOptions<AgentWorkspaceOptions> workspaceOptions,
     IGraphRetrievalService? graphRetrieval = null,
     AgentDocumentOutlines? documentOutlines = null) : IChatAgentExecutor
 {
@@ -76,10 +80,35 @@ public sealed class ChatAgentService(
         var context = await contextLoader.LoadAsync(request, cancellationToken);
         using var embeddingAttribution = EmbeddingUsageScope.Begin(new(
             UserId: request.UserId, ConversationId: context.Conversation.Id, QuestionId: context.Question.Id));
-        return await RunStreamingCoreAsync(
+        var workspace = await workspaces.GetAsync(context.Conversation.Id, cancellationToken);
+        try
+        {
+            return await RunStreamingCoreAsync(
             context.Conversation.Id, context.History, context.Question, context.Conversation.UserId,
             context.Agent.ModelId, context.Instructions, request.StartedAtUtc ?? DateTimeOffset.UtcNow,
-            onText, onStatus, cancellationToken);
+            onText, onStatus, cancellationToken, workspace);
+        }
+        finally
+        {
+            await SaveWorkspaceAsync(workspace, context.Conversation.Id);
+        }
+    }
+
+    /// <summary>
+    /// Keeps the turn's file changes for the next turn. A failure is logged and swallowed: the answer has
+    /// already been given, and the files are still in the environment until it is recycled.
+    /// </summary>
+    private async Task SaveWorkspaceAsync(IAgentWorkspace workspace, Guid conversationId)
+    {
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+            await workspace.SaveAsync(timeout.Token);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not save the working directory of conversation {ConversationId}.", conversationId);
+        }
     }
 
     private async Task<ChatTurn> RunStreamingCoreAsync(
@@ -92,7 +121,8 @@ public sealed class ChatAgentService(
         DateTimeOffset startedAt,
         Func<string, CancellationToken, ValueTask> onText,
         Func<string, CancellationToken, ValueTask> onStatus,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IAgentWorkspace workspace)
     {
         // The tools collect what they retrieved so the citations can be stored with the answer.
         string? lastStatus = null;
@@ -132,7 +162,7 @@ public sealed class ChatAgentService(
                     UserId = appUserId,
                     ConversationId = conversationId,
                     QuestionId = question.Id,
-                    AttachmentId = result.FilePath is not null && imageAttachments.TryGetValue(workingDirectory.Resolve(result.FilePath), out var attachmentId)
+                    AttachmentId = result.FilePath is not null && imageAttachments.TryGetValue(workspace.Normalize(result.FilePath), out var attachmentId)
                         ? attachmentId : null,
                     FilePath = result.FilePath,
                     ModelId = modelId,
@@ -144,10 +174,11 @@ public sealed class ChatAgentService(
                     TotalTokens = result.UsageReported ? result.Usage.TotalTokens : null
                 });
                 await db.SaveChangesAsync(recording.Token);
-            }, workingDirectory);
+            }, workspace);
         var turnTools = new AgentTools(
             searchStore, attachmentFiles, files, conversationId, userId, logger, ReportStatusAsync,
-            imageDescriber, workingDirectory, markdownConverter, imageAttachments, textRecognizer, graphRetrieval, documentOutlines);
+            imageDescriber, workspace, new AgentMarkdownConverter(workspace, markItDown, uploadOptions), imageAttachments,
+            new ImageTextRecognizer(workspace, documentIntelligence, documentIntelligenceOptions), graphRetrieval, documentOutlines);
         using var embeddingUsage = ChatEmbeddingUsage.Begin();
 
         // Named explicitly so the names the instructions above use are the names the model sees. Skill
@@ -180,7 +211,7 @@ public sealed class ChatAgentService(
         var agent = chatClient.AsAIAgent(new ChatClientAgentOptions
         {
             Name = "SharePointSearchAgent",
-            AIContextProviders = [ChatAgentSkills.CreateProvider()],
+            AIContextProviders = [ChatAgentSkills.CreateProvider(workspace, workspaceOptions.Value.ScriptTimeoutSeconds)],
             ChatOptions = new ChatOptions
             {
                 ModelId = modelId,
@@ -400,7 +431,7 @@ public sealed class ChatAgentService(
         ILogger logger,
         Func<string, CancellationToken, ValueTask> reportStatus,
         ImageDescriber imageDescriber,
-        AgentFileSystem workingDirectory,
+        IAgentWorkspace workingDirectory,
         AgentMarkdownConverter markdownConverter,
         System.Collections.Concurrent.ConcurrentDictionary<string, Guid> imageAttachments,
         ImageTextRecognizer textRecognizer,
@@ -436,8 +467,7 @@ public sealed class ChatAgentService(
             await reportStatus("Describing the image…", cancellationToken);
             try
             {
-                var fullPath = workingDirectory.Resolve(filePath, mustExist: true);
-                Guid? attachmentId = imageAttachments.TryGetValue(fullPath, out var linkedId) ? linkedId : null;
+                Guid? attachmentId = imageAttachments.TryGetValue(workingDirectory.Normalize(filePath), out var linkedId) ? linkedId : null;
                 var result = await imageDescriber.DescribeAsync(filePath, focus, cancellationToken);
                 if (attachmentId is { } id)
                 {
@@ -500,7 +530,6 @@ public sealed class ChatAgentService(
             try
             {
                 var localPath = await markdownConverter.ConvertAsync(path, cancellationToken, destinationPath, overwrite);
-                _textFiles.Register(localPath);
                 return new { localPath };
             }
             catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException)
@@ -523,7 +552,7 @@ public sealed class ChatAgentService(
             {
                 return await _textFiles.ReadAsync(path, startLine, endLine, cancellationToken);
             }
-            catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+            catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or AgentWorkspaceUnavailableException)
             {
                 return new { error = ex.Message };
             }
@@ -543,9 +572,7 @@ public sealed class ChatAgentService(
 
             try
             {
-                var fullPath = _textFiles.ResolveReadable(path, AgentDocumentOutlines.MaxBytes);
-                var outline = await documentOutlines.GetAsync(fullPath, includeSummaries, cancellationToken);
-                return outline with { Path = path };
+                return await documentOutlines.GetAsync(workingDirectory, path, includeSummaries, cancellationToken);
             }
             catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
             {
@@ -565,7 +592,7 @@ public sealed class ChatAgentService(
             CancellationToken cancellationToken = default)
         {
             await reportStatus("Listing files\u2026", cancellationToken);
-            return Guarded(() => workingDirectory.List(path, recursive));
+            return await GuardedAsync(async () => await workingDirectory.ListAsync(path, recursive, cancellationToken));
         }
 
         [Description($"Write a text file in the working directory, creating any directories it needs. Use it for notes, extracted text, CSV, Markdown, or code. It cannot write .docx, .xlsx, or .pptx: those are binary, and changing one is done with the skill for that format. Writing does not touch SharePoint; {ChatAgentToolNames.UploadSharePointFile} is what sends a file back.")]
@@ -579,7 +606,6 @@ public sealed class ChatAgentService(
             var result = await GuardedAsync(async () =>
             {
                 var entry = await workingDirectory.WriteTextAsync(path, content, overwrite, cancellationToken);
-                _textFiles.Register(System.IO.Path.Combine(workingDirectory.Root, entry.Path));
                 return (object)entry;
             });
             return result;
@@ -591,7 +617,7 @@ public sealed class ChatAgentService(
             CancellationToken cancellationToken = default)
         {
             await reportStatus("Creating a directory\u2026", cancellationToken);
-            return Guarded(() => workingDirectory.CreateDirectory(path));
+            return await GuardedAsync(async () => await workingDirectory.CreateDirectoryAsync(path, cancellationToken));
         }
 
         [Description("Move or rename a file or directory inside the working directory. A destination that is an existing directory moves the item into it; anything else is the new name. This does not move anything in SharePoint.")]
@@ -602,7 +628,7 @@ public sealed class ChatAgentService(
             CancellationToken cancellationToken = default)
         {
             await reportStatus("Moving a file\u2026", cancellationToken);
-            return Guarded(() => workingDirectory.Move(source, destination, overwrite));
+            return await GuardedAsync(async () => await workingDirectory.MoveAsync(source, destination, overwrite, cancellationToken));
         }
 
         [Description("Copy a file inside the working directory. Use this to keep the downloaded original untouched while working on a copy. Directories are not copied; copy the files in them one at a time.")]
@@ -613,7 +639,7 @@ public sealed class ChatAgentService(
             CancellationToken cancellationToken = default)
         {
             await reportStatus("Copying a file\u2026", cancellationToken);
-            return Guarded(() => workingDirectory.Copy(source, destination, overwrite));
+            return await GuardedAsync(async () => await workingDirectory.CopyAsync(source, destination, overwrite, cancellationToken));
         }
 
         [Description("Delete a file or directory in the working directory. This removes the local copy only and never deletes anything in SharePoint, but it cannot be undone: a downloaded file has to be downloaded again, and anything written here and not uploaded is lost. Delete only what the user asked you to.")]
@@ -623,10 +649,10 @@ public sealed class ChatAgentService(
             CancellationToken cancellationToken = default)
         {
             await reportStatus("Deleting a file\u2026", cancellationToken);
-            return Guarded(() =>
+            return await GuardedAsync(async () =>
             {
-                workingDirectory.Delete(path, recursive);
-                return (object)new { deleted = path };
+                await workingDirectory.DeleteAsync(path, recursive, cancellationToken);
+                return (object)new { deleted = workingDirectory.Normalize(path) };
             });
         }
 
@@ -635,28 +661,23 @@ public sealed class ChatAgentService(
         /// everything else fail the turn. A tool that reports "no such file" is useful; one that reports
         /// a bug as though the file were at fault is not.
         /// </summary>
-        private static object Guarded(Func<object> operation)
-        {
-            try
-            {
-                return operation();
-            }
-            catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException)
-            {
-                return new { error = ex.Message };
-            }
-        }
-
         private static async Task<object> GuardedAsync(Func<Task<object>> operation)
         {
             try
             {
                 return await operation();
             }
-            catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException)
+            catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException
+                                       or AgentWorkspaceUnavailableException)
             {
                 return new { error = ex.Message };
             }
+        }
+
+        private async Task<string> CopyIntoWorkspaceAsync(string hostPath, string workspacePath, CancellationToken cancellationToken)
+        {
+            await using var content = File.OpenRead(hostPath);
+            return (await workingDirectory.WriteAsync(workspacePath, content, overwrite: true, cancellationToken)).Path;
         }
 
         private async Task<object> DownloadAttachmentCoreAsync(string attachmentId, CancellationToken cancellationToken)
@@ -675,8 +696,10 @@ public sealed class ChatAgentService(
                     return new { error = "Attachment is not available in this conversation." };
                 }
 
-                _textFiles.Register(result.LocalPath);
-                imageAttachments[workingDirectory.Resolve(result.LocalPath, mustExist: true)] = id;
+                var localPath = workingDirectory.IsIsolated
+                    ? await CopyIntoWorkspaceAsync(result.LocalPath, $"Downloads/Attachments/{id:N}/{result.FileName}", cancellationToken)
+                    : workingDirectory.Normalize(result.LocalPath);
+                imageAttachments[localPath] = id;
                 lock (_citationGate)
                 {
                     var url = $"/api/attachment-files/{id:D}/download";
@@ -685,7 +708,7 @@ public sealed class ChatAgentService(
                         _citations.Add(new ChatCitation(result.FileName, "Conversation attachment", url, 0, null));
                     }
                 }
-                return new DownloadToolResult(true, result.LocalPath, result.FileName, result.SizeBytes, result.AlreadyOnDisk, null);
+                return new DownloadToolResult(true, localPath, result.FileName, result.SizeBytes, result.AlreadyOnDisk, null);
             }
             catch (AttachmentMarkdownUnavailableException ex)
             {
@@ -855,8 +878,7 @@ public sealed class ChatAgentService(
 
             try
             {
-                var file = await files.DownloadAsync(fileId!, fileName, cancellationToken, destinationPath, overwrite);
-                _textFiles.Register(file.LocalPath);
+                var file = await files.DownloadAsync(workingDirectory, fileId!, fileName, cancellationToken, destinationPath, overwrite);
                 return new DownloadToolResult(true, file.LocalPath, file.FileName, file.SizeBytes, file.AlreadyOnDisk, null);
             }
             catch (FileTooLargeException ex)
@@ -890,7 +912,7 @@ public sealed class ChatAgentService(
 
             try
             {
-                var version = await files.UploadAsync(fileId!, fileName, sourcePath, cancellationToken);
+                var version = await files.UploadAsync(workingDirectory, fileId!, fileName, sourcePath, cancellationToken);
                 return new UploadToolResult(
                     true, version.Name, version.WebUrl, version.Size, version.LastModifiedUtc, null);
             }

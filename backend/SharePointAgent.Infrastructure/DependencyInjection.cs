@@ -164,10 +164,12 @@ public static class DependencyInjection
         services.AddSearchQueryServices(configuration);
         services.AddAttachmentFileServices(configuration);
         AddChatStorage(services, configuration);
-        return services.AddLocalChatAgent(configuration);
+
+        // The Foundry hosted session is itself the isolated environment, so its own disk is the workspace.
+        return services.AddLocalChatAgent(configuration, hostedSession: true);
     }
 
-    private static IServiceCollection AddLocalChatAgent(this IServiceCollection services, IConfiguration configuration)
+    private static IServiceCollection AddLocalChatAgent(this IServiceCollection services, IConfiguration configuration, bool hostedSession = false)
     {
         services.AddLocalWorkingDirectory(configuration);
 
@@ -181,13 +183,11 @@ public static class DependencyInjection
         });
 
         services.AddSingleton<AgentSharePointFiles>();
-        services.AddSingleton<AgentFileSystem>();
-        services.AddTransient<AgentMarkdownConverter>();
-        services.AddTransient<ImageTextRecognizer>();
         services.AddOptions<DocumentIntelligenceOptions>().Bind(configuration.GetSection(DocumentIntelligenceOptions.SectionName))
             .Validate(o => string.IsNullOrWhiteSpace(o.Endpoint) || o.UsedManagedIdentity || !string.IsNullOrWhiteSpace(o.ApiKey), "DocumentIntelligence:ApiKey is required when an endpoint is configured and UsedManagedIdentity is false.").ValidateOnStart();
         services.AddHttpClient<DocumentIntelligenceClient>();
-        services.AddSingleton<IAgentFileBrowser, LocalAgentFileBrowser>();
+        services.AddAgentWorkspaces(configuration, hostedSession);
+        services.AddSingleton<IAgentFileBrowser, WorkspaceAgentFileBrowser>();
         services.AddSingleton<ChatAgentContextLoader>();
         services.AddGraphRetrievalServices(configuration);
 
@@ -199,6 +199,62 @@ public static class DependencyInjection
         }
         services.AddSingleton<ChatAgentService>();
         services.AddSingleton<IChatAgentExecutor>(sp => sp.GetRequiredService<ChatAgentService>());
+        return services;
+    }
+
+    /// <summary>
+    /// Where the agent's working directory lives (<c>AgentWorkspace:Mode</c>). Local is the default and
+    /// changes nothing. The isolated modes reach SharePointAgent.SandboxHost in an Azure Container Apps
+    /// dynamic session or sandbox, one per chat workspace or conversation, with snapshots in Blob Storage
+    /// keeping a dynamic session's files across its cooldown.
+    /// </summary>
+    private static IServiceCollection AddAgentWorkspaces(this IServiceCollection services, IConfiguration configuration, bool hostedSession)
+    {
+        services.AddSingleton<AgentFileSystem>();
+        var mode = hostedSession
+            ? AgentWorkspaceMode.Local
+            : configuration.GetValue($"{AgentWorkspaceOptions.SectionName}:{nameof(AgentWorkspaceOptions.Mode)}", AgentWorkspaceMode.Local);
+        services.AddOptions<AgentWorkspaceOptions>().Bind(configuration.GetSection(AgentWorkspaceOptions.SectionName))
+            .Configure(options => options.Mode = mode)
+            .ValidateDataAnnotations()
+            .Validate(o => o.Mode != AgentWorkspaceMode.DynamicSessions || o.DynamicSessions.IsConfigured,
+                "AgentWorkspace:DynamicSessions:PoolManagementEndpoint must be the pool's HTTPS management endpoint.")
+            .Validate(o => o.Mode != AgentWorkspaceMode.DynamicSessions || o.Snapshots.IsConfigured,
+                "AgentWorkspace:Snapshots:ServiceUri (managed identity) or ConnectionString is required for dynamic sessions, whose files are otherwise lost after the cooldown.")
+            .Validate(o => o.Mode != AgentWorkspaceMode.Sandboxes || o.Snapshots.IsConfigured || !string.IsNullOrWhiteSpace(o.Sandboxes.SharedEndpoint),
+                "AgentWorkspace:Snapshots storage holds the sandbox bindings; configure it, or a shared development sandbox.")
+            .ValidateOnStart();
+
+        if (mode == AgentWorkspaceMode.Local)
+        {
+            services.AddSingleton<IAgentWorkspaceProvider, LocalAgentWorkspaceProvider>();
+            return services;
+        }
+
+        services.AddHttpClient(Workspaces.IsolatedAgentWorkspaceProvider.HttpClientName, client => client.Timeout = Timeout.InfiniteTimeSpan);
+        services.AddSingleton<Workspaces.BlobWorkspaceStorage>();
+        services.AddSingleton<Workspaces.IWorkspaceSnapshotStore>(sp => sp.GetRequiredService<Workspaces.BlobWorkspaceStorage>());
+        services.AddSingleton<Workspaces.ISandboxRegistry>(sp => sp.GetRequiredService<Workspaces.BlobWorkspaceStorage>());
+        services.AddSingleton<IAgentWorkspaceProvider>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<AgentWorkspaceOptions>>();
+            var clientId = options.Value.DynamicSessions.ManagedIdentityClientId;
+            TokenCredential? credential = options.Value.Mode == AgentWorkspaceMode.DynamicSessions
+                ? new DefaultAzureCredential(new DefaultAzureCredentialOptions
+                {
+                    ManagedIdentityClientId = string.IsNullOrWhiteSpace(clientId) ? Environment.GetEnvironmentVariable("AZURE_CLIENT_ID") : clientId
+                })
+                : null;
+            return new Workspaces.IsolatedAgentWorkspaceProvider(
+                sp.GetRequiredService<IHttpClientFactory>(),
+                sp.GetRequiredService<IDbContextFactory<SharePointIndexDbContext>>(),
+                options,
+                sp.GetRequiredService<IOptions<LocalWorkingDirectoryOptions>>(),
+                sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Workspaces.SandboxHostWorkspace>>(),
+                credential,
+                sp.GetRequiredService<Workspaces.IWorkspaceSnapshotStore>(),
+                sp.GetRequiredService<Workspaces.ISandboxRegistry>());
+        });
         return services;
     }
 

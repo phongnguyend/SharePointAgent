@@ -120,6 +120,14 @@ param graphRagCosmosServerless bool = true
 @description('Let the API identity write to the graph, which administrator entity merges need. When false the API can only read it.')
 param graphRagAllowAdminMerges bool = false
 
+@description('Where the agent working directory lives when the API runs the agent itself (ChatAgent:Mode Local): this host disk, a dynamic session (needs deployDynamicSessions), or a sandbox bound per workspace. Foundry mode already runs the agent in its own session sandbox.')
+@allowed([
+  'Local'
+  'DynamicSessions'
+  'Sandboxes'
+])
+param agentWorkspaceMode string = 'Local'
+
 @description('Azure AI Search service SKU.')
 @allowed([
   'basic'
@@ -356,6 +364,13 @@ resource graphContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
     }
   }
 }]
+
+// Snapshots of dynamic-session working directories, and sandbox bindings, for isolated agent workspaces.
+resource agentWorkspacesContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = if (agentWorkspaceMode != 'Local') {
+  parent: uploadBlobService
+  name: 'agent-workspaces'
+  properties: { publicAccess: 'None' }
+}
 
 resource serviceBusNamespace 'Microsoft.ServiceBus/namespaces@2024-01-01' = {
   name: serviceBusNamespaceName
@@ -819,6 +834,11 @@ resource api 'Microsoft.App/containerApps@2025-01-01' = {
           { name: 'AZURE_CLIENT_ID', value: apiIdentity.properties.clientId }
           { name: 'SqlServer__ConnectionString', value: 'Server=tcp:${sqlServerFqdn},1433;Database=${sqlDatabaseName};Authentication=Active Directory Managed Identity;User Id=${apiIdentity.properties.clientId};Encrypt=True;TrustServerCertificate=False;' }
           { name: 'ChatAgent__Mode', value: 'Foundry' }
+          { name: 'AgentWorkspace__Mode', value: agentWorkspaceMode }
+          { name: 'AgentWorkspace__DynamicSessions__PoolManagementEndpoint', value: dynamicSessions.?properties.poolManagementEndpoint ?? '' }
+          { name: 'AgentWorkspace__DynamicSessions__ManagedIdentityClientId', value: apiIdentity.properties.clientId }
+          { name: 'AgentWorkspace__Snapshots__UsedManagedIdentity', value: 'true' }
+          { name: 'AgentWorkspace__Snapshots__ServiceUri', value: uploadStorage.properties.primaryEndpoints.blob }
           { name: 'ChatAgent__Foundry__Endpoint', value: foundryEndpoint }
           { name: 'ChatAgent__Foundry__ManagedIdentityClientId', value: apiIdentity.properties.clientId }
           { name: 'Uploads__UsedManagedIdentity', value: 'true' }

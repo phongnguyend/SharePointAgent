@@ -1,47 +1,64 @@
+using Microsoft.Extensions.Options;
+using SharePointAgent.Application;
 using SharePointAgent.Infrastructure;
 using Xunit;
 
 namespace SharePointAgent.Tests;
 
-public sealed class AgentTextFilesTests
+public sealed class AgentTextFilesTests : IDisposable
 {
-    [Fact]
-    public async Task OnlyRegisteredPathsCanBeReadAndGrantsAreTurnScoped()
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "text-files-" + Guid.NewGuid().ToString("N"));
+
+    public AgentTextFilesTests()
     {
-        var path = Path.GetTempFileName();
+        Directory.CreateDirectory(_root);
+    }
+
+    public void Dispose()
+    {
+        Directory.Delete(_root, recursive: true);
+    }
+
+    private AgentFileSystem Workspace => new(Options.Create(new LocalWorkingDirectoryOptions { Directory = _root }));
+
+    [Fact]
+    public async Task FilesInTheWorkingDirectoryAreReadByLineRange()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_root, "notes.txt"), "one\r\ntwo\nthree\nfour");
+        var files = new AgentTextFiles(Workspace);
+
+        var page = await files.ReadAsync("notes.txt", 2, 3);
+
+        Assert.Equal("two\nthree", page.Text);
+        Assert.Equal("notes.txt", page.Path);
+        Assert.Equal(4, page.TotalLines);
+        Assert.Equal(4, page.NextLine);
+        await Assert.ThrowsAsync<ArgumentException>(() => files.ReadAsync("notes.txt", 0));
+    }
+
+    [Fact]
+    public async Task FilesOutsideTheWorkingDirectoryCannotBeRead()
+    {
+        var outside = Path.GetTempFileName();
         try
         {
-            await File.WriteAllTextAsync(path, "one\r\ntwo\nthree\nfour");
-            var files = new AgentTextFiles();
-            await Assert.ThrowsAsync<ArgumentException>(() => files.ReadAsync(path));
-            files.Register(path);
-            var page = await files.ReadAsync(path, 2, 3);
-            Assert.Equal("two\nthree", page.Text);
-            Assert.Equal(4, page.TotalLines);
-            Assert.Equal(4, page.NextLine);
-            await Assert.ThrowsAsync<ArgumentException>(() => new AgentTextFiles().ReadAsync(path));
-            await Assert.ThrowsAsync<ArgumentException>(() => files.ReadAsync(path, 0));
+            await File.WriteAllTextAsync(outside, "secret");
+            var files = new AgentTextFiles(Workspace);
+
+            await Assert.ThrowsAsync<ArgumentException>(() => files.ReadAsync(outside));
+            await Assert.ThrowsAsync<ArgumentException>(() => files.ReadAsync("../" + Path.GetFileName(outside)));
         }
         finally
         {
-            File.Delete(path);
+            File.Delete(outside);
         }
     }
 
     [Fact]
     public async Task BinaryContentIsRejected()
     {
-        var path = Path.GetTempFileName();
-        try
-        {
-            await File.WriteAllBytesAsync(path, [0, 1, 2]);
-            var files = new AgentTextFiles();
-            files.Register(path);
-            await Assert.ThrowsAsync<ArgumentException>(() => files.ReadAsync(path));
-        }
-        finally
-        {
-            File.Delete(path);
-        }
+        await File.WriteAllBytesAsync(Path.Combine(_root, "data.bin"), [0, 1, 2]);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => new AgentTextFiles(Workspace).ReadAsync("data.bin"));
     }
 }

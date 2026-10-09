@@ -16,7 +16,7 @@ namespace SharePointAgent.Infrastructure;
 /// per-session sandbox shared by a workspace's conversations.
 /// </para>
 /// </summary>
-public sealed partial class AgentFileSystem(IOptions<LocalWorkingDirectoryOptions> options)
+public sealed partial class AgentFileSystem(IOptions<LocalWorkingDirectoryOptions> options) : IAgentWorkspace
 {
     /// <summary>The most entries one listing returns, so a large tree cannot fill the context window.</summary>
     public const int MaxEntries = 500;
@@ -122,7 +122,7 @@ public sealed partial class AgentFileSystem(IOptions<LocalWorkingDirectoryOption
     /// A file's bytes, for showing or saving it outside the agent. Directories and files past the
     /// size limit are refused rather than partially returned.
     /// </summary>
-    public async Task<FileContent> ReadAsync(string path, CancellationToken cancellationToken)
+    public async Task<FileContent> ReadAsync(string path, CancellationToken cancellationToken, long? maxBytes = null)
     {
         var full = Resolve(path, mustExist: true);
         if (Directory.Exists(full))
@@ -130,11 +130,12 @@ public sealed partial class AgentFileSystem(IOptions<LocalWorkingDirectoryOption
             throw new ArgumentException($"'{Relative(full)}' is a directory, not a file.");
         }
 
+        var limit = maxBytes ?? _maxReadBytes;
         var file = new FileInfo(full);
-        if (file.Length > _maxReadBytes)
+        if (file.Length > limit)
         {
             throw new ArgumentException(
-                $"'{Relative(full)}' is {file.Length / (1024 * 1024)} MB, over the {_maxReadBytes / (1024 * 1024)} MB read limit.");
+                $"'{Relative(full)}' is {file.Length / (1024 * 1024)} MB, over the {limit / (1024 * 1024)} MB read limit.");
         }
 
         return new(

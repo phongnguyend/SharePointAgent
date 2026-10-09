@@ -25,7 +25,7 @@ public sealed class AgentMarkdownConverterTests
             var path = await converter.ConvertAsync("sample.docx", default);
             Assert.Equal("# Converted", (await new AgentTextFiles(files).ReadAsync(path)).Text);
             Assert.Equal("original", await File.ReadAllTextAsync(Path.Combine(root, "sample.docx")));
-            Assert.StartsWith(Path.Combine(root, "Converted"), path);
+            Assert.StartsWith("Converted/", path);
             Assert.NotEqual(path, await converter.ConvertAsync("sample.docx", default));
             await files.WriteTextAsync("plain.txt", "text", false, default);
             await Assert.ThrowsAsync<ArgumentException>(() => converter.ConvertAsync("plain.txt", default));
@@ -34,15 +34,15 @@ public sealed class AgentMarkdownConverterTests
 
             var destination = "Reports/nested/result.md";
             var customPath = await converter.ConvertAsync("sample.docx", default, destination);
-            Assert.Equal(files.Resolve(destination), customPath);
-            await File.WriteAllTextAsync(customPath, "keep existing");
+            Assert.Equal(destination, customPath);
+            await File.WriteAllTextAsync(files.Resolve(customPath), "keep existing");
             await Assert.ThrowsAsync<ArgumentException>(() => converter.ConvertAsync("sample.docx", default, destination));
             await Assert.ThrowsAsync<ArgumentException>(() => converter.ConvertAsync("sample.docx", default, "../outside.md", true));
             await Assert.ThrowsAsync<ArgumentException>(() => converter.ConvertAsync("sample.docx", default, "sample.docx", true));
             Assert.Equal(3, handler.Calls);
-            Assert.Equal("keep existing", await File.ReadAllTextAsync(customPath));
+            Assert.Equal("keep existing", await File.ReadAllTextAsync(files.Resolve(customPath)));
             Assert.Equal(customPath, await converter.ConvertAsync("sample.docx", default, destination, true));
-            Assert.Equal("# Converted", await File.ReadAllTextAsync(customPath));
+            Assert.Equal("# Converted", await File.ReadAllTextAsync(files.Resolve(customPath)));
             Assert.Equal("original", await File.ReadAllTextAsync(Path.Combine(root, "sample.docx")));
         }
         finally

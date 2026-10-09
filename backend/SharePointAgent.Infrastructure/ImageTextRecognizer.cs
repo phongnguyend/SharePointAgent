@@ -7,7 +7,7 @@ public sealed record RecognizedImageText(string FilePath, string Text);
 
 /// <summary>Reads text from sandbox images using Document Intelligence.</summary>
 public sealed class ImageTextRecognizer(
-    AgentFileSystem files,
+    IAgentWorkspace files,
     DocumentIntelligenceClient client,
     IOptions<DocumentIntelligenceOptions> options)
 {
@@ -23,8 +23,7 @@ public sealed class ImageTextRecognizer(
             throw new InvalidOperationException("Configure DocumentIntelligence:Endpoint to recognize image text.");
         }
 
-        var fullPath = files.Resolve(filePath, mustExist: true);
-        var extension = Path.GetExtension(fullPath).ToLowerInvariant();
+        var extension = Path.GetExtension(files.Normalize(filePath)).ToLowerInvariant();
         if (extension is not (".png" or ".jpg" or ".jpeg" or ".bmp" or ".tif" or ".tiff"))
         {
             throw new ArgumentException("OCR supports PNG, JPEG, BMP, and TIFF image files.");

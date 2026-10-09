@@ -10,24 +10,29 @@ using SharePointAgent.Domain;
 namespace SharePointAgent.Infrastructure;
 
 /// <summary>
-/// Lists the working directory of the process it runs in. In <c>Local</c> mode that is the API's own
-/// disk, and every conversation shares it — there is one directory, not one per conversation, which is
-/// why the conversation is not part of the lookup.
+/// Browses the working directory the agent uses for a conversation, wherever it is. In <c>Local</c> mode
+/// that is the API's own disk, shared by every conversation; in an isolated mode it is the conversation's
+/// workspace session or sandbox, and a change made here is saved like a change the agent makes.
 /// </summary>
-public sealed class LocalAgentFileBrowser(AgentFileSystem workingDirectory) : IAgentFileBrowser
+public sealed class WorkspaceAgentFileBrowser(IAgentWorkspaceProvider workspaces) : IAgentFileBrowser
 {
-    public Task<SandboxFileChangeResult> ManageAsync(Guid conversationId, SandboxFileChange change, CancellationToken cancellationToken) =>
-        workingDirectory.ManageAsync(change, cancellationToken);
+    public async Task<SandboxFileChangeResult> ManageAsync(Guid conversationId, SandboxFileChange change, CancellationToken cancellationToken)
+    {
+        var workspace = await workspaces.GetAsync(conversationId, cancellationToken);
+        var result = await workspace.ManageAsync(change, cancellationToken);
+        await workspace.SaveAsync(cancellationToken);
+        return result;
+    }
 
-    public Task<FileSystemListing> ListAsync(
+    public async Task<FileSystemListing> ListAsync(
         Guid conversationId,
         string? path,
         bool recursive,
         CancellationToken cancellationToken) =>
-        Task.FromResult(workingDirectory.List(path, recursive));
+        await (await workspaces.GetAsync(conversationId, cancellationToken)).ListAsync(path, recursive, cancellationToken);
 
-    public Task<FileContent> ReadAsync(Guid conversationId, string path, CancellationToken cancellationToken) =>
-        workingDirectory.ReadAsync(path, cancellationToken);
+    public async Task<FileContent> ReadAsync(Guid conversationId, string path, CancellationToken cancellationToken) =>
+        await (await workspaces.GetAsync(conversationId, cancellationToken)).ReadAsync(path, cancellationToken);
 }
 
 /// <summary>

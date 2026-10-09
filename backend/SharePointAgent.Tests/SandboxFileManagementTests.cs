@@ -21,7 +21,7 @@ public sealed class SandboxFileManagementTests : IDisposable
     [Fact]
     public async Task CreatesUploadsCopiesMovesRenamesAndDeletesFilesAndFolders()
     {
-        var browser = new LocalAgentFileBrowser(files);
+        var browser = new WorkspaceAgentFileBrowser(new LocalAgentWorkspaceProvider(files));
         var id = Guid.NewGuid();
         await browser.ManageAsync(id, new("mkdir", "Folder"), default);
         await browser.ManageAsync(id, new("mkdir", "Folder/Nested"), default);

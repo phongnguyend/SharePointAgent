@@ -146,7 +146,11 @@ public sealed partial class AgentFileSystem
         return new(Relative(destination));
     }
 
-    private string ManagedPath(string? path)
+    /// <summary>
+    /// The file browser's path rule, shared by every workspace: a nonempty relative path with forward
+    /// slashes and no '..', empty, padded, or dot-ended segments, and no reserved filename characters.
+    /// </summary>
+    public static string ValidateManagedPath(string? path)
     {
         if (string.IsNullOrWhiteSpace(path) || System.IO.Path.IsPathRooted(path)
             || path.Split('/').Any(part => string.IsNullOrWhiteSpace(part) || part is "." or ".."
@@ -154,7 +158,12 @@ public sealed partial class AgentFileSystem
         {
             throw new ArgumentException("Use a nonempty path relative to the sandbox, without '..' or reserved filename characters.");
         }
-        var full = Resolve(path);
+        return path;
+    }
+
+    private string ManagedPath(string? path)
+    {
+        var full = Resolve(ValidateManagedPath(path));
         if (PathEquals(full, _root))
         {
             throw new ArgumentException("The sandbox root cannot be changed.");

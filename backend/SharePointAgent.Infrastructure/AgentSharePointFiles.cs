@@ -133,6 +133,134 @@ public sealed class AgentSharePointFiles(
         return version;
     }
 
+    /// <summary>
+    /// Downloads into the given working directory and returns the path as the agent sees it. A local
+    /// workspace is written in place as before. An isolated one gets the file streamed in from a staging
+    /// copy on this host, with its protected original beside it, so SharePoint credentials and decryption
+    /// never run where agent code does.
+    /// </summary>
+    public async Task<DownloadedFile> DownloadAsync(
+        IAgentWorkspace workspace, string itemId, string fileName, CancellationToken cancellationToken, string? destinationPath = null, bool overwrite = false)
+    {
+        if (!workspace.IsIsolated)
+        {
+            var local = await DownloadAsync(itemId, fileName, cancellationToken, destinationPath, overwrite);
+            return local with { LocalPath = workspace.Normalize(local.LocalPath) };
+        }
+
+        if (string.IsNullOrWhiteSpace(itemId))
+        {
+            throw new ArgumentException("A drive item ID is required.", nameof(itemId));
+        }
+
+        var path = workspace.Normalize(string.IsNullOrWhiteSpace(destinationPath)
+            ? $"Downloads/SharePoint/{Guid.NewGuid():N}/{Sanitize(Path.GetFileName(fileName))}"
+            : destinationPath);
+        if (path == "." || await workspace.FindAsync(path, cancellationToken) is { } existing && (existing.IsDirectory || !overwrite))
+        {
+            throw new ArgumentException("The destination already exists. Choose another file path or set overwrite to true for an existing file.");
+        }
+
+        var staging = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "sharepoint-agent-staging", Guid.NewGuid().ToString("N")));
+        try
+        {
+            var stagedFile = Path.Combine(staging.FullName, Sanitize(Path.GetFileName(fileName)));
+            var size = await sharePointClient.DownloadReadableToFileAsync(itemId, fileName, stagedFile, _options.Downloads.MaxFileBytes, cancellationToken);
+            var stagedOriginal = stagedFile + ProtectedFileService.ProtectedOriginalSuffix;
+            var sidecar = path + ProtectedFileService.ProtectedOriginalSuffix;
+
+            // The protection marker goes in first, so there is never a moment when a decrypted copy sits in
+            // the workspace without the marker that blocks uploading it.
+            if (File.Exists(stagedOriginal))
+            {
+                await using var original = File.OpenRead(stagedOriginal);
+                await workspace.WriteAsync(sidecar, original, overwrite: true, cancellationToken);
+            }
+
+            await using (var content = File.OpenRead(stagedFile))
+            {
+                await workspace.WriteAsync(path, content, overwrite, cancellationToken);
+            }
+
+            if (!File.Exists(stagedOriginal) && await workspace.FindAsync(sidecar, cancellationToken) is not null)
+            {
+                await workspace.DeleteAsync(sidecar, recursive: false, cancellationToken);
+            }
+
+            logger.LogInformation("Downloaded {FileName} ({Bytes} bytes) from SharePoint into the isolated working directory.", Path.GetFileName(path), size);
+            return new DownloadedFile(path, Path.GetFileName(path), size, AlreadyOnDisk: false);
+        }
+        finally
+        {
+            TryDeleteDirectory(staging.FullName);
+        }
+    }
+
+    /// <summary>Uploads a file from the given working directory. Isolated workspaces are copied out to this host first.</summary>
+    public async Task<UploadedFileVersion> UploadAsync(
+        IAgentWorkspace workspace, string itemId, string fileName, string sourcePath, CancellationToken cancellationToken)
+    {
+        if (!workspace.IsIsolated)
+        {
+            return await UploadAsync(itemId, fileName, sourcePath, cancellationToken);
+        }
+
+        if (string.IsNullOrWhiteSpace(sourcePath))
+        {
+            throw new ArgumentException("A sourcePath is required for upload.", nameof(sourcePath));
+        }
+
+        var path = workspace.Normalize(sourcePath);
+        var entry = await workspace.FindAsync(path, cancellationToken)
+            ?? throw new FileNotFoundException("The upload source file does not exist.", path);
+        if (entry.IsDirectory)
+        {
+            throw new ArgumentException("The upload source must be a file, not a directory.");
+        }
+
+        if (await workspace.FindAsync(path + ProtectedFileService.ProtectedOriginalSuffix, cancellationToken) is not null)
+        {
+            throw new InvalidOperationException("This local copy was decrypted from a protected document. Upload is blocked to preserve the SharePoint document's protection. Save changes through a protection-aware Office application.");
+        }
+
+        var file = await workspace.ReadAsync(path, cancellationToken, _options.Downloads.MaxFileBytes);
+        var staging = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "sharepoint-agent-staging", Guid.NewGuid().ToString("N")));
+        try
+        {
+            var stagedFile = Path.Combine(staging.FullName, Sanitize(file.Name));
+            await File.WriteAllBytesAsync(stagedFile, file.Content, cancellationToken);
+            await _gate.WaitAsync(cancellationToken);
+            try
+            {
+                var version = await sharePointClient.UploadFileAsync(itemId, stagedFile, _options.Downloads.MaxFileBytes, cancellationToken);
+                logger.LogInformation("Uploaded {Bytes} bytes from the isolated working directory as a new version of {FileName}.", file.Content.Length, version.Name);
+                return version;
+            }
+            finally
+            {
+                _gate.Release();
+            }
+        }
+        finally
+        {
+            TryDeleteDirectory(staging.FullName);
+        }
+    }
+
+    private static void TryDeleteDirectory(string path)
+    {
+        try
+        {
+            Directory.Delete(path, recursive: true);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
     private static string Sanitize(string value)
     {
         var sanitized = new string((string.IsNullOrWhiteSpace(value) ? "file" : value)

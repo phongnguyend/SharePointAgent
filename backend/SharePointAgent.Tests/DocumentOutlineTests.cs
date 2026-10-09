@@ -51,6 +51,8 @@ public sealed class DocumentOutlineTests : IDisposable
         return new AgentDocumentOutlines(client, new MemoryCache(new MemoryCacheOptions()), Options.Create(new UploadOptions()), NullLogger<AgentDocumentOutlines>.Instance);
     }
 
+    private AgentFileSystem Workspace => new(Options.Create(new LocalWorkingDirectoryOptions { Directory = _directory }));
+
     private string Write(string name, string content)
     {
         var path = Path.Combine(_directory, name);
@@ -63,7 +65,7 @@ public sealed class DocumentOutlineTests : IDisposable
     {
         var path = Write("agreement.md", Markdown);
 
-        var outline = await Outlines().GetAsync(path, includeSummaries: false, default);
+        var outline = await Outlines().GetAsync(Workspace, path, includeSummaries: false, default);
 
         Assert.Equal(9, outline.TotalLines);
         Assert.Equal(
@@ -73,9 +75,7 @@ public sealed class DocumentOutlineTests : IDisposable
         Assert.Equal("What is covered", outline.Sections[1].Summary);
         Assert.False(outline.Truncated);
 
-        var files = new AgentTextFiles();
-        files.Register(path);
-        var termination = await files.ReadAsync(path, outline.Sections[2].StartLine, outline.Sections[2].EndLine);
+        var termination = await new AgentTextFiles(Workspace).ReadAsync(path, outline.Sections[2].StartLine, outline.Sections[2].EndLine);
         Assert.Equal("## Termination\nEither party\nmay end it.", termination.Text);
     }
 
@@ -84,8 +84,8 @@ public sealed class DocumentOutlineTests : IDisposable
     {
         var path = Write("agreement.md", Markdown);
 
-        await Outlines().GetAsync(path, includeSummaries: false, default);
-        await Outlines().GetAsync(path, includeSummaries: true, default);
+        await Outlines().GetAsync(Workspace, path, includeSummaries: false, default);
+        await Outlines().GetAsync(Workspace, path, includeSummaries: true, default);
 
         Assert.Equal(["text=false;summaries=false", "text=false;summaries=true"], _requests);
     }
@@ -96,10 +96,10 @@ public sealed class DocumentOutlineTests : IDisposable
         var path = Write("agreement.md", Markdown);
         var outlines = Outlines();
 
-        await outlines.GetAsync(path, includeSummaries: false, default);
-        await outlines.GetAsync(path, includeSummaries: false, default);
+        await outlines.GetAsync(Workspace, path, includeSummaries: false, default);
+        await outlines.GetAsync(Workspace, path, includeSummaries: false, default);
         File.AppendAllText(path, "\nMore");
-        await outlines.GetAsync(path, includeSummaries: false, default);
+        await outlines.GetAsync(Workspace, path, includeSummaries: false, default);
 
         Assert.Equal(2, _requests.Count);
     }
@@ -109,7 +109,7 @@ public sealed class DocumentOutlineTests : IDisposable
     {
         var path = Write("report.pdf", "%PDF-1.7");
 
-        var exception = await Assert.ThrowsAsync<ArgumentException>(() => Outlines().GetAsync(path, includeSummaries: false, default));
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() => Outlines().GetAsync(Workspace, path, includeSummaries: false, default));
 
         Assert.Contains(ChatAgentToolNames.ConvertToMarkdown, exception.Message);
         Assert.Empty(_requests);
@@ -120,7 +120,7 @@ public sealed class DocumentOutlineTests : IDisposable
     {
         var path = Write("notes.txt", Markdown);
 
-        var outline = await Outlines().GetAsync(path, includeSummaries: false, default);
+        var outline = await Outlines().GetAsync(Workspace, path, includeSummaries: false, default);
 
         Assert.Equal(4, outline.Sections.Count);
         Assert.Equal(["notes.md"], _fileNames);
@@ -133,7 +133,7 @@ public sealed class DocumentOutlineTests : IDisposable
     {
         var path = Write(name, "Line one\nLine two\n#hashtag is not a heading\nLine four");
 
-        var outline = await Outlines().GetAsync(path, includeSummaries: false, default);
+        var outline = await Outlines().GetAsync(Workspace, path, includeSummaries: false, default);
 
         Assert.Empty(outline.Sections);
         Assert.Equal(4, outline.TotalLines);
@@ -148,7 +148,7 @@ public sealed class DocumentOutlineTests : IDisposable
     {
         var path = Write(name, "a,b\n1,2");
 
-        var exception = await Assert.ThrowsAsync<ArgumentException>(() => Outlines().GetAsync(path, includeSummaries: false, default));
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() => Outlines().GetAsync(Workspace, path, includeSummaries: false, default));
 
         Assert.Contains(ChatAgentToolNames.ReadText, exception.Message);
         Assert.DoesNotContain(ChatAgentToolNames.ConvertToMarkdown, exception.Message);
@@ -190,15 +190,20 @@ public sealed class DocumentOutlineTests : IDisposable
     }
 
     [Fact]
-    public void OutlinesFollowTheSameAccessRuleAsReadText()
+    public async Task OutlinesFollowTheWorkingDirectorysAccessRule()
     {
-        var granted = Write("granted.md", Markdown);
-        var files = new AgentTextFiles();
-
-        Assert.Throws<ArgumentException>(() => files.ResolveReadable(granted, AgentDocumentOutlines.MaxBytes));
-        files.Register(granted);
-        Assert.Equal(Path.GetFullPath(granted), files.ResolveReadable(granted, AgentDocumentOutlines.MaxBytes));
-        Assert.Throws<ArgumentException>(() => files.ResolveReadable(granted, maxBytes: 4));
+        var outside = Path.Combine(Path.GetTempPath(), "outline-outside-" + Guid.NewGuid().ToString("N") + ".md");
+        File.WriteAllText(outside, Markdown);
+        try
+        {
+            await Assert.ThrowsAsync<ArgumentException>(() => Outlines().GetAsync(Workspace, outside, includeSummaries: false, default));
+            await Assert.ThrowsAsync<ArgumentException>(() => Outlines().GetAsync(Workspace, "../x.md", includeSummaries: false, default));
+            Assert.Empty(_requests);
+        }
+        finally
+        {
+            File.Delete(outside);
+        }
     }
 
     [Fact]

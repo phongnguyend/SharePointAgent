@@ -11,7 +11,7 @@ public sealed class ImageDescriber(
     IChatClient client,
     string modelId,
     Func<ImageDescription, Task> recordUsage,
-    AgentFileSystem? workingDirectory = null)
+    SharePointAgent.Application.IAgentWorkspace? workingDirectory = null)
 {
     private long inputTokens;
     private long outputTokens;
