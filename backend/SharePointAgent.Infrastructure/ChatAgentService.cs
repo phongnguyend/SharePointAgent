@@ -38,7 +38,8 @@ public sealed class ChatAgentService(
     AgentFileSystem workingDirectory,
     IDbContextFactory<SharePointIndexDbContext> contextFactory,
     AgentMarkdownConverter markdownConverter,
-    ImageTextRecognizer textRecognizer) : IChatAgentExecutor
+    ImageTextRecognizer textRecognizer,
+    IGraphRetrievalService? graphRetrieval = null) : IChatAgentExecutor
 {
     private static readonly (string Method, string Name)[] ToolDefinitions =
     [
@@ -145,7 +146,7 @@ public sealed class ChatAgentService(
             }, workingDirectory);
         var turnTools = new AgentTools(
             searchStore, attachmentFiles, files, conversationId, userId, logger, ReportStatusAsync,
-            imageDescriber, workingDirectory, markdownConverter, imageAttachments, textRecognizer);
+            imageDescriber, workingDirectory, markdownConverter, imageAttachments, textRecognizer, graphRetrieval);
         using var embeddingUsage = ChatEmbeddingUsage.Begin();
 
         // Named explicitly so the names the instructions above use are the names the model sees. Skill
@@ -379,7 +380,8 @@ public sealed class ChatAgentService(
         AgentFileSystem workingDirectory,
         AgentMarkdownConverter markdownConverter,
         System.Collections.Concurrent.ConcurrentDictionary<string, Guid> imageAttachments,
-        ImageTextRecognizer textRecognizer)
+        ImageTextRecognizer textRecognizer,
+        IGraphRetrievalService? graphRetrieval)
     {
         private readonly List<ChatCitation> _citations = [];
         private readonly object _citationGate = new();
@@ -649,7 +651,7 @@ public sealed class ChatAgentService(
 
         public int UploadCount { get; private set; }
 
-        [Description("Search the indexed SharePoint library and return relevant excerpts. Use this for library documents; use search_attachments for files uploaded to the current conversation.")]
+        [Description("Search the indexed SharePoint library and return relevant excerpts. Use this for library documents; use search_attachments for files uploaded to the current conversation. Excerpts with relatedVia come from other documents linked to the results by a recorded relationship such as DEPENDS_ON; cite them like any excerpt, say so when sources disagree or an excerpt is marked disputed, and do not claim a relationship that no excerpt states.")]
         public async Task<IReadOnlyList<SearchToolHit>> SearchSharePointDocumentsAsync(
             [Description("What to look for, in natural language. Prefer the user's own wording plus any clarifying terms.")]
             string query,
@@ -681,8 +683,39 @@ public sealed class ChatAgentService(
                 }
             }
 
+            await AddGraphRelatedHitsAsync(query, results.Items, hits, cancellationToken);
             logger.LogInformation("Agent searched for {Query} and got {Count} excerpts.", query, hits.Count);
             return hits;
+        }
+
+        /// <summary>
+        /// Adds chunks the graph connects to the results. Each one has already been checked for this user
+        /// through the same permission filter as the search above, so it carries the same guarantees as any
+        /// other hit; when graph retrieval is off, unavailable, or unsure, nothing is added.
+        /// </summary>
+        private async Task AddGraphRelatedHitsAsync(
+            string query, IReadOnlyList<SearchQueryHit> baseline, List<SearchToolHit> hits, CancellationToken cancellationToken)
+        {
+            if (graphRetrieval is null)
+            {
+                return;
+            }
+
+            var related = await graphRetrieval.AugmentAsync(new GraphRetrievalRequest(userId, query, baseline), cancellationToken);
+            foreach (var chunk in related.Chunks)
+            {
+                var item = chunk.Hit;
+                var relation = chunk.Disputed ? $"{chunk.Predicate} (disputed)" : chunk.Predicate;
+                hits.Add(new SearchToolHit(item.ItemId, item.Name, item.Path, item.ChunkNumber, item.Content, relation));
+                _retrievedFiles[item.ItemId] = item.Name;
+                lock (_citationGate)
+                {
+                    if (!_citations.Any(x => x.Name == item.Name && x.ChunkNumber == item.ChunkNumber))
+                    {
+                        _citations.Add(new ChatCitation(item.Name, item.Path, item.WebUrl, item.ChunkNumber, item.Score));
+                    }
+                }
+            }
         }
 
         [Description("Search indexed files attached to messages in the current conversation and return relevant excerpts. Use attachmentId to select a specific file when filenames repeat. Other conversations' attachments are unavailable.")]
@@ -808,9 +841,10 @@ public sealed class ChatAgentService(
 
     /// <summary>
     /// What the model sees for each excerpt. Deliberately small — no vectors, no chunk keys — but it does
-    /// carry the drive item ID, because that is the handle the download tool takes.
+    /// carry the drive item ID, because that is the handle the download tool takes. <see cref="RelatedVia"/>
+    /// names the relationship that brought a graph-derived excerpt in, and is null for a search hit.
     /// </summary>
-    public sealed record SearchToolHit(string FileId, string FileName, string? Folder, int ChunkNumber, string Excerpt);
+    public sealed record SearchToolHit(string FileId, string FileName, string? Folder, int ChunkNumber, string Excerpt, string? RelatedVia = null);
 
     /// <summary>
     /// The outcome of a download. Failures come back as a result rather than an exception, so the model

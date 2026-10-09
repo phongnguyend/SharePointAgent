@@ -1,6 +1,7 @@
 using SharePointAgent.Infrastructure;
 using SharePointAgent.Infrastructure.Monitoring;
 using SharePointAgent.Infrastructure.DocumentSigning;
+using SharePointAgent.Infrastructure.GraphRag;
 using SharePointAgent.Api;
 
 const string FrontendCorsPolicy = "frontend";
@@ -16,6 +17,10 @@ builder.Services.AddAttachmentFileServices(builder.Configuration);
 builder.Services.AddDocumentSigningServices(builder.Configuration);
 builder.Services.AddIndexedFileReindexServices(builder.Configuration);
 builder.Services.AddOllayaClient(builder.Configuration);
+
+// Graph RAG operator endpoints need the graph store even when the chat agent runs in Foundry. Registered
+// only when GraphRag:RetrievalEnabled or GraphRag:ShadowRetrieval is set.
+builder.Services.AddGraphRetrievalServices(builder.Configuration);
 builder.Services.AddAppIdentity();
 builder.Services.AddSingleton<BackgroundHealthMonitor>();
 builder.Services.AddHttpClient<ServiceHealthMonitor>(client =>
@@ -64,6 +69,7 @@ app.MapChatWorkspacesEndpoints();
 app.MapChatEndpoints();
 app.MapChatTranscriptionEndpoints();
 app.MapSandboxFileEndpoints();
+app.MapGraphRagEndpoints();
 
 app.Run();
 

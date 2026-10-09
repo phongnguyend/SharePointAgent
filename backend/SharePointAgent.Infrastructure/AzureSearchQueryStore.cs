@@ -24,7 +24,7 @@ public sealed class AzureSearchQueryStore(
     {
         var options = new AzureSearchOptions
         {
-            Filter = await BuildPermissionFilterAsync(request.UserId, cancellationToken),
+            Filter = await SearchPermissionFilter.BuildAsync(sharePointClient, request.UserId, cancellationToken),
             Size = request.Top,
             Skip = request.Skip,
             IncludeTotalCount = true
@@ -78,27 +78,4 @@ public sealed class AzureSearchQueryStore(
         logger.LogInformation("{Mode} search returned {Count} chunks for user {UserId}.", mode, items.Count, request.UserId ?? "(unfiltered)");
         return new SearchQueryResults(response.Value.TotalCount, items);
     }
-
-    /// <summary>
-    /// Restricts results to chunks the user can view. Without a user ID no restriction is applied, so the
-    /// caller is responsible for only omitting it on trusted, non-user-facing calls.
-    /// </summary>
-    private async Task<string?> BuildPermissionFilterAsync(string? userId, CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(userId))
-        {
-            return null;
-        }
-
-        var principals = await sharePointClient.GetUserPrincipalsAsync(userId, cancellationToken);
-        if (principals.Count == 0)
-        {
-            return "hasAnonymousAccess eq true";
-        }
-
-        var values = string.Join(',', principals.Select(Escape));
-        return $"hasAnonymousAccess eq true or allowedPrincipals/any(p: search.in(p, '{values}', ','))";
-    }
-
-    private static string Escape(string value) => value.Replace("'", "''", StringComparison.Ordinal);
 }

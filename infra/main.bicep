@@ -102,6 +102,24 @@ param serviceBusTopicName string = 'sharepoint-changes'
 @description('Service Bus subscription name used by the worker.')
 param serviceBusSubscriptionName string = 'search-indexer'
 
+@description('Deploy the Graph RAG resources: a Cosmos DB for NoSQL account, the graph-indexing queue, and the snapshot archive container. Off by default; the application runs unchanged without them.')
+param deployGraphRag bool = false
+
+@description('Turn on graph extraction in the worker. Requires deployGraphRag.')
+param enableGraphRagIndexing bool = false
+
+@description('Compute graph retrieval and record its metrics without showing results to users. Requires deployGraphRag.')
+param enableGraphRagShadowRetrieval bool = false
+
+@description('Add verified graph-derived chunks to chat answers. Enable only after shadow retrieval and evaluation. Requires deployGraphRag.')
+param enableGraphRagRetrieval bool = false
+
+@description('Use a serverless Cosmos DB account. Switch to provisioned throughput once partitioning and RU use have been benchmarked on representative data.')
+param graphRagCosmosServerless bool = true
+
+@description('Let the API identity write to the graph, which administrator entity merges need. When false the API can only read it.')
+param graphRagAllowAdminMerges bool = false
+
 @description('Azure AI Search service SKU.')
 @allowed([
   'basic'
@@ -179,6 +197,7 @@ var containerRegistryName = '${compactPrefix}cr${uniqueSuffix}'
 var logAnalyticsWorkspaceName = take(toLower('${namePrefix}-logs-${uniqueSuffix}'), 63)
 var containerAppsEnvironmentName = take(toLower('${namePrefix}-cae-${uniqueSuffix}'), 60)
 // Keep the workload/environment visible and retain a suffix within Storage's 24-character limit.
+var graphCosmosAccountName = take(toLower('${namePrefix}-graph-${uniqueSuffix}'), 44)
 var storageAccountName = '${compactPrefix}${take(uniqueSuffix, 4)}'
 
 resource staticWebApp 'Microsoft.Web/staticSites@2024-11-01' = {
@@ -278,6 +297,66 @@ resource uploadContainer 'Microsoft.Storage/storageAccounts/blobServices/contain
   properties: { publicAccess: 'None' }
 }
 
+// Graph RAG snapshot archive: the versioned source the graph projection is rebuilt from.
+resource graphSnapshotContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = if (deployGraphRag) {
+  parent: uploadBlobService
+  name: 'graph-snapshots'
+  properties: { publicAccess: 'None' }
+}
+
+// Graph RAG projection. Local (key) auth is disabled: the applications use data-plane RBAC with managed
+// identity, and only this template can change the containers.
+resource graphCosmos 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = if (deployGraphRag) {
+  name: graphCosmosAccountName
+  location: location
+  tags: resourceTags
+  kind: 'GlobalDocumentDB'
+  properties: {
+    databaseAccountOfferType: 'Standard'
+    locations: [{ locationName: location, failoverPriority: 0, isZoneRedundant: false }]
+    consistencyPolicy: { defaultConsistencyLevel: 'Session' }
+    capabilities: graphRagCosmosServerless ? [{ name: 'EnableServerless' }] : []
+    disableLocalAuth: true
+    disableKeyBasedMetadataWriteAccess: true
+    minimalTlsVersion: 'Tls12'
+    publicNetworkAccess: 'Enabled'
+    backupPolicy: { type: 'Continuous', continuousModeProperties: { tier: 'Continuous7Days' } }
+  }
+}
+
+resource graphDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-11-15' = if (deployGraphRag) {
+  parent: graphCosmos
+  name: 'graphrag'
+  properties: { resource: { id: 'graphrag' } }
+}
+
+// Partitioned by the synthetic key tenantId|bucket. Only the fields queries filter on are indexed, and
+// items expire only when they carry their own ttl (retracted assertions and tombstones).
+var graphContainers = [
+  { name: 'graphEntities', paths: ['/tenantId/?'] }
+  { name: 'graphAssertions', paths: ['/tenantId/?', '/subjectEntityId/?', '/objectEntityId/?', '/predicate/?', '/status/?'] }
+  { name: 'graphAssertionsByObject', paths: ['/tenantId/?', '/subjectEntityId/?', '/objectEntityId/?', '/predicate/?', '/status/?'] }
+  { name: 'graphDocumentState', paths: ['/tenantId/?', '/status/?'] }
+]
+
+resource graphContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-11-15' = [for container in graphContainers: if (deployGraphRag) {
+  parent: graphDatabase
+  name: container.name
+  properties: {
+    resource: {
+      id: container.name
+      partitionKey: { paths: ['/partitionKey'], kind: 'Hash', version: 2 }
+      defaultTtl: -1
+      indexingPolicy: {
+        indexingMode: 'consistent'
+        automatic: true
+        includedPaths: [for path in container.paths: { path: path }]
+        excludedPaths: [{ path: '/*' }]
+      }
+    }
+  }
+}]
+
 resource serviceBusNamespace 'Microsoft.ServiceBus/namespaces@2024-01-01' = {
   name: serviceBusNamespaceName
   location: location
@@ -316,6 +395,23 @@ resource serviceBusSubscription 'Microsoft.ServiceBus/namespaces/topics/subscrip
     enableBatchedOperations: true
     lockDuration: 'PT1M'
     maxDeliveryCount: 10
+    requiresSession: false
+    status: 'Active'
+  }
+}
+
+// Graph indexing requests. Poison messages are dead-lettered by the worker with a reason code; the
+// delivery count is a backstop for a worker that crashes while holding a message.
+resource graphIndexingQueue 'Microsoft.ServiceBus/namespaces/queues@2024-01-01' = if (deployGraphRag) {
+  parent: serviceBusNamespace
+  name: 'graph-indexing'
+  properties: {
+    deadLetteringOnMessageExpiration: true
+    defaultMessageTimeToLive: 'P14D'
+    enableBatchedOperations: true
+    lockDuration: 'PT5M'
+    maxDeliveryCount: 10
+    requiresDuplicateDetection: false
     requiresSession: false
     status: 'Active'
   }
@@ -535,6 +631,7 @@ output applicationInsightsName string = applicationInsights.name
 output applicationInsightsConnectionString string = applicationInsights.properties.ConnectionString
 output uploadStorageServiceUri string = uploadStorage.properties.primaryEndpoints.blob
 output uploadContainerName string = uploadContainer.name
+output graphCosmosEndpoint string = graphCosmos.?properties.documentEndpoint ?? ''
 
 resource chatDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = {
   parent: openAiAccount
@@ -589,6 +686,15 @@ var foundryEndpoint = 'https://${foundry.name}.services.ai.azure.com/api/project
 var markItDownUrl = 'https://${markItDownName}.${containerAppsEnvironment.properties.defaultDomain}'
 var pageIndexUrl = 'https://${pageIndexName}.${containerAppsEnvironment.properties.defaultDomain}'
 var apiEndpoint = 'https://${apiName}.${containerAppsEnvironment.properties.defaultDomain}'
+var graphRagEnv = deployGraphRag ? [
+  { name: 'GraphRag__IndexingEnabled', value: string(enableGraphRagIndexing) }
+  { name: 'GraphRag__ShadowRetrieval', value: string(enableGraphRagShadowRetrieval) }
+  { name: 'GraphRag__RetrievalEnabled', value: string(enableGraphRagRetrieval) }
+  { name: 'GraphRag__Cosmos__UsedManagedIdentity', value: 'true' }
+  { name: 'GraphRag__Cosmos__Endpoint', value: graphCosmos.?properties.documentEndpoint ?? '' }
+  { name: 'GraphRag__Archive__UsedManagedIdentity', value: 'true' }
+  { name: 'GraphRag__Archive__ServiceUri', value: uploadStorage.properties.primaryEndpoints.blob }
+] : []
 var commonEnv = [
   { name: 'Monitoring__OpenTelemetry__Exporter', value: 'AzureMonitor' }
   { name: 'Monitoring__OpenTelemetry__Environment', value: environmentName }
@@ -709,7 +815,7 @@ resource api 'Microsoft.App/containerApps@2025-01-01' = {
       containers: [{
         name: 'api'
         image: apiImage
-        env: deployApplicationImages ? concat(commonEnv, [
+        env: deployApplicationImages ? concat(commonEnv, graphRagEnv, [
           { name: 'AZURE_CLIENT_ID', value: apiIdentity.properties.clientId }
           { name: 'SqlServer__ConnectionString', value: 'Server=tcp:${sqlServerFqdn},1433;Database=${sqlDatabaseName};Authentication=Active Directory Managed Identity;User Id=${apiIdentity.properties.clientId};Encrypt=True;TrustServerCertificate=False;' }
           { name: 'ChatAgent__Mode', value: 'Foundry' }
@@ -731,7 +837,7 @@ resource api 'Microsoft.App/containerApps@2025-01-01' = {
       scale: { minReplicas: 1, maxReplicas: 3 }
     }
   }
-  dependsOn: [markItDown, apiRegistry, apiBus, apiIdentitySearch, apiIdentitySearchService, apiIdentityOpenAI, apiBlob, apiSafety, apiIdentityDocument]
+  dependsOn: [markItDown, apiRegistry, apiBus, apiIdentitySearch, apiIdentitySearchService, apiIdentityOpenAI, apiBlob, apiSafety, apiIdentityDocument, apiGraphCosmos]
 }
 resource background 'Microsoft.App/containerApps@2025-01-01' = {
   name: workerName
@@ -749,7 +855,7 @@ resource background 'Microsoft.App/containerApps@2025-01-01' = {
       containers: [{
         name: 'background'
         image: backgroundImage
-        env: deployApplicationImages ? concat(commonEnv, [
+        env: deployApplicationImages ? concat(commonEnv, graphRagEnv, [
           { name: 'AZURE_CLIENT_ID', value: workerIdentity.properties.clientId }
           { name: 'SqlServer__ConnectionString', value: 'Server=tcp:${sqlServerFqdn},1433;Database=${sqlDatabaseName};Authentication=Active Directory Managed Identity;User Id=${workerIdentity.properties.clientId};Encrypt=True;TrustServerCertificate=False;' }
         ]) : []
@@ -759,7 +865,7 @@ resource background 'Microsoft.App/containerApps@2025-01-01' = {
       scale: { minReplicas: 1, maxReplicas: 1 }
     }
   }
-  dependsOn: [markItDown, workerRegistry, workerBus, workerIdentitySearch, workerIdentitySearchService, workerIdentityOpenAI, workerIdentityDocument]
+  dependsOn: [markItDown, workerRegistry, workerBus, workerIdentitySearch, workerIdentitySearchService, workerIdentityOpenAI, workerIdentityDocument, workerGraphCosmos, workerGraphArchive, workerGraphQueueSend]
 }
 
 resource apiRegistry 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -879,6 +985,52 @@ resource workerIdentityOpenAI 'Microsoft.Authorization/roleAssignments@2022-04-0
     principalId: workerIdentity.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
+  }
+}
+
+// Graph RAG, least privilege. The worker writes the graph, the archive, and its own retries on the queue
+// (it already receives from the namespace); the API reads the graph and writes it only when administrator
+// merges are allowed. Cosmos data-plane roles are Cosmos SQL role assignments, not Azure RBAC.
+var cosmosDataReaderRole = '00000000-0000-0000-0000-000000000001'
+var cosmosDataContributorRole = '00000000-0000-0000-0000-000000000002'
+
+resource workerGraphCosmos 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-11-15' = if (deployGraphRag) {
+  parent: graphCosmos
+  name: guid(graphCosmosAccountName, workerIdentity.id, cosmosDataContributorRole)
+  properties: {
+    principalId: workerIdentity.properties.principalId
+    roleDefinitionId: '${graphCosmos.id}/sqlRoleDefinitions/${cosmosDataContributorRole}'
+    scope: graphCosmos.id
+  }
+}
+
+resource apiGraphCosmos 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-11-15' = if (deployGraphRag) {
+  parent: graphCosmos
+  name: guid(graphCosmosAccountName, apiIdentity.id, graphRagAllowAdminMerges ? cosmosDataContributorRole : cosmosDataReaderRole)
+  properties: {
+    principalId: apiIdentity.properties.principalId
+    roleDefinitionId: '${graphCosmos.id}/sqlRoleDefinitions/${graphRagAllowAdminMerges ? cosmosDataContributorRole : cosmosDataReaderRole}'
+    scope: graphCosmos.id
+  }
+}
+
+resource workerGraphArchive 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deployGraphRag) {
+  name: guid(uploadStorage.id, workerIdentity.id, 'graph-snapshots', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+  scope: graphSnapshotContainer
+  properties: {
+    principalId: workerIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+  }
+}
+
+resource workerGraphQueueSend 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deployGraphRag) {
+  name: guid(serviceBusNamespace.id, workerIdentity.id, 'graph-indexing', '69a216fc-b8fb-44d8-bc22-1f3c2cd27a39')
+  scope: graphIndexingQueue
+  properties: {
+    principalId: workerIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '69a216fc-b8fb-44d8-bc22-1f3c2cd27a39')
   }
 }
 

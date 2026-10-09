@@ -2,14 +2,18 @@
 
   <!--
     Everything the application talks to from outside the process: Microsoft Graph and SharePoint, Azure AI
-    Search, Azure OpenAI and the chat agent, Service Bus, Blob Storage, Document Intelligence, and
-    MarkItDown. It also holds the composition root the executable hosts call into.
+    Search, Azure OpenAI and the chat agent, Service Bus, Blob Storage, Cosmos DB for NoSQL (the Graph RAG
+    projection), Document Intelligence, and MarkItDown. It also holds the composition root the executable hosts call into.
   -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="SharePointAgent.Tests" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\SharePointAgent.Application\SharePointAgent.Application.csproj" />
@@ -27,6 +31,9 @@
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.12" />
     <PackageReference Include="Azure.AI.OpenAI" Version="2.1.0" />
     <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.20.2" />
+    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.57.0" />
+    <!-- The Cosmos SDK requires a direct reference; graph documents are serialized with System.Text.Json. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="Azure.Search.Documents" Version="12.0.0" />
     <PackageReference Include="Azure.Storage.Blobs" Version="12.27.0" />
     <PackageReference Include="Microsoft.Agents.AI.OpenAI" Version="1.20.0" />

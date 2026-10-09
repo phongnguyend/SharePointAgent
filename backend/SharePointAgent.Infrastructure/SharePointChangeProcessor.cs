@@ -20,7 +20,8 @@ public sealed class SharePointChangeProcessor(
     IOptions<OpenAiOptions> openAiOptions,
     IOptions<SearchOptions> searchOptions,
     ILogger<SharePointChangeProcessor> logger,
-    WorkerHealthState? workerHealth = null) : ISharePointChangeProcessor
+    WorkerHealthState? workerHealth = null,
+    IGraphIndexingSignal? graphIndexing = null) : ISharePointChangeProcessor
 {
     // How many orphaned files the sweep claims at a time, so a large clean-up does not read the whole
     // backlog into memory at once.
@@ -292,6 +293,10 @@ public sealed class SharePointChangeProcessor(
         }
 
         await metadata.SaveAsync(Track(driveId, scanId, item, permissionsHash, tracked.ChunkCount, tracked.EmbeddingTokenCount, tracked.Sensitivity), cancellationToken);
+        if (!string.Equals(tracked.PermissionsHash, permissionsHash, StringComparison.Ordinal))
+        {
+            await SignalGraphAsync(GraphIndexingRequestKind.AccessChanged, driveId, item.Id, cancellationToken);
+        }
         logger.LogInformation("Updated the metadata and permissions of {FileName} ({ItemId}) across {ChunkCount} chunks; its content was unchanged, so it was not extracted or embedded again.", item.Name, item.Id, tracked.ChunkCount);
         return true;
     }
@@ -346,6 +351,7 @@ public sealed class SharePointChangeProcessor(
 
         // Tracked only after the index write succeeds, so a failed pass reindexes the file on its retry.
         await metadata.SaveAsync(Track(driveId, scanId, item, HashPermissions(permissionsTask.Result), chunks.Count, embeddingTokenCount, contentTask.Result.Sensitivity), cancellationToken);
+        await SignalGraphAsync(GraphIndexingRequestKind.Indexed, driveId, item.Id, cancellationToken);
         logger.LogInformation("Indexed {FileName} ({ItemId}) as {ChunkCount} chunks using {EmbeddingTokenCount} embedding tokens.", item.Name, item.Id, chunks.Count, embeddingTokenCount);
     }
 
@@ -353,6 +359,29 @@ public sealed class SharePointChangeProcessor(
     {
         await search.DeleteItemAsync(driveId, itemId, cancellationToken);
         await metadata.DeleteAsync(driveId, itemId, cancellationToken);
+        await SignalGraphAsync(GraphIndexingRequestKind.Removed, driveId, itemId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Tells the graph pipeline that a file's indexed state changed. Sent only after the index and the tracked
+    /// record are both written, and best-effort by design: graph indexing must never fail or hold up search
+    /// indexing, and graph reconciliation repairs any request that is lost here.
+    /// </summary>
+    private async Task SignalGraphAsync(GraphIndexingRequestKind kind, string driveId, string itemId, CancellationToken cancellationToken)
+    {
+        if (graphIndexing is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await graphIndexing.PublishAsync(new GraphIndexingRequest(kind, driveId, itemId, DateTimeOffset.UtcNow), cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(exception, "Could not request graph indexing for SharePoint item {ItemId}; graph reconciliation will pick it up.", itemId);
+        }
     }
 
     private FileIndexRecord Track(string driveId, Guid scanId, DriveItemChange item, string permissionsHash, int chunkCount, long? embeddingTokenCount, FileSensitivity? sensitivity) => new(

@@ -16,6 +16,7 @@ using Microsoft.Graph;
 using SharePointAgent.Persistence;
 using SharePointAgent.Application;
 using SharePointAgent.Domain;
+using SharePointAgent.Infrastructure.GraphRag;
 
 using SearchOptions = SharePointAgent.Application.SearchOptions;
 
@@ -188,6 +189,7 @@ public static class DependencyInjection
         services.AddHttpClient<DocumentIntelligenceClient>();
         services.AddSingleton<IAgentFileBrowser, LocalAgentFileBrowser>();
         services.AddSingleton<ChatAgentContextLoader>();
+        services.AddGraphRetrievalServices(configuration);
         services.AddSingleton<ChatAgentService>();
         services.AddSingleton<IChatAgentExecutor>(sp => sp.GetRequiredService<ChatAgentService>());
         return services;
@@ -298,6 +300,7 @@ public static class DependencyInjection
         AddImageExtractor(services);
         services.AddSingleton<IContentExtractor, ContentExtractor>();
         services.AddSingleton<ISearchIndexStore, AzureSearchIndexStore>();
+        services.AddGraphIndexingSignal(configuration);
         services.AddSingleton<ISharePointChangeProcessor, SharePointChangeProcessor>();
         return services;
     }
@@ -372,6 +375,7 @@ public static class DependencyInjection
         });
         AddSearchClient(services);
         services.AddSingleton<ISearchIndexStore, AzureSearchIndexStore>();
+        services.AddGraphIndexingSignal(configuration);
         services.AddSingleton<ISharePointChangeProcessor, SharePointChangeProcessor>();
         return services;
     }
