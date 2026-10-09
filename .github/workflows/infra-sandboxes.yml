@@ -1,0 +1,103 @@
+name: Deploy Sandboxes Infrastructure
+run-name: Deploy Sandboxes Infrastructure (${{ inputs.environment }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options: [dev, test]
+        default: dev
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deployment-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: ${{ inputs.environment }}
+    env:
+      DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Check deployment settings
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:DEPLOY_ENVIRONMENT -notin @('dev', 'test')) {
+            throw 'Select dev or test as the target environment.'
+          }
+          $settings = (Get-Content "infra/parameters.$env:DEPLOY_ENVIRONMENT.json" -Raw | ConvertFrom-Json).parameters
+          $parametersFile = "infra/Sandboxes/parameters.$env:DEPLOY_ENVIRONMENT.json"
+          $sandboxSettings = (Get-Content $parametersFile -Raw | ConvertFrom-Json).parameters
+          if ($settings.environmentName.value -ne $env:DEPLOY_ENVIRONMENT -or $sandboxSettings.environmentName.value -ne $env:DEPLOY_ENVIRONMENT) {
+            throw 'Parameter environment does not match the selected environment.'
+          }
+          if ($sandboxSettings.workloadName.value -ne $settings.workloadName.value) {
+            throw 'workloadName in infra/Sandboxes/parameters must match infra/parameters, so resource names line up.'
+          }
+          $resourceGroup = $env:AZURE_RESOURCE_GROUP
+          if ([string]::IsNullOrWhiteSpace($resourceGroup)) {
+            $resourceGroup = "rg-$($settings.workloadName.value)-$env:DEPLOY_ENVIRONMENT"
+          }
+          "RESOURCE_GROUP=$resourceGroup" >> $env:GITHUB_ENV
+          "PARAMETERS_FILE=$parametersFile" >> $env:GITHUB_ENV
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Prepare parameters from the shared infrastructure
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $outputs = az deployment group show --resource-group $env:RESOURCE_GROUP --name "infra-$env:DEPLOY_ENVIRONMENT" `
+            --query properties.outputs -o json | ConvertFrom-Json
+          if (-not $outputs.containerRegistryName.value) {
+            throw 'Run Deploy infrastructure before deploying Sandboxes.'
+          }
+          # Region and names come from infra/Sandboxes/parameters.<environment>.json.
+          $parameters = @{
+            containerRegistryName = @{ value = $outputs.containerRegistryName.value }
+            apiIdentityId = @{ value = $outputs.hosting.value.apiIdentityId }
+            apiPrincipalId = @{ value = $outputs.hosting.value.apiPrincipalId }
+          }
+          $path = "$env:RUNNER_TEMP/sandboxes.parameters.json"
+          @{ parameters = $parameters } | ConvertTo-Json -Depth 10 | Set-Content $path
+      - name: Deploy Sandboxes
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          az bicep build --file infra/Sandboxes/main.bicep --outfile "$env:RUNNER_TEMP/sandboxes.json"
+          az deployment group validate --resource-group $env:RESOURCE_GROUP `
+            --template-file "$env:RUNNER_TEMP/sandboxes.json" --parameters $env:PARAMETERS_FILE "$env:RUNNER_TEMP/sandboxes.parameters.json" --output none
+          $outputs = az deployment group create --resource-group $env:RESOURCE_GROUP --name "sandboxes-$env:DEPLOY_ENVIRONMENT" `
+            --mode Incremental --template-file "$env:RUNNER_TEMP/sandboxes.json" --parameters $env:PARAMETERS_FILE "$env:RUNNER_TEMP/sandboxes.parameters.json" `
+            --query properties.outputs -o json | ConvertFrom-Json
+          "## Sandboxes infrastructure deployed" >> $env:GITHUB_STEP_SUMMARY
+          "- Sandbox group: $($outputs.sandboxGroupName.value) in $($outputs.sandboxGroupLocation.value)" >> $env:GITHUB_STEP_SUMMARY
+          "- Pull identity: $($outputs.sandboxesPullIdentityId.value)" >> $env:GITHUB_STEP_SUMMARY
+          "Run Release Sandboxes, register the image as a disk image in the group, set SANDBOX_DISK_IMAGE_ID, then run Release API." >> $env:GITHUB_STEP_SUMMARY
+      - name: Remove temporary files
+        if: always()
+        run: |
+          foreach ($name in @('sandboxes.json', 'sandboxes.parameters.json')) {
+            $path = Join-Path $env:RUNNER_TEMP $name
+            if (Test-Path -LiteralPath $path) {
+              Remove-Item -LiteralPath $path -Force
+            }
+          }

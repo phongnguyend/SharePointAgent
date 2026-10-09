@@ -26,12 +26,6 @@
     "deployDocumentIntelligence": {
       "value": true
     },
-    "deployDynamicSessions": {
-      "value": true
-    },
-    "deploySandboxGroup": {
-      "value": false
-    },
     "embeddingDeploymentCapacity": {
       "value": 10
     },

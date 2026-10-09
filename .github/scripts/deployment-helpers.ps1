@@ -4,6 +4,7 @@ $outputs = Get-Content "$env:RUNNER_TEMP/shared-outputs.json" -Raw | ConvertFrom
 $hosting = $outputs.hosting.value
 $settings = (Get-Content $env:PARAMETERS_FILE -Raw | ConvertFrom-Json).parameters
 . "$PSScriptRoot/container-apps.ps1"
+. "$PSScriptRoot/optional-deployments.ps1"
 function Invoke-Database($Query, $InputFile) {
   Import-Module SqlServer
   $token = az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv
@@ -23,16 +24,6 @@ function Invoke-Database($Query, $InputFile) {
     $arguments.Query = $Query
   }
   Invoke-Sqlcmd @arguments | Out-Null
-}
-# Ollaya is deployed by its own template (infra/Ollaya), so its endpoint comes from that deployment, if any.
-function Get-OllayaEndpoint {
-  $PSNativeCommandUseErrorActionPreference = $false
-  $endpoint = az deployment group show --resource-group $env:RESOURCE_GROUP --name "ollaya-$env:DEPLOY_ENVIRONMENT" `
-    --query properties.outputs.ollayaEndpoint.value -o tsv 2>$null
-  if ($LASTEXITCODE -ne 0) {
-    return ''
-  }
-  return [string]$endpoint
 }
 function Grant-Role($PrincipalId, $Role, $Scope) {
   az role assignment create --assignee-object-id $PrincipalId --assignee-principal-type ServicePrincipal --role $Role --scope $Scope --output none

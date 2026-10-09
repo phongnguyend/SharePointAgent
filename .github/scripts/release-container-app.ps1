@@ -69,9 +69,16 @@ if ($Component -eq 'Api') {
     ContentSafety__ManagedIdentityClientId = $hosting.apiClientId
   }
   $apiEnvironment = $commonEnvironment + @($apiValues.GetEnumerator() | ForEach-Object { @{ name = $_.Key; value = [string]$_.Value } })
-  # Optional; when unset, the value from Deploy infrastructure is kept.
-  if (-not [string]::IsNullOrWhiteSpace($env:SANDBOX_DISK_IMAGE_ID)) {
-    $apiEnvironment += @{ name = 'AgentWorkspace__Sandboxes__DiskImageId'; value = $env:SANDBOX_DISK_IMAGE_ID.Trim() }
+  # Optional; when unset, the current values are kept.
+  $workspaceValues = @{
+    AgentWorkspace__DynamicSessions__PoolManagementEndpoint = (Get-DynamicSessionsPoolEndpoint)
+    AgentWorkspace__Sandboxes__SandboxGroup = (Get-SandboxGroupName)
+    AgentWorkspace__Sandboxes__DiskImageId = [string]$env:SANDBOX_DISK_IMAGE_ID
+  }
+  foreach ($setting in $workspaceValues.GetEnumerator()) {
+    if (-not [string]::IsNullOrWhiteSpace($setting.Value)) {
+      $apiEnvironment += @{ name = $setting.Key; value = $setting.Value.Trim() }
+    }
   }
   $apiEnvironment += $signing.Environment
   $secrets += $signing.Secrets

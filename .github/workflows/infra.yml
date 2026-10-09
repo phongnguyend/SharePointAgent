@@ -74,8 +74,6 @@ jobs:
           API_IMAGE: ${{ vars.API_IMAGE }}
           BACKGROUND_IMAGE: ${{ vars.BACKGROUND_IMAGE }}
           MARKITDOWN_IMAGE: ${{ vars.MARKITDOWN_IMAGE }}
-          SANDBOX_HOST_IMAGE: ${{ vars.SANDBOX_HOST_IMAGE }}
-          SANDBOX_DISK_IMAGE_ID: ${{ vars.SANDBOX_DISK_IMAGE_ID }}
           SHAREPOINT_TENANT_ID: ${{ vars.SHAREPOINT_TENANT_ID }}
           SHAREPOINT_CLIENT_ID: ${{ vars.SHAREPOINT_CLIENT_ID }}
           SHAREPOINT_CLIENT_SECRET: ${{ secrets.SHAREPOINT_CLIENT_SECRET }}
@@ -134,13 +132,6 @@ jobs:
               throw 'SHAREPOINT_CLIENT_STATE requires 16+ characters; MARKITDOWN_API_KEY requires 32+ characters.'
             }
           }
-          # Independent of the three application images: keeps a released session image across infrastructure runs.
-          if (-not [string]::IsNullOrWhiteSpace($env:SANDBOX_HOST_IMAGE)) {
-            $parameters.sandboxHostImage = @{ value = $env:SANDBOX_HOST_IMAGE.Trim() }
-          }
-          if (-not [string]::IsNullOrWhiteSpace($env:SANDBOX_DISK_IMAGE_ID)) {
-            $parameters.sandboxDiskImageId = @{ value = $env:SANDBOX_DISK_IMAGE_ID.Trim() }
-          }
           $path = "$env:RUNNER_TEMP/runtime.parameters.json"
           @{ parameters = $parameters } | ConvertTo-Json -Depth 5 | Set-Content $path
           chmod 600 $path
@@ -170,12 +161,6 @@ jobs:
           $outputs = Get-Content "$env:RUNNER_TEMP/shared-outputs.json" -Raw | ConvertFrom-Json
           "- Static Web App: $($outputs.staticWebAppName.value)" >> $env:GITHUB_STEP_SUMMARY
           "- Frontend origin: $($outputs.staticWebAppUrl.value)" >> $env:GITHUB_STEP_SUMMARY
-          if ($outputs.dynamicSessionsPoolName.value) {
-            "- Dynamic Sessions pool: $($outputs.dynamicSessionsPoolName.value) ($($outputs.dynamicSessionsPoolEndpoint.value))" >> $env:GITHUB_STEP_SUMMARY
-          }
-          if ($outputs.sandboxGroupName.value) {
-            "- Sandbox group: $($outputs.sandboxGroupName.value)" >> $env:GITHUB_STEP_SUMMARY
-          }
           "API, Background and MarkItDown use GitHub environment image variables, falling back to hello images when all three are unset. Run Release Database first, then the independent MarkItDown, AgentHost, API, Background and Frontend release workflows." >> $env:GITHUB_STEP_SUMMARY
       - name: Remove temporary files
         if: always()

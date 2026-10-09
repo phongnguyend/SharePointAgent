@@ -13,9 +13,12 @@ $image = Publish-SandboxHostImage $outputs
 
 "## Sandboxes image published" >> $env:GITHUB_STEP_SUMMARY
 "- Image: $image" >> $env:GITHUB_STEP_SUMMARY
-if ($outputs.sandboxGroupName.value) {
-  "- Sandbox group: $($outputs.sandboxGroupName.value)" >> $env:GITHUB_STEP_SUMMARY
-  "Register the image as a disk image in the sandbox group (portal: Disk images, Create, Base Image URL = the image above, Registry Authentication = managed identity $($outputs.sandboxesPullIdentityId.value)). New sandboxes then boot from it." >> $env:GITHUB_STEP_SUMMARY
+. "$PSScriptRoot/optional-deployments.ps1"
+$sandboxGroupName = Get-SandboxGroupName
+if ($sandboxGroupName) {
+  $pullIdentityId = Get-OptionalDeploymentOutput 'sandboxes' 'sandboxesPullIdentityId'
+  "- Sandbox group: $sandboxGroupName" >> $env:GITHUB_STEP_SUMMARY
+  "Register the image as a disk image in the sandbox group (portal: Disk images, Create, Base Image URL = the image above, Registry Authentication = managed identity $pullIdentityId). New sandboxes then boot from it. Set SANDBOX_DISK_IMAGE_ID to its resource ID and run Release API." >> $env:GITHUB_STEP_SUMMARY
 } else {
-  "No sandbox group is deployed. Set deploySandboxGroup to true in the environment parameter file and run Deploy infrastructure to create one." >> $env:GITHUB_STEP_SUMMARY
+  "No sandbox group is deployed. Run Deploy Sandboxes Infrastructure to create one." >> $env:GITHUB_STEP_SUMMARY
 }

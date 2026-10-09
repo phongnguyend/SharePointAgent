@@ -4,22 +4,28 @@ $PSNativeCommandUseErrorActionPreference = $true
 
 $apiVersion = '2026-07-01'
 $outputs = az deployment group show --resource-group $env:RESOURCE_GROUP --name "infra-$env:DEPLOY_ENVIRONMENT" --query properties.outputs -o json | ConvertFrom-Json
-if (-not $outputs.dynamicSessionsPoolName.value) {
-  throw 'Set deployDynamicSessions to true in the environment parameter file and run Deploy infrastructure before releasing Dynamic Sessions.'
+if (-not $outputs.containerRegistryName.value) {
+  throw 'Run Deploy infrastructure before releasing Dynamic Sessions.'
+}
+. "$PSScriptRoot/optional-deployments.ps1"
+$poolName = Get-OptionalDeploymentOutput 'dynamic-sessions' 'dynamicSessionsPoolName'
+$endpoint = Get-DynamicSessionsPoolEndpoint
+if (-not $poolName) {
+  throw 'Run Deploy Dynamic Sessions Infrastructure before releasing Dynamic Sessions.'
 }
 
 $image = Publish-SandboxHostImage $outputs
 
 # Merge Patch replaces arrays whole, so the pool's own container definition is edited and sent back
 # with its registry credentials, keeping settings the infrastructure owns.
-$poolId = az resource show --resource-group $env:RESOURCE_GROUP --name $outputs.dynamicSessionsPoolName.value `
+$poolId = az resource show --resource-group $env:RESOURCE_GROUP --name $poolName `
   --resource-type Microsoft.App/sessionPools --query id -o tsv
 $url = "https://management.azure.com$poolId`?api-version=$apiVersion"
 $pool = az rest --method get --url $url -o json | ConvertFrom-Json -AsHashtable
 $template = $pool.properties.customContainerTemplate
 $containers = @($template.containers)
 if ($containers.Count -ne 1) {
-  throw "Expected one container in session pool $($outputs.dynamicSessionsPoolName.value). Run Deploy infrastructure first."
+  throw "Expected one container in session pool $poolName. Run Deploy Dynamic Sessions Infrastructure first."
 }
 $containers[0].image = $image
 # Same values as the infrastructure template: the pool authenticates callers and its ingress allows 240 seconds.
@@ -62,7 +68,6 @@ if ($state -ne 'Succeeded') {
 # A fresh identifier allocates a new session, so this exercises the image the pool now runs. The
 # deployment identity holds Session Executor from the infrastructure template; a new assignment can
 # take a few minutes to reach the pool, which the health wait's retries absorb.
-$endpoint = $outputs.dynamicSessionsPoolEndpoint.value
 $identifier = "release-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
 $token = az account get-access-token --resource https://dynamicsessions.io --query accessToken -o tsv
 $headers = @{ Authorization = "Bearer $token" }
@@ -78,6 +83,6 @@ try {
 
 "## Dynamic Sessions deployed" >> $env:GITHUB_STEP_SUMMARY
 "- Image: $image" >> $env:GITHUB_STEP_SUMMARY
-"- Pool: $($outputs.dynamicSessionsPoolName.value)" >> $env:GITHUB_STEP_SUMMARY
+"- Pool: $poolName" >> $env:GITHUB_STEP_SUMMARY
 "- Endpoint: $endpoint" >> $env:GITHUB_STEP_SUMMARY
-"Set the GitHub environment variable SANDBOX_HOST_IMAGE to this image so Deploy infrastructure keeps it instead of the hello image." >> $env:GITHUB_STEP_SUMMARY
+"Set the GitHub environment variable SANDBOX_HOST_IMAGE to this image so Deploy Dynamic Sessions Infrastructure keeps it instead of the hello image." >> $env:GITHUB_STEP_SUMMARY

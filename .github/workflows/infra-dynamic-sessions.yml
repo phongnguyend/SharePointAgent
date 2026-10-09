@@ -1,0 +1,116 @@
+name: Deploy Dynamic Sessions Infrastructure
+run-name: Deploy Dynamic Sessions Infrastructure (${{ inputs.environment }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options: [dev, test]
+        default: dev
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deployment-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: ${{ inputs.environment }}
+    env:
+      DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      SANDBOX_HOST_IMAGE: ${{ vars.SANDBOX_HOST_IMAGE }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Check deployment settings
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:DEPLOY_ENVIRONMENT -notin @('dev', 'test')) {
+            throw 'Select dev or test as the target environment.'
+          }
+          $settings = (Get-Content "infra/parameters.$env:DEPLOY_ENVIRONMENT.json" -Raw | ConvertFrom-Json).parameters
+          $parametersFile = "infra/DynamicSessions/parameters.$env:DEPLOY_ENVIRONMENT.json"
+          $poolSettings = (Get-Content $parametersFile -Raw | ConvertFrom-Json).parameters
+          if ($settings.environmentName.value -ne $env:DEPLOY_ENVIRONMENT -or $poolSettings.environmentName.value -ne $env:DEPLOY_ENVIRONMENT) {
+            throw 'Parameter environment does not match the selected environment.'
+          }
+          if ($poolSettings.workloadName.value -ne $settings.workloadName.value) {
+            throw 'workloadName in infra/DynamicSessions/parameters must match infra/parameters, so resource names line up.'
+          }
+          $resourceGroup = $env:AZURE_RESOURCE_GROUP
+          if ([string]::IsNullOrWhiteSpace($resourceGroup)) {
+            $resourceGroup = "rg-$($settings.workloadName.value)-$env:DEPLOY_ENVIRONMENT"
+          }
+          "RESOURCE_GROUP=$resourceGroup" >> $env:GITHUB_ENV
+          "PARAMETERS_FILE=$parametersFile" >> $env:GITHUB_ENV
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Prepare parameters from the shared infrastructure
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $outputs = az deployment group show --resource-group $env:RESOURCE_GROUP --name "infra-$env:DEPLOY_ENVIRONMENT" `
+            --query properties.outputs -o json | ConvertFrom-Json
+          if (-not $outputs.containerAppsEnvironmentName.value) {
+            throw 'Run Deploy infrastructure before deploying Dynamic Sessions.'
+          }
+          # The pool joins the existing Container Apps environment, so it takes that environment's region.
+          $environmentLocation = az containerapp env show --resource-group $env:RESOURCE_GROUP `
+            --name $outputs.containerAppsEnvironmentName.value --query location -o tsv
+          # Pool size, cooldown, egress, and names come from infra/DynamicSessions/parameters.<environment>.json.
+          $parameters = @{
+            location = @{ value = $environmentLocation }
+            containerRegistryName = @{ value = $outputs.containerRegistryName.value }
+            containerAppsEnvironmentName = @{ value = $outputs.containerAppsEnvironmentName.value }
+            apiIdentityId = @{ value = $outputs.hosting.value.apiIdentityId }
+            apiPrincipalId = @{ value = $outputs.hosting.value.apiPrincipalId }
+          }
+          # Without SANDBOX_HOST_IMAGE the pool runs the hello image until Release Dynamic Sessions runs.
+          if (-not [string]::IsNullOrWhiteSpace($env:SANDBOX_HOST_IMAGE)) {
+            $parameters.sandboxHostImage = @{ value = $env:SANDBOX_HOST_IMAGE.Trim() }
+          }
+          $path = "$env:RUNNER_TEMP/dynamic-sessions.parameters.json"
+          @{ parameters = $parameters } | ConvertTo-Json -Depth 10 | Set-Content $path
+      - name: Deploy Dynamic Sessions
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          az bicep build --file infra/DynamicSessions/main.bicep --outfile "$env:RUNNER_TEMP/dynamic-sessions.json"
+          az deployment group validate --resource-group $env:RESOURCE_GROUP `
+            --template-file "$env:RUNNER_TEMP/dynamic-sessions.json" --parameters $env:PARAMETERS_FILE "$env:RUNNER_TEMP/dynamic-sessions.parameters.json" --output none
+          $outputs = az deployment group create --resource-group $env:RESOURCE_GROUP --name "dynamic-sessions-$env:DEPLOY_ENVIRONMENT" `
+            --mode Incremental --template-file "$env:RUNNER_TEMP/dynamic-sessions.json" --parameters $env:PARAMETERS_FILE "$env:RUNNER_TEMP/dynamic-sessions.parameters.json" `
+            --query properties.outputs -o json | ConvertFrom-Json
+          "## Dynamic Sessions infrastructure deployed" >> $env:GITHUB_STEP_SUMMARY
+          "- Pool: $($outputs.dynamicSessionsPoolName.value)" >> $env:GITHUB_STEP_SUMMARY
+          "- Endpoint: $($outputs.dynamicSessionsPoolEndpoint.value)" >> $env:GITHUB_STEP_SUMMARY
+          if ([string]::IsNullOrWhiteSpace($env:SANDBOX_HOST_IMAGE)) {
+            "Running the hello image. Run Release Dynamic Sessions to install the sandbox host." >> $env:GITHUB_STEP_SUMMARY
+          }
+          "Run Release API to point the API at this pool." >> $env:GITHUB_STEP_SUMMARY
+      - name: Remove temporary files
+        if: always()
+        run: |
+          foreach ($name in @('dynamic-sessions.json', 'dynamic-sessions.parameters.json')) {
+            $path = Join-Path $env:RUNNER_TEMP $name
+            if (Test-Path -LiteralPath $path) {
+              Remove-Item -LiteralPath $path -Force
+            }
+          }

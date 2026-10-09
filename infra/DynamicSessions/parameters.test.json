@@ -1,0 +1,29 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "cooldownSeconds": {
+      "value": 1800
+    },
+    "egressEnabled": {
+      "value": true
+    },
+    "environmentName": {
+      "value": "test"
+    },
+    "maxSessions": {
+      "value": 20
+    },
+    "readySessions": {
+      "value": 1
+    },
+    "tags": {
+      "value": {
+        "application": "SharePointAgent"
+      }
+    },
+    "workloadName": {
+      "value": "sharepointagent"
+    }
+  }
+}
