@@ -460,7 +460,7 @@ Use **Admin → Service health** to inspect MarkItDown, PageIndex, and the Backg
 
 For AgentHost, inspect the hosted agent version and routing in Foundry, then test a chat request through the API. Use its trace ID to investigate failures; the Admin service-health checks do not currently probe AgentHost.
 
-### Start or stop MarkItDown and PageIndex
+### Start or stop MarkItDown, PageIndex, and Ollaya
 
 Open **Actions → Start or Stop MarkItDown** or **Actions → Start or Stop PageIndex**,
 select **Run workflow**, choose `dev` or `test`, and choose `start` or `stop`.
@@ -480,6 +480,10 @@ indexing requests unavailable. Starting reuses the deployed image and settings.
 After starting, use **Admin → Service health** to check API connectivity and
 container logs to investigate failures. The workflow confirms Azure running state,
 not application readiness. No images are rebuilt by these workflows.
+
+**Start or Stop Ollaya** ([manage-ollaya.yml](../.github/workflows/manage-ollaya.yml)) works the same way, using the same script, but reads `ollayaContainerAppName` from the `ollaya-<environment>` deployment. Run **Deploy Ollaya infrastructure** first.
+
+With `minReplicas` 0, Ollaya already scales to zero when idle and bills no GPU time, but any request wakes it: a GPU replica then starts, about two minutes of pulling and loading, and stays up for the scale-down cooldown (300 seconds by default) after the last request. That includes the **Admin → Service health** check of `GET /`, so leaving that page on automatic refresh keeps a T4 running. Stopping the app removes its replicas and keeps requests from waking it, which makes it the way to guarantee no GPU charges; calls to Ollaya fail until it is started again. A stopped app still incurs its share of the registry (the Basic tier, plus storage for the 10 GB images) and of Log Analytics ingestion; the Ollaya environment itself has no standing charge, because it has no dedicated workload profiles.
 
 ### Start or stop Background
 

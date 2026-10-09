@@ -8,7 +8,7 @@ param(
     [string] $Action,
 
     [Parameter(Mandatory)]
-    [ValidateSet('Background', 'MarkItDown', 'PageIndex')]
+    [ValidateSet('Background', 'MarkItDown', 'PageIndex', 'Ollaya')]
     [string] $Component,
 
     [string] $ResourceGroup
@@ -36,13 +36,22 @@ $outputName = switch ($Component) {
     'PageIndex' {
         'pageIndexContainerAppName'
     }
+    'Ollaya' {
+        'ollayaContainerAppName'
+    }
+}
+# Ollaya has its own template and environment (infra/Ollaya), so its name comes from that deployment.
+$deploymentName = if ($Component -eq 'Ollaya') {
+    "ollaya-$EnvironmentName"
+} else {
+    "infra-$EnvironmentName"
 }
 $containerName = $Component.ToLowerInvariant()
 
 $appName = az deployment group show --resource-group $ResourceGroup `
-    --name "infra-$EnvironmentName" --query "properties.outputs.$outputName.value" --output tsv
+    --name $deploymentName --query "properties.outputs.$outputName.value" --output tsv
 if ([string]::IsNullOrWhiteSpace($appName)) {
-    throw "$Component Container App output is missing. Run Deploy infrastructure first."
+    throw "$Component Container App output is missing from deployment $deploymentName. Run its infrastructure workflow first."
 }
 $appId = az containerapp show --resource-group $ResourceGroup --name $appName --query id --output tsv
 if ([string]::IsNullOrWhiteSpace($appId)) {
