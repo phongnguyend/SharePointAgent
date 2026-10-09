@@ -1,0 +1,105 @@
+name: Ollaya CI
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'backend/Ollaya/**'
+      - 'infra/Ollaya/**'
+      - '.github/workflows/ollaya-ci.yml'
+  pull_request:
+    paths:
+      - 'backend/Ollaya/**'
+      - 'infra/Ollaya/**'
+      - '.github/workflows/ollaya-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ollaya-ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bicep:
+    name: Compile infrastructure
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Compile infra/Ollaya/main.bicep
+        run: az bicep build --file infra/Ollaya/main.bicep --stdout > /dev/null
+
+  # The release image (CUDA base plus the 8 GB winnow:e4b model) would not fit a hosted runner's
+  # disk, and there is no GPU here. The same Dockerfile built on Ollaya's CPU base with its small
+  # laya model exercises everything else: the build-time pull, the model store outside the base
+  # image's volume, the non-root user, the API key, and a real decision.
+  image-smoke-test:
+    name: Build and smoke-test image (CPU, laya)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      OLLAYA_API_KEY: ci-key-for-the-smoke-test-only-0123456789
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Build CPU variant
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          docker build --build-arg OLLAYA_IMAGE=ghcr.io/ollaya-dev/ollaya:0.12.0 --build-arg OLLAYA_MODEL=laya `
+            --tag ollaya:ci backend/Ollaya
+      - name: Smoke-test
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          docker run --detach --name ollaya-ci --publish 11435:11435 --env "OLLAYA_API_KEY=$env:OLLAYA_API_KEY" ollaya:ci | Out-Null
+          try {
+            $ready = $false
+            for ($attempt = 0; $attempt -lt 60 -and -not $ready; $attempt++) {
+              try {
+                $ready = "$(Invoke-RestMethod http://localhost:11435/ -TimeoutSec 5)" -match 'Ollaya is running'
+              } catch {
+                Start-Sleep -Seconds 2
+              }
+            }
+            if (-not $ready) {
+              throw 'Ollaya did not start.'
+            }
+            try {
+              Invoke-RestMethod http://localhost:11435/api/version -TimeoutSec 10 | Out-Null
+              throw 'Ollaya answered /api/version without the API key.'
+            } catch {
+              if ([int]$_.Exception.Response.StatusCode -ne 401) {
+                throw
+              }
+            }
+            $headers = @{ Authorization = "Bearer $env:OLLAYA_API_KEY" }
+            # The model must already be in the image: an empty list means the build-time pull was lost.
+            $models = Invoke-RestMethod http://localhost:11435/api/tags -Headers $headers -TimeoutSec 10
+            if (-not (@($models.models).name -match '^laya')) {
+              throw "The baked-in model is missing: $($models | ConvertTo-Json -Depth 5 -Compress)"
+            }
+            $decision = @{
+              model = 'laya'
+              state = 'The package arrived two weeks late and the box was damaged.'
+              questions = @{ complaint = @{ type = 'noul'; instructions = 'Is this a complaint?' } }
+            } | ConvertTo-Json -Depth 10
+            $result = Invoke-RestMethod -Method Post http://localhost:11435/v1/systemone -Headers $headers `
+              -ContentType 'application/json' -Body $decision -TimeoutSec 120
+            if (-not $result.answers.complaint) {
+              throw "No answer: $($result | ConvertTo-Json -Depth 10 -Compress)"
+            }
+            "Decision: $($result.answers.complaint | ConvertTo-Json -Depth 5 -Compress)"
+          } catch {
+            docker logs ollaya-ci
+            throw
+          } finally {
+            docker rm --force ollaya-ci | Out-Null
+          }

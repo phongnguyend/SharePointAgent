@@ -5,6 +5,10 @@ on:
     branches: ['**']
     paths:
       - 'backend/**'
+      # These have their own workflows: markitdown-ci.yml, pageindex-ci.yml, ollaya-ci.yml.
+      - '!backend/MarkItDown/**'
+      - '!backend/PageIndex/**'
+      - '!backend/Ollaya/**'
       - 'global.json'
       - 'NuGet.Config'
       - 'nuget.config'
@@ -14,6 +18,10 @@ on:
   pull_request:
     paths:
       - 'backend/**'
+      # These have their own workflows: markitdown-ci.yml, pageindex-ci.yml, ollaya-ci.yml.
+      - '!backend/MarkItDown/**'
+      - '!backend/PageIndex/**'
+      - '!backend/Ollaya/**'
       - 'global.json'
       - 'NuGet.Config'
       - 'nuget.config'
@@ -82,9 +90,6 @@ jobs:
           - image: sandboxhost
             context: .
             file: backend/SharePointAgent.SandboxHost/Dockerfile
-          - image: markitdown
-            context: backend/MarkItDown
-            file: backend/MarkItDown/Dockerfile
     steps:
       - uses: actions/checkout@v6
         with:

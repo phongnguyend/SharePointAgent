@@ -1,0 +1,64 @@
+name: MarkItDown CI
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'backend/MarkItDown/**'
+      - '.github/workflows/markitdown-ci.yml'
+  pull_request:
+    paths:
+      - 'backend/MarkItDown/**'
+      - '.github/workflows/markitdown-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: markitdown-ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend/MarkItDown
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      # Matches the python:3.11-slim base of the image.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: backend/MarkItDown/requirements.txt
+      - name: Install dependencies
+        # FastAPI's TestClient needs httpx, which the service itself does not.
+        run: python -m pip install -r requirements.txt httpx
+      - name: Test
+        run: python -m unittest discover -s tests -v
+
+  docker-build:
+    name: Build image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: backend/MarkItDown
+          file: backend/MarkItDown/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: false
+          tags: markitdown:ci
+          cache-from: type=gha,scope=markitdown-ci
+          cache-to: type=gha,mode=max,scope=markitdown-ci

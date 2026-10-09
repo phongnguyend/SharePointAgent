@@ -1,0 +1,66 @@
+name: PageIndex CI
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'backend/PageIndex/**'
+      - '.github/workflows/pageindex-ci.yml'
+  pull_request:
+    paths:
+      - 'backend/PageIndex/**'
+      - '.github/workflows/pageindex-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pageindex-ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend/PageIndex
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      # Matches the python:3.12-slim base of the image.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            backend/PageIndex/requirements.txt
+            backend/PageIndex/requirements-dev.txt
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Test
+        # The tests stub every model call, so no Azure OpenAI settings are needed.
+        run: python -m unittest discover -s tests -v
+
+  docker-build:
+    name: Build image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: backend/PageIndex
+          file: backend/PageIndex/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: false
+          tags: pageindex:ci
+          cache-from: type=gha,scope=pageindex-ci
+          cache-to: type=gha,mode=max,scope=pageindex-ci
