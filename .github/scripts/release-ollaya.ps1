@@ -12,15 +12,41 @@ if (-not $ollayaOutputs.ollayaContainerAppName.value) {
 $name = $ollayaOutputs.ollayaContainerAppName.value
 $endpoint = $ollayaOutputs.ollayaEndpoint.value.TrimEnd('/')
 
-# The model is baked into the image, so this pulls about 8 GB inside ACR Tasks rather than on the runner.
-Push-Location backend/Ollaya
-try {
-  az acr build --registry $shared.containerRegistryName.value --platform linux/amd64 --no-logs --timeout 7200 `
-    --image "ollaya:$env:IMAGE_TAG" --build-arg "OLLAYA_MODEL=$env:OLLAYA_MODEL" --file Dockerfile .
-} finally {
-  Pop-Location
+# The tag is a hash of what goes into the image: the build files (not the docs) and the model name.
+# ACR Tasks keeps no layer cache between runs, so an unchanged image would otherwise be rebuilt from
+# scratch on every release: an 8 GB model download and a 10 GB push, about eight minutes.
+$hash = [Security.Cryptography.IncrementalHash]::CreateHash([Security.Cryptography.HashAlgorithmName]::SHA256)
+$context = (Resolve-Path -LiteralPath backend/Ollaya).Path
+$files = Get-ChildItem -LiteralPath $context -File -Recurse | Where-Object { $_.Extension -ne '.md' } | Sort-Object FullName
+foreach ($file in $files) {
+  $hash.AppendData([Text.Encoding]::UTF8.GetBytes([IO.Path]::GetRelativePath($context, $file.FullName).Replace('\', '/') + "`n"))
+  $hash.AppendData([IO.File]::ReadAllBytes($file.FullName))
 }
-$image = "$($shared.containerRegistryLoginServer.value)/ollaya:$env:IMAGE_TAG"
+$hash.AppendData([Text.Encoding]::UTF8.GetBytes("model=$env:OLLAYA_MODEL"))
+$tag = 'content-' + [Convert]::ToHexString($hash.GetHashAndReset()).ToLowerInvariant().Substring(0, 16)
+$image = "$($shared.containerRegistryLoginServer.value)/ollaya:$tag"
+
+# The repository does not exist before the first release, which makes this lookup fail; treat that as "not built".
+$PSNativeCommandUseErrorActionPreference = $false
+$existing = az acr repository show-tags --name $shared.containerRegistryName.value --repository ollaya --query "[?@=='$tag']" -o tsv 2>$null
+$found = $LASTEXITCODE -eq 0 -and $existing -eq $tag
+$PSNativeCommandUseErrorActionPreference = $true
+
+# The hash cannot see the Ollaya registry republishing the same model name, so a rebuild can be forced.
+if ($found -and $env:OLLAYA_REBUILD -ne 'true') {
+  Write-Host "$image already exists; skipping the build."
+  $built = 'reused'
+} else {
+  # The model is baked into the image, so this pulls about 8 GB inside ACR Tasks rather than on the runner.
+  Push-Location backend/Ollaya
+  try {
+    az acr build --registry $shared.containerRegistryName.value --platform linux/amd64 --no-logs --timeout 7200 `
+      --image "ollaya:$tag" --build-arg "OLLAYA_MODEL=$env:OLLAYA_MODEL" --file Dockerfile .
+  } finally {
+    Pop-Location
+  }
+  $built = 'built'
+}
 
 # Merge Patch replaces arrays whole, so the container and secret lists are edited and sent back in full.
 $app = az containerapp show --resource-group $env:RESOURCE_GROUP --name $name -o json | ConvertFrom-Json -AsHashtable
@@ -94,7 +120,7 @@ if (-not $result.answers.complaint) {
 }
 
 "## Ollaya deployed" >> $env:GITHUB_STEP_SUMMARY
-"- Image: $image" >> $env:GITHUB_STEP_SUMMARY
+"- Image: $image ($built)" >> $env:GITHUB_STEP_SUMMARY
 "- Endpoint: $endpoint" >> $env:GITHUB_STEP_SUMMARY
 "- Server version: $($version.version); model: $($result.model); smoke-test decision in $($watch.ElapsedMilliseconds) ms, including any model load" >> $env:GITHUB_STEP_SUMMARY
 "Set the GitHub environment variable OLLAYA_IMAGE to this image so Deploy Ollaya infrastructure keeps it instead of the hello image." >> $env:GITHUB_STEP_SUMMARY

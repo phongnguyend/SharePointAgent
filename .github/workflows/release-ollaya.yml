@@ -10,6 +10,10 @@ on:
         type: choice
         options: [dev, test]
         default: dev
+      rebuild:
+        description: Rebuild the image even if one with the same content already exists (picks up a republished model)
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       environment:
@@ -18,6 +22,10 @@ on:
         type: string
       orchestrated:
         description: The calling release workflow holds the environment deployment lock
+        type: boolean
+        default: false
+      rebuild:
+        description: Rebuild the image even if one with the same content already exists
         type: boolean
         default: false
 
@@ -40,7 +48,8 @@ jobs:
       DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
       AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
       OLLAYA_MODEL: ${{ vars.OLLAYA_MODEL || 'winnow:e4b' }}
-      IMAGE_TAG: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+      # The image tag comes from the content of backend/Ollaya, so an unchanged image is reused.
+      OLLAYA_REBUILD: ${{ inputs.rebuild && 'true' || 'false' }}
     defaults:
       run:
         shell: pwsh
