@@ -171,7 +171,7 @@ public sealed class AttachmentContentCache(
     {
         if (settings.IsImageFile(file.FileName))
         {
-            throw new ArgumentException("Image attachments do not have Markdown. Use download_attachment to download the original image.");
+            throw new ArgumentException($"Image attachments do not have Markdown. Use {ChatAgentToolNames.DownloadAttachment} to download the original image.");
         }
     }
 

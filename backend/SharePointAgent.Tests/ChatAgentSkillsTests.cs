@@ -1,3 +1,4 @@
+using SharePointAgent.Domain;
 using System.Text.Json;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
@@ -15,14 +16,29 @@ public sealed class ChatAgentSkillsTests
         var skills = await ChatAgentSkills.GetCatalogAsync(default);
         Assert.Contains(skills, skill => skill.Name == "dns-lookup" && !string.IsNullOrWhiteSpace(skill.Description));
         var tools = ChatAgentService.GetTools();
-        Assert.Contains(tools, tool => tool.Name == "search_sharepoint_documents");
+        Assert.Contains(tools, tool => tool.Name == ChatAgentToolNames.SearchSharePointDocuments);
         Assert.DoesNotContain(tools, tool => tool.Name == "search_documents");
-        Assert.Contains(tools, tool => tool.Name == "convert_to_markdown");
-        Assert.Contains(tools, tool => tool.Name == "recognize_text");
-        Assert.Contains(tools, tool => tool.Name == "upload_sharepoint_file");
+        Assert.Contains(tools, tool => tool.Name == ChatAgentToolNames.ConvertToMarkdown);
+        Assert.Contains(tools, tool => tool.Name == ChatAgentToolNames.RecognizeText);
+        Assert.Contains(tools, tool => tool.Name == ChatAgentToolNames.UploadSharePointFile);
         Assert.DoesNotContain(tools, tool => tool.Name == "refresh_sharepoint_file" || tool.Name == "download_attachment_markdown");
         Assert.All(tools, tool => Assert.False(string.IsNullOrWhiteSpace(tool.Description)));
         Assert.Equal(tools.Count, tools.Select(tool => tool.Name).Distinct().Count());
+
+        // The relationship tool exists only where Graph RAG retrieval is on, so it is not a standing capability.
+        Assert.DoesNotContain(tools, tool => tool.Name == ChatAgentToolNames.FindRelatedDocuments);
+    }
+
+    [Fact]
+    public void DefaultInstructionsNameTheToolsAsTheyArePublished()
+    {
+        var instructions = AgentDefaults.Instructions;
+
+        Assert.Contains("Use the search_sharepoint_documents tool", instructions);
+        Assert.Contains("When the find_related_documents tool is available", instructions);
+        Assert.Contains("The upload_sharepoint_file(fileId, sourcePath) tool", instructions);
+        Assert.DoesNotContain("ChatAgentToolNames", instructions);
+        Assert.DoesNotContain("{", instructions);
     }
 
     [Theory]

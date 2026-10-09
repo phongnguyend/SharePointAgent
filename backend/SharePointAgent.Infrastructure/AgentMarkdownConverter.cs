@@ -1,3 +1,4 @@
+using SharePointAgent.Domain;
 using Microsoft.Extensions.Options;
 using SharePointAgent.Application;
 
@@ -13,12 +14,12 @@ public sealed class AgentMarkdownConverter(
         var source = await files.ReadAsync(path, cancellationToken);
         if (uploads.Value.IsTextFile(source.Name))
         {
-            throw new ArgumentException("This file is already text. Use read_text with its existing path.");
+            throw new ArgumentException($"This file is already text. Use {ChatAgentToolNames.ReadText} with its existing path.");
         }
 
         if (uploads.Value.IsImageFile(source.Name))
         {
-            throw new ArgumentException("Images are not converted to Markdown. Use describe_image for image attachments.");
+            throw new ArgumentException($"Images are not converted to Markdown. Use {ChatAgentToolNames.DescribeImage} for image attachments.");
         }
 
         var destination = string.IsNullOrWhiteSpace(destinationPath)

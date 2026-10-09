@@ -208,24 +208,6 @@ public sealed class ChatMessageAttachmentFileService(
         return new DownloadedFile(original.LocalPath, row.FileName, new FileInfo(original.LocalPath).Length, original.CacheHit);
     }
 
-    public async Task<DownloadedFile?> DownloadConversationAttachmentMarkdownAsync(Guid conversationId, Guid attachmentId,
-        CancellationToken cancellationToken)
-    {
-        var row = await FindConversationAttachmentAsync(conversationId, attachmentId, cancellationToken);
-        if (row is null)
-        {
-            return null;
-        }
-
-        if (_uploads.IsTextFile(row.FileName))
-        {
-            throw new ArgumentException("This attachment is already text. Use download_attachment, then read_text with its localPath. Do not call download_attachment_markdown for text files.");
-        }
-
-        var cached = await contentCache.GetMarkdownAsync(row, cancellationToken);
-        return new DownloadedFile(cached.LocalPath, row.FileName + ".md", new FileInfo(cached.LocalPath).Length, cached.MarkdownCacheHit);
-    }
-
     private async Task<ChatMessageAttachmentFileEntity?> FindConversationAttachmentAsync(Guid conversationId, Guid attachmentId,
         CancellationToken cancellationToken)
     {

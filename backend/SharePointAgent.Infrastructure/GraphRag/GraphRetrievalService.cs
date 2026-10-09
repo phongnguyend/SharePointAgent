@@ -30,6 +30,8 @@ public sealed class GraphRetrievalService(
     GraphEvidenceVerifier verifier,
     ILogger<GraphRetrievalService> logger) : IGraphRetrievalService
 {
+    public bool ReturnsResults => options.Value.RetrievalEnabled && options.Value.IsEnabledForTenant(sharePointOptions.Value.TenantId);
+
     public async Task<GraphRetrievalResult> AugmentAsync(GraphRetrievalRequest request, CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
@@ -149,8 +151,8 @@ public sealed class GraphRetrievalService(
 
     /// <summary>
     /// Entities to start from: those the question names without ambiguity first, then those asserted in the
-    /// baseline chunks. Baseline chunks were returned by the permission-trimmed search, so starting from what
-    /// they assert reveals nothing; every edge found from there is still verified.
+    /// baseline and seed chunks. Those chunks were returned by the permission-trimmed search, so starting from
+    /// what they assert reveals nothing; every edge found from there is still verified.
     /// </summary>
     private async Task<IReadOnlyList<string>> SeedsAsync(
         string tenantId, GraphRetrievalRequest request, GraphTraversalOptions traversal, CancellationToken cancellationToken)
@@ -159,8 +161,9 @@ public sealed class GraphRetrievalService(
         var linked = await linker.LinkAsync(tenantId, request.Query, cancellationToken);
         seeds.AddRange(linked.EntityIds);
 
-        var baselineChunks = request.BaselineHits.Select(hit => hit.Id).ToHashSet(StringComparer.Ordinal);
-        var documentIds = request.BaselineHits
+        var authorizedHits = request.BaselineHits.Concat(request.SeedHits ?? []).ToList();
+        var baselineChunks = authorizedHits.Select(hit => hit.Id).ToHashSet(StringComparer.Ordinal);
+        var documentIds = authorizedHits
             .Select(hit => $"{hit.DriveId}:{hit.ItemId}")
             .Distinct(StringComparer.Ordinal)
             .Take(traversal.MaxEvidenceDocuments)

@@ -1,3 +1,4 @@
+using SharePointAgent.Domain;
 using System.Collections.Concurrent;
 using System.Text;
 
@@ -32,7 +33,7 @@ public sealed class AgentTextFiles(AgentFileSystem? workingDirectory = null)
         {
             if ((entry.Attributes & FileAttributes.ReparsePoint) != 0)
             {
-                throw new ArgumentException("Symbolic links are not supported by read_text.");
+                throw new ArgumentException($"Symbolic links are not supported by {ChatAgentToolNames.ReadText}.");
             }
         }
         if (new FileInfo(fullPath).Length > 50 * 1024 * 1024)
@@ -44,7 +45,7 @@ public sealed class AgentTextFiles(AgentFileSystem? workingDirectory = null)
         var text = await reader.ReadToEndAsync(ct);
         if (text.Contains('\0'))
         {
-            throw new ArgumentException("This is not a text file. Use convert_to_markdown for supported documents, then read the returned localPath.");
+            throw new ArgumentException($"This is not a text file. Use {ChatAgentToolNames.ConvertToMarkdown} for supported documents, then read the returned localPath.");
         }
 
         var page = AttachmentMarkdownReader.Read(Guid.Empty, System.IO.Path.GetFileName(fullPath), new(text, fullPath, true, true), startLine, endLine);

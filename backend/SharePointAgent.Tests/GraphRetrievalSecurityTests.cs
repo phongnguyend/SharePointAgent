@@ -221,6 +221,29 @@ public sealed class GraphRetrievalSecurityTests
     }
 
     [Fact]
+    public async Task SeedHitsStartTheTraversalAndCanComeBackAsEvidence()
+    {
+        var seed = new[] { _chunks.Hit(Drive, "public", 0) };
+
+        var result = await Service().AugmentAsync(new GraphRetrievalRequest("user-b", "What depends on what across documents here?", [], SeedHits: seed), default);
+
+        Assert.Contains(result.Chunks, chunk => chunk.Hit.Content == PublicText);
+        Assert.Contains(result.Chunks, chunk => chunk.Hit.Content == RestrictedText);
+    }
+
+    [Fact]
+    public void ResultsAreShownOnlyWhenRetrievalIsOnForTheTenant()
+    {
+        Assert.True(Service().ReturnsResults);
+        Assert.False(Service(options =>
+        {
+            options.RetrievalEnabled = false;
+            options.ShadowRetrieval = true;
+        }).ReturnsResults);
+        Assert.False(Service(options => options.EnabledTenantIds = ["someone-else"]).ReturnsResults);
+    }
+
+    [Fact]
     public async Task AnAmbiguousNameDoesNotStartATraversal()
     {
         await _aliases.UpsertAsync([new EntityAliasEntry(Tenant, "Project", "crm", EntityId("Project", "CRM"))], default);
