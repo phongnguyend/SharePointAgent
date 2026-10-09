@@ -221,8 +221,10 @@ public static class DependencyInjection
                 "AgentWorkspace:DynamicSessions:PoolManagementEndpoint must be the pool's HTTPS management endpoint.")
             .Validate(o => o.Mode != AgentWorkspaceMode.DynamicSessions || o.Snapshots.IsConfigured,
                 "AgentWorkspace:Snapshots:ServiceUri (managed identity) or ConnectionString is required for dynamic sessions, whose files are otherwise lost after the cooldown.")
-            .Validate(o => o.Mode != AgentWorkspaceMode.Sandboxes || o.Snapshots.IsConfigured || !string.IsNullOrWhiteSpace(o.Sandboxes.SharedEndpoint),
-                "AgentWorkspace:Snapshots storage holds the sandbox bindings; configure it, or a shared development sandbox.")
+            .Validate(o => o.Mode != AgentWorkspaceMode.Sandboxes || o.Sandboxes.IsConfigured,
+                "AgentWorkspace:Sandboxes needs SubscriptionId, ResourceGroup, SandboxGroup, and DiskImageId to create a sandbox per workspace.")
+            .Validate(o => o.Mode != AgentWorkspaceMode.Sandboxes || o.Sandboxes.UsesSharedSandbox || o.Snapshots.IsConfigured,
+                "AgentWorkspace:Snapshots storage holds the per-workspace sandbox bindings; configure ServiceUri (managed identity) or ConnectionString.")
             .ValidateOnStart();
 
         if (mode == AgentWorkspaceMode.Local)
@@ -235,6 +237,21 @@ public static class DependencyInjection
         services.AddSingleton<Workspaces.BlobWorkspaceStorage>();
         services.AddSingleton<Workspaces.IWorkspaceSnapshotStore>(sp => sp.GetRequiredService<Workspaces.BlobWorkspaceStorage>());
         services.AddSingleton<Workspaces.ISandboxRegistry>(sp => sp.GetRequiredService<Workspaces.BlobWorkspaceStorage>());
+        services.AddHttpClient(Workspaces.AcaSandboxProvisioner.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(60));
+        services.AddSingleton<Workspaces.ISandboxProvisioner>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<AgentWorkspaceOptions>>();
+            var clientId = options.Value.Sandboxes.ManagedIdentityClientId;
+            return new Workspaces.AcaSandboxProvisioner(
+                sp.GetRequiredService<IHttpClientFactory>(),
+                new DefaultAzureCredential(new DefaultAzureCredentialOptions
+                {
+                    ManagedIdentityClientId = string.IsNullOrWhiteSpace(clientId) ? Environment.GetEnvironmentVariable("AZURE_CLIENT_ID") : clientId
+                }),
+                sp.GetRequiredService<Workspaces.ISandboxRegistry>(),
+                options,
+                sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Workspaces.AcaSandboxProvisioner>>());
+        });
         services.AddSingleton<IAgentWorkspaceProvider>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<AgentWorkspaceOptions>>();
@@ -253,6 +270,7 @@ public static class DependencyInjection
                 sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Workspaces.SandboxHostWorkspace>>(),
                 credential,
                 sp.GetRequiredService<Workspaces.IWorkspaceSnapshotStore>(),
+                sp.GetRequiredService<Workspaces.ISandboxProvisioner>(),
                 sp.GetRequiredService<Workspaces.ISandboxRegistry>());
         });
         return services;

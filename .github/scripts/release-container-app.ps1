@@ -69,6 +69,10 @@ if ($Component -eq 'Api') {
     ContentSafety__ManagedIdentityClientId = $hosting.apiClientId
   }
   $apiEnvironment = $commonEnvironment + @($apiValues.GetEnumerator() | ForEach-Object { @{ name = $_.Key; value = [string]$_.Value } })
+  # Optional; when unset, the value from Deploy infrastructure is kept.
+  if (-not [string]::IsNullOrWhiteSpace($env:SANDBOX_DISK_IMAGE_ID)) {
+    $apiEnvironment += @{ name = 'AgentWorkspace__Sandboxes__DiskImageId'; value = $env:SANDBOX_DISK_IMAGE_ID.Trim() }
+  }
   $apiEnvironment += $signing.Environment
   $secrets += $signing.Secrets
   Grant-Role $hosting.apiPrincipalId '53ca6127-db72-4b80-b1b0-d745d6d5456d' $hosting.foundryProjectId

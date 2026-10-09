@@ -58,7 +58,14 @@ public interface IAgentWorkspace
 /// <summary>Finds the working directory a conversation uses: its workspace's when it is in one, else its own.</summary>
 public interface IAgentWorkspaceProvider
 {
+    /// <summary>The conversation's working directory, created or resumed as needed.</summary>
     Task<IAgentWorkspace> GetAsync(Guid conversationId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The working directory only if it already exists, for browsing: looking at a conversation that has not
+    /// run anything must never start a session or create a sandbox for it.
+    /// </summary>
+    Task<IAgentWorkspace?> FindAsync(Guid conversationId, CancellationToken cancellationToken);
 }
 
 /// <summary>Inline code or a workspace script, run with the workspace as its default working directory.</summary>
@@ -122,18 +129,73 @@ public sealed class DynamicSessionsWorkspaceOptions
     public bool IsConfigured => Uri.TryCreate(PoolManagementEndpoint, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps;
 }
 
+/// <summary>
+/// Sandboxes are created on demand, one per chat workspace (or per conversation outside one), from the
+/// SharePointAgent.SandboxHost disk image registered in the sandbox group. Each gets its own random API key
+/// and auto-suspends when idle; the next turn resumes it with its disk intact.
+/// </summary>
 public sealed class SandboxesWorkspaceOptions
 {
+    /// <summary>The Sandboxes data plane. The SDK's global endpoint unless a regional one is required.</summary>
+    [Required] public string DataPlaneEndpoint { get; set; } = "https://management.azuredevcompute.io";
+
+    /// <summary>The data-plane API version whose request shapes this client sends.</summary>
+    [Required] public string ApiVersion { get; set; } = "2026-02-01-preview";
+
+    public string? SubscriptionId { get; set; }
+
+    public string? ResourceGroup { get; set; }
+
+    /// <summary>The sandbox group the sandboxes are created in (the <c>sandboxGroupName</c> template output).</summary>
+    public string? SandboxGroup { get; set; }
+
+    /// <summary>The ID of the SandboxHost disk image registered in the group.</summary>
+    public string? DiskImageId { get; set; }
+
+    /// <summary>The managed identity holding SandboxGroup Data Owner; empty uses AZURE_CLIENT_ID or the system identity.</summary>
+    public string? ManagedIdentityClientId { get; set; }
+
+    [Required] public string Cpu { get; set; } = "1000m";
+
+    [Required] public string Memory { get; set; } = "2048Mi";
+
+    /// <summary>Idle seconds before a sandbox suspends. Memory mode keeps the SandboxHost process running across resume.</summary>
+    [Range(60, 86400)] public int AutoSuspendSeconds { get; set; } = 900;
+
+    [Required] public string AutoSuspendMode { get; set; } = "Memory";
+
+    /// <summary>Delete a sandbox this many days after it stopped; 0 keeps it until its workspace's next turn.</summary>
+    [Range(0, 3650)] public int AutoDeleteAfterDays { get; set; }
+
     /// <summary>
-    /// A sandbox every conversation shares, for development only: like <see cref="AgentWorkspaceMode.Local"/>,
-    /// it is one directory for everybody. Production binds a sandbox per workspace (see the binding registry).
+    /// The SandboxHost port is reachable from these source ranges only, such as the API's outbound addresses.
+    /// Empty leaves the port open to any source, protected by the per-sandbox key alone.
+    /// </summary>
+    public List<string> AllowedSourceCidrs { get; set; } = [];
+
+    /// <summary>Overrides the image entrypoint, for a disk image that does not start SandboxHost itself.</summary>
+    public List<string> Entrypoint { get; set; } = [];
+
+    /// <summary>How long creating or resuming a sandbox may take before the turn reports it unavailable.</summary>
+    [Range(10, 1800)] public int ProvisionTimeoutSeconds { get; set; } = 300;
+
+    /// <summary>How long to wait for SandboxHost to answer its health check once the sandbox is running.</summary>
+    [Range(1, 600)] public int HealthWaitSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// Development only: one already-running sandbox every conversation shares, instead of creating one per
+    /// workspace. Like <see cref="AgentWorkspaceMode.Local"/>, it is one directory for everybody.
     /// </summary>
     public string? SharedEndpoint { get; set; }
 
     public string? SharedApiKey { get; set; }
 
-    /// <summary>How long to wait for a sandbox to answer its health check after it is created or resumed.</summary>
-    [Range(1, 600)] public int HealthWaitSeconds { get; set; } = 60;
+    public bool UsesSharedSandbox => !string.IsNullOrWhiteSpace(SharedEndpoint);
+
+    public bool IsConfigured => UsesSharedSandbox
+        ? !string.IsNullOrWhiteSpace(SharedApiKey)
+        : new[] { SubscriptionId, ResourceGroup, SandboxGroup, DiskImageId }.All(value => !string.IsNullOrWhiteSpace(value))
+          && Uri.TryCreate(DataPlaneEndpoint, UriKind.Absolute, out var endpoint) && endpoint.Scheme == Uri.UriSchemeHttps;
 }
 
 /// <summary>

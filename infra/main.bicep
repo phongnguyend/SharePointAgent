@@ -128,6 +128,9 @@ param graphRagAllowAdminMerges bool = false
 ])
 param agentWorkspaceMode string = 'Local'
 
+@description('The ID of the SharePointAgent.SandboxHost disk image registered in the sandbox group. Sandboxes mode creates one sandbox per chat workspace from it.')
+param sandboxDiskImageId string = ''
+
 @description('Azure AI Search service SKU.')
 @allowed([
   'basic'
@@ -839,6 +842,11 @@ resource api 'Microsoft.App/containerApps@2025-01-01' = {
           { name: 'AgentWorkspace__DynamicSessions__ManagedIdentityClientId', value: apiIdentity.properties.clientId }
           { name: 'AgentWorkspace__Snapshots__UsedManagedIdentity', value: 'true' }
           { name: 'AgentWorkspace__Snapshots__ServiceUri', value: uploadStorage.properties.primaryEndpoints.blob }
+          { name: 'AgentWorkspace__Sandboxes__SubscriptionId', value: subscription().subscriptionId }
+          { name: 'AgentWorkspace__Sandboxes__ResourceGroup', value: resourceGroup().name }
+          { name: 'AgentWorkspace__Sandboxes__SandboxGroup', value: sandboxGroup.?name ?? '' }
+          { name: 'AgentWorkspace__Sandboxes__DiskImageId', value: sandboxDiskImageId }
+          { name: 'AgentWorkspace__Sandboxes__ManagedIdentityClientId', value: apiIdentity.properties.clientId }
           { name: 'ChatAgent__Foundry__Endpoint', value: foundryEndpoint }
           { name: 'ChatAgent__Foundry__ManagedIdentityClientId', value: apiIdentity.properties.clientId }
           { name: 'Uploads__UsedManagedIdentity', value: 'true' }

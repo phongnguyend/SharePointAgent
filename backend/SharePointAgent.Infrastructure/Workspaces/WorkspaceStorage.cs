@@ -12,43 +12,53 @@ public interface IWorkspaceSnapshotStore
 {
     Task<Stream?> OpenAsync(string scope, CancellationToken cancellationToken);
 
+    Task<bool> ExistsAsync(string scope, CancellationToken cancellationToken);
+
     Task SaveAsync(string scope, Stream archive, CancellationToken cancellationToken);
 
     Task DeleteAsync(string scope, CancellationToken cancellationToken);
 }
 
-/// <summary>Which sandbox serves a workspace scope: its exposed SandboxHost address and per-sandbox API key.</summary>
-public sealed record SandboxBinding(Uri Endpoint, string ApiKey);
+/// <summary>
+/// Which sandbox serves a workspace scope: its ID in the sandbox group (null for a shared development
+/// sandbox), its exposed SandboxHost address, and its per-sandbox API key.
+/// </summary>
+public sealed record SandboxBinding(string? SandboxId, Uri Endpoint, string ApiKey);
 
+/// <summary>The scope-to-sandbox bindings the provisioner keeps.</summary>
 public interface ISandboxRegistry
 {
     Task<SandboxBinding?> GetAsync(string scope, CancellationToken cancellationToken);
+
+    /// <summary>Records a new binding unless one already exists, so concurrent first turns settle on one sandbox.</summary>
+    Task<bool> TryAddAsync(string scope, SandboxBinding binding, CancellationToken cancellationToken);
+
+    Task SaveAsync(string scope, SandboxBinding binding, CancellationToken cancellationToken);
+
+    Task DeleteBindingAsync(string scope, CancellationToken cancellationToken);
 }
 
 /// <summary>
 /// Workspace state in one private Blob container: <c>snapshots/{scope}.zip</c> for dynamic sessions and
-/// <c>sandboxes/{scope}.json</c> for sandbox bindings. The bindings are written by whatever provisions the
-/// sandboxes (the sandbox SDK or CLI), which keeps the provisioning API, still changing between versions,
-/// out of this application.
+/// <c>sandboxes/{scope}.json</c> for the bindings of the sandboxes the provisioner creates. The container is
+/// private and reached with the application's identity; the bindings hold per-sandbox keys.
 /// </summary>
 public sealed class BlobWorkspaceStorage : IWorkspaceSnapshotStore, ISandboxRegistry
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     private readonly BlobContainerClient _container;
-    private readonly SandboxesWorkspaceOptions _sandboxes;
     private readonly SemaphoreSlim _initialization = new(1, 1);
     private bool _initialized;
 
     public BlobWorkspaceStorage(IOptions<AgentWorkspaceOptions> options)
-        : this(CreateContainer(options.Value.Snapshots), options.Value.Sandboxes)
+        : this(CreateContainer(options.Value.Snapshots))
     {
     }
 
-    internal BlobWorkspaceStorage(BlobContainerClient container, SandboxesWorkspaceOptions sandboxes)
+    internal BlobWorkspaceStorage(BlobContainerClient container)
     {
         _container = container;
-        _sandboxes = sandboxes;
     }
 
     public async Task<Stream?> OpenAsync(string scope, CancellationToken cancellationToken)
@@ -63,6 +73,12 @@ public sealed class BlobWorkspaceStorage : IWorkspaceSnapshotStore, ISandboxRegi
         {
             return null;
         }
+    }
+
+    public async Task<bool> ExistsAsync(string scope, CancellationToken cancellationToken)
+    {
+        await EnsureContainerAsync(cancellationToken);
+        return (await _container.GetBlobClient(SnapshotName(scope)).ExistsAsync(cancellationToken)).Value;
     }
 
     public async Task SaveAsync(string scope, Stream archive, CancellationToken cancellationToken)
@@ -85,22 +101,50 @@ public sealed class BlobWorkspaceStorage : IWorkspaceSnapshotStore, ISandboxRegi
         await EnsureContainerAsync(cancellationToken);
         try
         {
-            var download = await _container.GetBlobClient($"sandboxes/{scope}.json").DownloadContentAsync(cancellationToken);
+            var download = await _container.GetBlobClient(BindingName(scope)).DownloadContentAsync(cancellationToken);
             var binding = download.Value.Content.ToObjectFromJson<SandboxBindingDocument>(Json);
-            if (binding is not null && Uri.TryCreate(binding.Endpoint, UriKind.Absolute, out var endpoint)
-                && endpoint.Scheme == Uri.UriSchemeHttps && !string.IsNullOrWhiteSpace(binding.ApiKey))
-            {
-                return new SandboxBinding(endpoint, binding.ApiKey);
-            }
+            return binding is not null && Uri.TryCreate(binding.Endpoint, UriKind.Absolute, out var endpoint)
+                && endpoint.Scheme == Uri.UriSchemeHttps && !string.IsNullOrWhiteSpace(binding.ApiKey)
+                ? new SandboxBinding(binding.SandboxId, endpoint, binding.ApiKey)
+                : null;
         }
         catch (RequestFailedException exception) when (exception.Status == 404)
         {
+            return null;
         }
-
-        return Uri.TryCreate(_sandboxes.SharedEndpoint, UriKind.Absolute, out var shared) && !string.IsNullOrWhiteSpace(_sandboxes.SharedApiKey)
-            ? new SandboxBinding(shared, _sandboxes.SharedApiKey)
-            : null;
     }
+
+    public async Task<bool> TryAddAsync(string scope, SandboxBinding binding, CancellationToken cancellationToken)
+    {
+        await EnsureContainerAsync(cancellationToken);
+        try
+        {
+            await _container.GetBlobClient(BindingName(scope)).UploadAsync(Serialize(binding),
+                new BlobUploadOptions { Conditions = new BlobRequestConditions { IfNoneMatch = ETag.All } }, cancellationToken);
+            return true;
+        }
+        catch (RequestFailedException exception) when (exception.Status is 409 or 412)
+        {
+            return false;
+        }
+    }
+
+    public async Task SaveAsync(string scope, SandboxBinding binding, CancellationToken cancellationToken)
+    {
+        await EnsureContainerAsync(cancellationToken);
+        await _container.GetBlobClient(BindingName(scope)).UploadAsync(Serialize(binding), overwrite: true, cancellationToken);
+    }
+
+    public async Task DeleteBindingAsync(string scope, CancellationToken cancellationToken)
+    {
+        await EnsureContainerAsync(cancellationToken);
+        await _container.GetBlobClient(BindingName(scope)).DeleteIfExistsAsync(cancellationToken: cancellationToken);
+    }
+
+    private static BinaryData Serialize(SandboxBinding binding) =>
+        BinaryData.FromObjectAsJson(new SandboxBindingDocument(binding.SandboxId, binding.Endpoint.ToString(), binding.ApiKey), Json);
+
+    private static string BindingName(string scope) => $"sandboxes/{scope}.json";
 
     internal static string SnapshotName(string scope) => $"snapshots/{scope}.zip";
 
@@ -130,5 +174,5 @@ public sealed class BlobWorkspaceStorage : IWorkspaceSnapshotStore, ISandboxRegi
         ? new BlobServiceClient(new Uri(options.ServiceUri!), DependencyInjection.CreateManagedIdentityCredential()).GetBlobContainerClient(options.ContainerName)
         : new BlobContainerClient(options.ConnectionString!, options.ContainerName);
 
-    private sealed record SandboxBindingDocument(string? Endpoint, string? ApiKey);
+    private sealed record SandboxBindingDocument(string? SandboxId, string? Endpoint, string? ApiKey);
 }

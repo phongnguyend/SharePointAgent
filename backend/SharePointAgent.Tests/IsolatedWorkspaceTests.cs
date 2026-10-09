@@ -269,28 +269,28 @@ public sealed class IsolatedWorkspaceTests : IAsyncLifetime
 
         var factory = Substitute.For<IDbContextFactory<SharePointIndexDbContext>>();
         factory.CreateDbContextAsync(Arg.Any<CancellationToken>()).Returns(_ => new SharePointIndexDbContext(options));
-        var registry = Substitute.For<ISandboxRegistry>();
-        registry.GetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new SandboxBinding(new Uri("https://sandbox.example/"), "key"));
+        var provisioner = Substitute.For<ISandboxProvisioner>();
+        provisioner.AcquireAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new SandboxBinding("sbx", new Uri("https://sandbox.example/"), "key"));
         var http = Substitute.For<IHttpClientFactory>();
         http.CreateClient(Arg.Any<string>()).Returns(new HttpClient());
         var provider = new IsolatedAgentWorkspaceProvider(http, factory,
             Options.Create(new AgentWorkspaceOptions { Mode = AgentWorkspaceMode.Sandboxes }), Options.Create(new LocalWorkingDirectoryOptions()),
-            NullLogger<SandboxHostWorkspace>.Instance, sandboxes: registry);
+            NullLogger<SandboxHostWorkspace>.Instance, sandboxes: provisioner);
 
         await provider.GetAsync(inWorkspace, default);
         await provider.GetAsync(alone, default);
 
-        await registry.Received(1).GetAsync(workspaceId.ToString("N"), Arg.Any<CancellationToken>());
-        await registry.Received(1).GetAsync(alone.ToString("N"), Arg.Any<CancellationToken>());
+        await provisioner.Received(1).AcquireAsync(workspaceId.ToString("N"), Arg.Any<CancellationToken>());
+        await provisioner.Received(1).AcquireAsync(alone.ToString("N"), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task ASandboxThatIsNotSetUpIsReportedPlainly()
+    public async Task BrowsingAConversationThatNeverRanCreatesNothing()
     {
-        var registry = Substitute.For<ISandboxRegistry>();
+        var bindings = Substitute.For<ISandboxRegistry>();
+        var provisioner = Substitute.For<ISandboxProvisioner>();
         var factory = Substitute.For<IDbContextFactory<SharePointIndexDbContext>>();
-        var options = new DbContextOptionsBuilder<SharePointIndexDbContext>()
-            .UseSqlite("Data Source=:memory:").Options;
+        var options = new DbContextOptionsBuilder<SharePointIndexDbContext>().UseSqlite("Data Source=:memory:").Options;
         factory.CreateDbContextAsync(Arg.Any<CancellationToken>()).Returns(_ =>
         {
             var db = new SharePointIndexDbContext(options);
@@ -298,13 +298,17 @@ public sealed class IsolatedWorkspaceTests : IAsyncLifetime
             db.Database.EnsureCreated();
             return db;
         });
-        var provider = new IsolatedAgentWorkspaceProvider(Substitute.For<IHttpClientFactory>(), factory,
-            Options.Create(new AgentWorkspaceOptions { Mode = AgentWorkspaceMode.Sandboxes }), Options.Create(new LocalWorkingDirectoryOptions()),
-            NullLogger<SandboxHostWorkspace>.Instance, sandboxes: registry);
+        IAgentWorkspaceProvider Provider(AgentWorkspaceMode mode) => new IsolatedAgentWorkspaceProvider(
+            Substitute.For<IHttpClientFactory>(), factory, Options.Create(new AgentWorkspaceOptions { Mode = mode }),
+            Options.Create(new LocalWorkingDirectoryOptions()), NullLogger<SandboxHostWorkspace>.Instance,
+            Substitute.For<TokenCredential>(), _snapshots, provisioner, bindings);
+        var browser = new WorkspaceAgentFileBrowser(Provider(AgentWorkspaceMode.Sandboxes));
 
-        var error = await Assert.ThrowsAsync<AgentWorkspaceUnavailableException>(() => provider.GetAsync(Guid.NewGuid(), default));
+        var listing = await browser.ListAsync(Guid.NewGuid(), ".", recursive: false, default);
 
-        Assert.Contains("No sandbox is set up", error.Message);
+        Assert.False(listing.SandboxStarted);
+        Assert.Null(await Provider(AgentWorkspaceMode.DynamicSessions).FindAsync(Guid.NewGuid(), default));
+        await provisioner.DidNotReceiveWithAnyArgs().AcquireAsync(default!, default);
     }
 
     private sealed class InMemorySnapshots : IWorkspaceSnapshotStore
@@ -314,6 +318,8 @@ public sealed class IsolatedWorkspaceTests : IAsyncLifetime
         public int Saves { get; private set; }
 
         public bool Has(string scope) => _archives.ContainsKey(scope);
+
+        public Task<bool> ExistsAsync(string scope, CancellationToken cancellationToken) => Task.FromResult(_archives.ContainsKey(scope));
 
         public Task<Stream?> OpenAsync(string scope, CancellationToken cancellationToken) =>
             Task.FromResult<Stream?>(_archives.TryGetValue(scope, out var archive) ? new MemoryStream(archive) : null);

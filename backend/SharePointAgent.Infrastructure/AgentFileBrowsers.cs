@@ -28,11 +28,20 @@ public sealed class WorkspaceAgentFileBrowser(IAgentWorkspaceProvider workspaces
         Guid conversationId,
         string? path,
         bool recursive,
-        CancellationToken cancellationToken) =>
-        await (await workspaces.GetAsync(conversationId, cancellationToken)).ListAsync(path, recursive, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        var workspace = await workspaces.FindAsync(conversationId, cancellationToken);
+        return workspace is null
+            ? new FileSystemListing(".", 0, false, [], SandboxStarted: false)
+            : await workspace.ListAsync(path, recursive, cancellationToken);
+    }
 
-    public async Task<FileContent> ReadAsync(Guid conversationId, string path, CancellationToken cancellationToken) =>
-        await (await workspaces.GetAsync(conversationId, cancellationToken)).ReadAsync(path, cancellationToken);
+    public async Task<FileContent> ReadAsync(Guid conversationId, string path, CancellationToken cancellationToken)
+    {
+        var workspace = await workspaces.FindAsync(conversationId, cancellationToken)
+            ?? throw new ArgumentException("This conversation has no files yet.");
+        return await workspace.ReadAsync(path, cancellationToken);
+    }
 }
 
 /// <summary>

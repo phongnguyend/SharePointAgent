@@ -20,7 +20,8 @@ public sealed class IsolatedAgentWorkspaceProvider(
     ILogger<SandboxHostWorkspace> logger,
     TokenCredential? sessionCredential = null,
     IWorkspaceSnapshotStore? snapshots = null,
-    ISandboxRegistry? sandboxes = null) : IAgentWorkspaceProvider
+    ISandboxProvisioner? sandboxes = null,
+    ISandboxRegistry? bindings = null) : IAgentWorkspaceProvider
 {
     public const string HttpClientName = "AgentWorkspace";
 
@@ -37,9 +38,9 @@ public sealed class IsolatedAgentWorkspaceProvider(
                 return new SandboxHostWorkspace(http, new DynamicSessionEndpoint(pool, scope, credential), snapshots, scope, settings, limits.Value, logger);
 
             case AgentWorkspaceMode.Sandboxes:
-                var binding = await (sandboxes ?? throw new InvalidOperationException("No sandbox registry is registered.")).GetAsync(scope, cancellationToken)
-                    ?? throw new AgentWorkspaceUnavailableException(
-                        "No sandbox is set up for this conversation yet. Ask an administrator to provision one, then try again.");
+                // Created on the workspace's first use, resumed on later ones: one sandbox per workspace scope.
+                var binding = await (sandboxes ?? throw new InvalidOperationException("No sandbox provisioner is registered."))
+                    .AcquireAsync(scope, cancellationToken);
                 var endpoint = new SandboxEndpoint(binding.Endpoint, binding.ApiKey, TimeSpan.FromSeconds(settings.Sandboxes.HealthWaitSeconds));
 
                 // A sandbox keeps its own disk across suspend and resume, so it needs no snapshots.
@@ -48,6 +49,20 @@ public sealed class IsolatedAgentWorkspaceProvider(
             default:
                 throw new InvalidOperationException($"{settings.Mode} is not an isolated workspace mode.");
         }
+    }
+
+    public async Task<IAgentWorkspace?> FindAsync(Guid conversationId, CancellationToken cancellationToken)
+    {
+        var scope = (await ScopeAsync(conversationId, cancellationToken)).ToString("N");
+        var exists = options.Value.Mode switch
+        {
+            // A session's files outlive it only as a snapshot, which every changing turn saves.
+            AgentWorkspaceMode.DynamicSessions => snapshots is not null && await snapshots.ExistsAsync(scope, cancellationToken),
+            AgentWorkspaceMode.Sandboxes => options.Value.Sandboxes.UsesSharedSandbox
+                || (bindings is not null && await bindings.GetAsync(scope, cancellationToken) is not null),
+            _ => false
+        };
+        return exists ? await GetAsync(conversationId, cancellationToken) : null;
     }
 
     private async Task<Guid> ScopeAsync(Guid conversationId, CancellationToken cancellationToken)

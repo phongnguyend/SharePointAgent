@@ -75,6 +75,7 @@ jobs:
           BACKGROUND_IMAGE: ${{ vars.BACKGROUND_IMAGE }}
           MARKITDOWN_IMAGE: ${{ vars.MARKITDOWN_IMAGE }}
           SANDBOX_HOST_IMAGE: ${{ vars.SANDBOX_HOST_IMAGE }}
+          SANDBOX_DISK_IMAGE_ID: ${{ vars.SANDBOX_DISK_IMAGE_ID }}
           SHAREPOINT_TENANT_ID: ${{ vars.SHAREPOINT_TENANT_ID }}
           SHAREPOINT_CLIENT_ID: ${{ vars.SHAREPOINT_CLIENT_ID }}
           SHAREPOINT_CLIENT_SECRET: ${{ secrets.SHAREPOINT_CLIENT_SECRET }}
@@ -136,6 +137,9 @@ jobs:
           # Independent of the three application images: keeps a released session image across infrastructure runs.
           if (-not [string]::IsNullOrWhiteSpace($env:SANDBOX_HOST_IMAGE)) {
             $parameters.sandboxHostImage = @{ value = $env:SANDBOX_HOST_IMAGE.Trim() }
+          }
+          if (-not [string]::IsNullOrWhiteSpace($env:SANDBOX_DISK_IMAGE_ID)) {
+            $parameters.sandboxDiskImageId = @{ value = $env:SANDBOX_DISK_IMAGE_ID.Trim() }
           }
           $path = "$env:RUNNER_TEMP/runtime.parameters.json"
           @{ parameters = $parameters } | ConvertTo-Json -Depth 5 | Set-Content $path

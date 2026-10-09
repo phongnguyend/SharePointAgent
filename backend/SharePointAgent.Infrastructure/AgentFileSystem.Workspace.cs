@@ -84,4 +84,7 @@ public sealed class LocalAgentWorkspaceProvider(AgentFileSystem files) : IAgentW
 {
     public Task<IAgentWorkspace> GetAsync(Guid conversationId, CancellationToken cancellationToken) =>
         Task.FromResult<IAgentWorkspace>(files);
+
+    public Task<IAgentWorkspace?> FindAsync(Guid conversationId, CancellationToken cancellationToken) =>
+        Task.FromResult<IAgentWorkspace?>(files);
 }
