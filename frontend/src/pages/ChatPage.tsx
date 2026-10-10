@@ -71,7 +71,7 @@ import type {
 } from '../api/types'
 import { CopyButton, Empty, ErrorBanner, Field, LoadingBar, Modal } from '../components/ui'
 import { FileTypeIcon } from '../components/FileTypeIcon'
-import { useSandboxFileManagement } from '../components/SandboxFileManagement'
+import { useWorkspaceFileManagement } from '../components/WorkspaceFileManagement'
 import { AttachmentDownload } from '../components/AttachmentDownload'
 import { MonthlyTokenUsage } from '../components/MonthlyTokenUsage'
 import { DictationButton, dictationSupported } from '../components/DictationButton'
@@ -228,7 +228,7 @@ export default function ChatPage() {
     [activeId, conversationTab],
   )
 
-  const sandboxFiles = useAsync(
+  const workspaceFiles = useAsync(
     async (signal) => (activeId && conversationTab === 'workspace'
       ? { conversationId: activeId, value: await listConversationFiles(activeId, filesPath === '.' ? null : filesPath, false, signal) }
       : null),
@@ -315,7 +315,7 @@ export default function ChatPage() {
     try {
       await resetConversationEnvironment(activeId)
       session.reload()
-      sandboxFiles.reload()
+      workspaceFiles.reload()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
     }
@@ -328,7 +328,7 @@ export default function ChatPage() {
     try {
       await setConversationWorkspaceMode(activeId, mode)
       session.reload()
-      sandboxFiles.reload()
+      workspaceFiles.reload()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
     }
@@ -805,23 +805,23 @@ export default function ChatPage() {
                   onChangeMode={readOnly ? undefined : changeWorkspaceMode} />
               </div>
               </Modal>
-              <section className="conversation-workspace-files" aria-label="Files in the sandbox">
+              <section className="conversation-workspace-files" aria-label="Workspace files">
                 <div className="row" style={{ justifyContent: 'space-between' }}>
-                  <h3><FolderOpen size={16} />Files in the sandbox</h3>
+                  <h3><FolderOpen size={16} />Workspace files</h3>
                   <div className="row" style={{ gap: 6 }}>
                     <button onClick={() => setWorkspaceDetailsOpen(true)} aria-haspopup="dialog"><Folder size={14} />Workspace details</button>
-                    <button onClick={sandboxFiles.reload} disabled={sandboxFiles.loading}><RefreshCw size={14} />Refresh files</button>
+                    <button onClick={workspaceFiles.reload} disabled={workspaceFiles.loading}><RefreshCw size={14} />Refresh files</button>
                   </div>
                 </div>
-                <SandboxFiles
+                <WorkspaceFiles
                   key={activeId ?? 'none'}
                   conversationId={activeId ?? ''}
                   writable={!readOnly && !!activeId}
-                  onReload={sandboxFiles.reload}
+                  onReload={workspaceFiles.reload}
                   path={filesPath}
-                  listing={sandboxFiles.data?.conversationId === activeId ? sandboxFiles.data.value : null}
-                  loading={sandboxFiles.loading || sandboxFiles.data?.conversationId !== activeId}
-                  error={sandboxFiles.error}
+                  listing={workspaceFiles.data?.conversationId === activeId ? workspaceFiles.data.value : null}
+                  loading={workspaceFiles.loading || workspaceFiles.data?.conversationId !== activeId}
+                  error={workspaceFiles.error}
                   sort={fileSort}
                   onSort={setFileSort}
                   onOpen={setFilesPath}
@@ -1122,7 +1122,7 @@ function breadcrumbs(path: string): { name: string; path: string }[] {
  * table of what is here. Directories sort above files whichever column is chosen, because a listing
  * that interleaves them is harder to scan than one that does not.
  */
-export function SandboxFiles({
+export function WorkspaceFiles({
   conversationId,
   writable,
   onReload,
@@ -1140,7 +1140,7 @@ export function SandboxFiles({
   writable: boolean
   onReload: () => void
   path: string
-  listing: { path: string; entries: FileSystemEntry[]; truncated: boolean; sandboxStarted: boolean } | null
+  listing: { path: string; entries: FileSystemEntry[]; truncated: boolean; sandboxStarted: boolean; startsOnFirstChange?: boolean } | null
   loading: boolean
   error: string | null
   sort: { key: FileSortKey; desc: boolean }
@@ -1152,8 +1152,11 @@ export function SandboxFiles({
   const currentPath = !loading && !error && listing ? listing.path : path
   const [address, setAddress] = useState(currentPath)
   const [editingAddress, setEditingAddress] = useState(false)
-  const management = useSandboxFileManagement(conversationId, currentPath,
-    writable && !loading && !error && !!listing?.sandboxStarted, onReload)
+  // An environment the first upload or new folder will start can be managed already; one that only a turn
+  // starts, as in Foundry, cannot.
+  const ready = !!listing && (listing.sandboxStarted || !!listing.startsOnFirstChange)
+  const management = useWorkspaceFileManagement(conversationId, currentPath,
+    writable && !loading && !error && ready, onReload)
 
   useEffect(() => {
     setAddress(currentPath)
@@ -1161,10 +1164,10 @@ export function SandboxFiles({
 
   const parent = currentPath === '.' ? null : currentPath.includes('/') ? currentPath.slice(0, currentPath.lastIndexOf('/')) || '.' : '.'
 
-  if (listing && !listing.sandboxStarted) {
+  if (listing && !ready) {
     return (
       <Empty
-        title="No sandbox yet"
+        title="No workspace environment yet"
         icon={<HardDrive size={24} strokeWidth={1.5} />}
         detail="This conversation gets one on its first question. Nothing has been downloaded or written."
       />
@@ -1188,7 +1191,7 @@ export function SandboxFiles({
   const header = (key: FileSortKey, label: string) => (
     <button
       type="button"
-      className={sort.key === key ? 'sandbox-column active' : 'sandbox-column'}
+      className={sort.key === key ? 'workspace-files-column active' : 'workspace-files-column'}
       aria-sort={sort.key === key ? (sort.desc ? 'descending' : 'ascending') : 'none'}
       onClick={() => onSort({ key, desc: sort.key === key ? !sort.desc : false })}
     >
@@ -1198,11 +1201,14 @@ export function SandboxFiles({
   )
 
   return (
-    <div className={`sandbox-explorer${management.dragging ? ' sandbox-dragging' : ''}`} {...management.dropHandlers}>
-      {management.dragging && <div className="sandbox-drop-overlay" role="status"><Upload size={24} /><strong>Drop files to upload</strong><span>Into {currentPath === '.' ? 'the working directory' : currentPath}</span></div>}
+    <div className={`workspace-files-explorer${management.dragging ? ' workspace-files-dragging' : ''}`} {...management.dropHandlers}>
+      {management.dragging && <div className="workspace-files-drop-overlay" role="status"><Upload size={24} /><strong>Drop files to upload</strong><span>Into {currentPath === '.' ? 'the working directory' : currentPath}</span></div>}
       {management.toolbar}
-      <fieldset className="sandbox-management-content" disabled={management.busy}>
-      <div className="sandbox-address-bar">
+      {listing && !listing.sandboxStarted ? (
+        <span className="hint">Nothing here yet. Uploading a file or creating a folder starts this workspace's environment.</span>
+      ) : null}
+      <fieldset className="workspace-files-management-content" disabled={management.busy}>
+      <div className="workspace-files-address-bar">
         <button
           type="button"
           className="ghost icon-only"
@@ -1213,21 +1219,21 @@ export function SandboxFiles({
         >
           <ArrowUp size={14} />
         </button>
-        {!editingAddress ? <div className="sandbox-crumbs" onClick={(event) => {
+        {!editingAddress ? <div className="workspace-files-crumbs" onClick={(event) => {
           if (event.target === event.currentTarget) {
             setEditingAddress(true)
           }
         }}>
-        <button type="button" className="sandbox-crumb" onClick={() => onOpen('.')}>
+        <button type="button" className="workspace-files-crumb" onClick={() => onOpen('.')}>
           <HardDrive size={13} aria-hidden="true" />
           Working directory
         </button>
         {breadcrumbs(currentPath).map((crumb, index, all) => (
-          <span className="sandbox-crumb-step" key={crumb.path}>
+          <span className="workspace-files-crumb-step" key={crumb.path}>
             <ChevronRight size={12} aria-hidden="true" />
             <button
               type="button"
-              className="sandbox-crumb"
+              className="workspace-files-crumb"
               onClick={() => {
                 if (index === all.length - 1) {
                   setEditingAddress(true)
@@ -1240,10 +1246,10 @@ export function SandboxFiles({
             </button>
           </span>
         ))}
-        <button type="button" className="ghost icon-only sandbox-edit-address" title="Edit folder path" aria-label="Edit folder path" onClick={() => setEditingAddress(true)}>
+        <button type="button" className="ghost icon-only workspace-files-edit-address" title="Edit folder path" aria-label="Edit folder path" onClick={() => setEditingAddress(true)}>
           <Pencil size={13} />
         </button>
-        </div> : <form className="sandbox-address" onSubmit={(event) => {
+        </div> : <form className="workspace-files-address" onSubmit={(event) => {
         event.preventDefault()
         const destination = address.trim().replace(/^"(.*)"$/, '$1').replace(/\\/g, '/')
         onOpen(destination || '.')
@@ -1282,8 +1288,8 @@ export function SandboxFiles({
       {error ? <ErrorBanner message={error} /> : null}
 
       {!error && (entries.length > 0 || !loading) ? (
-        <div className="sandbox-table" role="table">
-          <div className="sandbox-row sandbox-head" role="row">
+        <div className="workspace-files-table" role="table">
+          <div className="workspace-files-row workspace-files-head" role="row">
             {header('name', 'Name')}
             {header('size', 'Size')}
             {header('modified', 'Modified')}
@@ -1302,33 +1308,33 @@ export function SandboxFiles({
               const name = fileName(entry.path)
               const cells = (
                 <>
-                  <span className="sandbox-name" title={entry.path}>
+                  <span className="workspace-files-name" title={entry.path}>
                     {entry.isDirectory
                       ? <FolderOpen size={14} aria-hidden="true" />
                       : <FileTypeIcon name={name} mimeType={null} size={14} />}
                     {name}
                   </span>
-                  <span className="sandbox-size">{entry.isDirectory ? '—' : formatBytes(entry.sizeBytes)}</span>
-                  <span className="sandbox-modified" title={formatDateTime(entry.modifiedUtc)}>
+                  <span className="workspace-files-size">{entry.isDirectory ? '—' : formatBytes(entry.sizeBytes)}</span>
+                  <span className="workspace-files-modified" title={formatDateTime(entry.modifiedUtc)}>
                     {formatRelative(entry.modifiedUtc)}
                   </span>
                 </>
               )
               if (entry.isDirectory) {
                 return (
-                  <div className="sandbox-row" role="row" key={entry.path}>
-                    <button type="button" className="sandbox-open" onClick={() => onOpen(entry.path)}>{cells}</button>
-                    <div className="sandbox-actions">{management.actions(entry)}</div>
+                  <div className="workspace-files-row" role="row" key={entry.path}>
+                    <button type="button" className="workspace-files-open" onClick={() => onOpen(entry.path)}>{cells}</button>
+                    <div className="workspace-files-actions">{management.actions(entry)}</div>
                   </div>
                 )
               }
 
               return (
-                <div className="sandbox-row" role="row" key={entry.path}>
+                <div className="workspace-files-row" role="row" key={entry.path}>
                   {isSandboxPreviewable(name) ? (
                     <button
                       type="button"
-                      className="sandbox-open"
+                      className="workspace-files-open"
                       title={`Preview ${name}`}
                       onClick={() => onPreview(entry.path)}
                     >
@@ -1337,7 +1343,7 @@ export function SandboxFiles({
                   ) : (
                     cells
                   )}
-                  <div className="sandbox-actions">
+                  <div className="workspace-files-actions">
                     {management.actions(entry)}
                     {isSandboxPreviewable(name) ? (
                       <button

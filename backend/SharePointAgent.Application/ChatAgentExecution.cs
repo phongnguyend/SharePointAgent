@@ -37,7 +37,7 @@ public interface IAgentFileBrowser
     /// </summary>
     Task<FileContent> ReadAsync(Guid conversationId, string path, CancellationToken cancellationToken);
 
-    Task<SandboxFileChangeResult> ManageAsync(Guid conversationId, SandboxFileChange change, CancellationToken cancellationToken);
+    Task<WorkspaceFileChangeResult> ManageAsync(Guid conversationId, WorkspaceFileChange change, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -75,7 +75,7 @@ public sealed record AgentFileListingRequest(Guid ConversationId, string? Path, 
 /// </summary>
 public sealed record AgentFileReadRequest(Guid ConversationId, string Path);
 
-public sealed record AgentFileChangeRequest(Guid ConversationId, SandboxFileChange Change);
+public sealed record AgentFileChangeRequest(Guid ConversationId, WorkspaceFileChange Change);
 
 public interface IChatAgentExecutor
 {

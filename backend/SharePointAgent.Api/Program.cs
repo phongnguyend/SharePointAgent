@@ -68,7 +68,7 @@ app.MapAgentsEndpoints();
 app.MapChatWorkspacesEndpoints();
 app.MapChatEndpoints();
 app.MapChatTranscriptionEndpoints();
-app.MapSandboxFileEndpoints();
+app.MapWorkspaceFileEndpoints();
 app.MapGraphRagEndpoints();
 
 app.Run();

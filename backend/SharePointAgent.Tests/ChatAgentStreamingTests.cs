@@ -339,7 +339,7 @@ public sealed class ChatAgentStreamingTests
             Assert.Equal("mkdir", payload!.Change.Operation);
             var response = new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = JsonContent.Create(new SandboxFileChangeResult("folder"))
+                Content = JsonContent.Create(new WorkspaceFileChangeResult("folder"))
             };
             response.Headers.Add("x-agent-session-id", "other-session");
             return response;

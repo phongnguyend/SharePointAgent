@@ -17,7 +17,8 @@ public sealed record FileSystemListing(
     int Count,
     bool Truncated,
     IReadOnlyList<FileSystemEntry> Entries,
-    bool SandboxStarted = true);
+    bool SandboxStarted = true,
+    bool StartsOnFirstChange = false);
 
 /// <summary>
 /// One file out of the agent's working directory. <see cref="ContentType"/> is worked out from the
@@ -26,6 +27,6 @@ public sealed record FileSystemListing(
 public sealed record FileContent(string Path, string Name, string ContentType, byte[] Content);
 
 /// <summary>Explicit paths relative to the sandbox root; destination is the complete new path.</summary>
-public sealed record SandboxFileChange(string Operation, string Path, string? Destination = null, byte[]? Content = null);
+public sealed record WorkspaceFileChange(string Operation, string Path, string? Destination = null, byte[]? Content = null);
 
-public sealed record SandboxFileChangeResult(string Path);
+public sealed record WorkspaceFileChangeResult(string Path);

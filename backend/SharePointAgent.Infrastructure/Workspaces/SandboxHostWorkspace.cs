@@ -200,7 +200,7 @@ public sealed class SandboxHostWorkspace : IAgentWorkspace
     }
 
     /// <summary>The file browser's operations, with the same path rule, size limits, and refusals as the local workspace.</summary>
-    public async Task<SandboxFileChangeResult> ManageAsync(SandboxFileChange change, CancellationToken cancellationToken)
+    public async Task<WorkspaceFileChangeResult> ManageAsync(WorkspaceFileChange change, CancellationToken cancellationToken)
     {
         if (change.Operation is not ("mkdir" or "upload" or "rename" or "move" or "copy" or "delete"))
         {
@@ -224,7 +224,7 @@ public sealed class SandboxHostWorkspace : IAgentWorkspace
                 }
                 await WriteAsync(source, new MemoryStream(change.Content), overwrite: false, cancellationToken);
             }
-            return new SandboxFileChangeResult(source);
+            return new WorkspaceFileChangeResult(source);
         }
 
         if (await DescribeAsync(source, cancellationToken) is null)
@@ -235,7 +235,7 @@ public sealed class SandboxHostWorkspace : IAgentWorkspace
         if (change.Operation == "delete")
         {
             await DeleteAsync(source, recursive: true, cancellationToken);
-            return new SandboxFileChangeResult(source);
+            return new WorkspaceFileChangeResult(source);
         }
 
         var destination = NormalizePath(AgentFileSystem.ValidateManagedPath(change.Destination));
@@ -253,7 +253,7 @@ public sealed class SandboxHostWorkspace : IAgentWorkspace
         await SendAsync<SandboxEntry>(HttpMethod.Post, change.Operation == "copy" ? "files/copy" : "files/move", Query(),
             JsonContent.Create(new { source, destination, overwrite = false }, options: Json), cancellationToken);
         MarkDirty();
-        return new SandboxFileChangeResult(destination);
+        return new WorkspaceFileChangeResult(destination);
     }
 
     public async Task<WorkspaceExecutionResult> ExecuteAsync(WorkspaceExecution request, CancellationToken cancellationToken)

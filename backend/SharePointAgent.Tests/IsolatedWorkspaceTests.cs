@@ -118,16 +118,16 @@ public sealed class IsolatedWorkspaceTests : IAsyncLifetime
     public async Task TheFileBrowserKeepsItsStricterRules()
     {
         var workspace = Workspace();
-        await workspace.ManageAsync(new SandboxFileChange("mkdir", "Reports"), default);
-        await workspace.ManageAsync(new SandboxFileChange("upload", "Reports/a.txt", Content: "a"u8.ToArray()), default);
+        await workspace.ManageAsync(new WorkspaceFileChange("mkdir", "Reports"), default);
+        await workspace.ManageAsync(new WorkspaceFileChange("upload", "Reports/a.txt", Content: "a"u8.ToArray()), default);
 
-        await Assert.ThrowsAsync<ArgumentException>(() => workspace.ManageAsync(new SandboxFileChange("mkdir", "Reports"), default));
-        await Assert.ThrowsAsync<ArgumentException>(() => workspace.ManageAsync(new SandboxFileChange("upload", "Missing/a.txt", Content: "a"u8.ToArray()), default));
-        await Assert.ThrowsAsync<ArgumentException>(() => workspace.ManageAsync(new SandboxFileChange("upload", "Reports/big.bin", Content: new byte[AgentFileSystem.MaxUploadBytes + 1]), default));
-        await Assert.ThrowsAsync<ArgumentException>(() => workspace.ManageAsync(new SandboxFileChange("rename", "Reports/a.txt", "b.txt"), default));
-        await Assert.ThrowsAsync<ArgumentException>(() => workspace.ManageAsync(new SandboxFileChange("move", "Reports", "Reports/inner"), default));
-        Assert.Equal("Reports/b.txt", (await workspace.ManageAsync(new SandboxFileChange("rename", "Reports/a.txt", "Reports/b.txt"), default)).Path);
-        Assert.Equal("Reports", (await workspace.ManageAsync(new SandboxFileChange("delete", "Reports"), default)).Path);
+        await Assert.ThrowsAsync<ArgumentException>(() => workspace.ManageAsync(new WorkspaceFileChange("mkdir", "Reports"), default));
+        await Assert.ThrowsAsync<ArgumentException>(() => workspace.ManageAsync(new WorkspaceFileChange("upload", "Missing/a.txt", Content: "a"u8.ToArray()), default));
+        await Assert.ThrowsAsync<ArgumentException>(() => workspace.ManageAsync(new WorkspaceFileChange("upload", "Reports/big.bin", Content: new byte[AgentFileSystem.MaxUploadBytes + 1]), default));
+        await Assert.ThrowsAsync<ArgumentException>(() => workspace.ManageAsync(new WorkspaceFileChange("rename", "Reports/a.txt", "b.txt"), default));
+        await Assert.ThrowsAsync<ArgumentException>(() => workspace.ManageAsync(new WorkspaceFileChange("move", "Reports", "Reports/inner"), default));
+        Assert.Equal("Reports/b.txt", (await workspace.ManageAsync(new WorkspaceFileChange("rename", "Reports/a.txt", "Reports/b.txt"), default)).Path);
+        Assert.Equal("Reports", (await workspace.ManageAsync(new WorkspaceFileChange("delete", "Reports"), default)).Path);
         Assert.Null(await workspace.FindAsync("Reports", default));
     }
 
@@ -307,6 +307,7 @@ public sealed class IsolatedWorkspaceTests : IAsyncLifetime
         var listing = await browser.ListAsync(Guid.NewGuid(), ".", recursive: false, default);
 
         Assert.False(listing.SandboxStarted);
+        Assert.True(listing.StartsOnFirstChange);
         Assert.Null(await Provider(AgentWorkspaceMode.DynamicSessions).FindAsync(Guid.NewGuid(), default));
         await provisioner.DidNotReceiveWithAnyArgs().AcquireAsync(default!, default);
     }
@@ -476,6 +477,30 @@ public sealed class IsolatedWorkspaceTests : IAsyncLifetime
         await provider.SetModeAsync(database.InWorkspace, null, default);
         Assert.Equal(new AgentWorkspaceEnvironment(AgentWorkspaceMode.Sandboxes, "sbx-1"), await provider.DescribeAsync(database.InWorkspace, default));
         await provisioner.DidNotReceiveWithAnyArgs().ReleaseAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task TheFileBrowserListsUploadsAndDeletesInTheChosenModesFileSystem()
+    {
+        await using var database = await ChatDatabase.CreateAsync();
+        var provisioner = SandboxProvisioner();
+        var local = LocalDirectory();
+        var provider = SandboxesProvider(database.Factory, provisioner, local);
+        var browser = new WorkspaceAgentFileBrowser(provider);
+        await provider.SetModeAsync(database.InWorkspace, AgentWorkspaceMode.Local, default);
+
+        await browser.ManageAsync(database.InWorkspace, new WorkspaceFileChange("upload", "notes.txt", null, [1, 2, 3]), default);
+        var listing = await browser.ListAsync(database.InWorkspace, ".", recursive: false, default);
+        await browser.ManageAsync(database.InWorkspace, new WorkspaceFileChange("delete", "notes.txt", null, null), default);
+
+        Assert.Contains(listing.Entries, entry => entry.Path == "notes.txt");
+        Assert.False(File.Exists(Path.Combine(local.Root, "notes.txt")));
+        await provisioner.DidNotReceiveWithAnyArgs().AcquireAsync(default!, default);
+
+        // Back on the default, the same conversation reaches its sandbox, not the local directory.
+        await provider.SetModeAsync(database.InWorkspace, null, default);
+        Assert.IsType<SandboxHostWorkspace>(await provider.GetAsync(database.InWorkspace, default));
+        await provisioner.Received(1).AcquireAsync(database.WorkspaceId.ToString("N"), Arg.Any<CancellationToken>());
     }
 
     [Fact]

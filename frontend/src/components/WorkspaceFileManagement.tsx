@@ -1,11 +1,11 @@
 import { useEffect, useId, useRef, useState, type DragEvent } from 'react'
 import { Copy, FolderPlus, MoreHorizontal, Move, Pencil, Trash2, Upload, X, Folder, ArrowUp, ChevronRight } from 'lucide-react'
-import { listConversationFiles, manageSandboxFile, uploadSandboxFile, type SandboxOperation } from '../api/client'
+import { listConversationFiles, manageWorkspaceFile, uploadWorkspaceFile, type WorkspaceFileOperation } from '../api/client'
 import type { FileSystemEntry } from '../api/types'
 import { ErrorBanner, Modal } from './ui'
 import { useAsync } from '../lib/useAsync'
 
-type Operation = Exclude<SandboxOperation, 'upload'>
+type Operation = Exclude<WorkspaceFileOperation, 'upload'>
 const labels: Record<Operation, string> = { mkdir: 'Create folder', rename: 'Rename', delete: 'Delete', copy: 'Copy', move: 'Move' }
 const icons = { mkdir: FolderPlus, rename: Pencil, delete: Trash2, copy: Copy, move: Move }
 const join = (parent: string, name: string) => parent === '.' ? name : `${parent}/${name}`
@@ -13,7 +13,7 @@ const leaf = (path: string) => path.split('/').pop() || path
 const parent = (path: string) => path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '.'
 const errorText = (error: unknown) => error instanceof Error ? error.message : String(error)
 
-export function useSandboxFileManagement(conversationId: string, path: string, enabled: boolean, reload: () => void) {
+export function useWorkspaceFileManagement(conversationId: string, path: string, enabled: boolean, reload: () => void) {
   const [action, setAction] = useState<{ operation: Operation; entry?: FileSystemEntry } | null>(null)
   const [value, setValue] = useState('')
   const [folderPath, setFolderPath] = useState('.')
@@ -75,7 +75,7 @@ export function useSandboxFileManagement(conversationId: string, path: string, e
     try {
       const source = action.operation === 'mkdir' ? join(path, value) : action.entry!.path
       const destination = action.operation === 'rename' ? join(parent(source), value) : join(destinationFolder ?? '.', value)
-      await manageSandboxFile(conversationId, action.operation, source, destination)
+      await manageWorkspaceFile(conversationId, action.operation, source, destination)
       setNotice(`${labels[action.operation]} completed.`)
       setError('')
       setAction(null)
@@ -102,7 +102,7 @@ export function useSandboxFileManagement(conversationId: string, path: string, e
       for (const [index, file] of files.entries()) {
         setProgress(`Uploading ${index + 1} of ${files.length}: ${file.name}`)
         try {
-          await uploadSandboxFile(conversationId, join(path, file.name), file)
+          await uploadWorkspaceFile(conversationId, join(path, file.name), file)
           succeeded++
         } catch (cause) {
           failures.push(`${file.name}: ${errorText(cause)}`)
@@ -160,7 +160,7 @@ export function useSandboxFileManagement(conversationId: string, path: string, e
       },
     },
     toolbar: <>
-      {enabled && <div className="sandbox-management-toolbar">
+      {enabled && <div className="workspace-files-management-toolbar">
         <button disabled={busy} onClick={() => open('mkdir')}><FolderPlus size={15} />New folder</button>
         <button disabled={busy} onClick={() => input.current?.click()}><Upload size={15} />Upload files</button>
         <span className="hint">Drop files here · Up to 5 MB each · Changes affect everyone sharing this sandbox</span>
@@ -172,7 +172,7 @@ export function useSandboxFileManagement(conversationId: string, path: string, e
       {error && <ErrorBanner message={error} />}
       {(progress || notice) && <p className="hint" role="status">{progress || notice}</p>}
     </>,
-    actions: (entry: FileSystemEntry) => enabled ? <SandboxActionMenu entry={entry} disabled={busy} onSelect={operation => open(operation, entry)} /> : null,
+    actions: (entry: FileSystemEntry) => enabled ? <WorkspaceFileActionMenu entry={entry} disabled={busy} onSelect={operation => open(operation, entry)} /> : null,
     dialog: <Modal open={!!action} title={action ? labels[action.operation] : 'Manage file'} icon={<Icon size={17} />}
       onClose={() => {
         if (!busy) {
@@ -186,13 +186,13 @@ export function useSandboxFileManagement(conversationId: string, path: string, e
       </>}>
       {dialogError && <ErrorBanner message={dialogError} />}
       {action?.entry && <p className="mono">{action.entry.path}</p>}
-      {action?.operation === 'delete' ? <p>Delete <strong>{action.entry?.path}</strong>{action.entry?.isDirectory ? ' and everything inside it' : ''}? Sandbox deletion is permanent.</p>
-        : <label className="browse-field sandbox-management-field">Name
+      {action?.operation === 'delete' ? <p>Delete <strong>{action.entry?.path}</strong>{action.entry?.isDirectory ? ' and everything inside it' : ''}? Deletion is permanent.</p>
+        : <label className="browse-field workspace-files-management-field">Name
           <input type="text" autoFocus value={value} disabled={busy} onChange={event => setValue(event.target.value)} />
         </label>}
-      {transfer && action?.entry && <div className="sandbox-destination">
+      {transfer && action?.entry && <div className="workspace-files-destination">
         <h3>Destination folder</h3>
-        <SandboxFolderPicker key={`${conversationId}:${folderPath}:${action.entry.path}`} conversationId={conversationId}
+        <WorkspaceFolderPicker key={`${conversationId}:${folderPath}:${action.entry.path}`} conversationId={conversationId}
           path={folderPath} source={action.entry} disabled={busy} onReady={setDestinationFolder}
           onNavigate={next => {
             setDestinationFolder(null)
@@ -205,7 +205,7 @@ export function useSandboxFileManagement(conversationId: string, path: string, e
   }
 }
 
-function SandboxFolderPicker({ conversationId, path, source, disabled, onReady, onNavigate }: {
+function WorkspaceFolderPicker({ conversationId, path, source, disabled, onReady, onNavigate }: {
   conversationId: string
   path: string
   source: FileSystemEntry
@@ -229,15 +229,15 @@ function SandboxFolderPicker({ conversationId, path, source, disabled, onReady, 
   const folders = (listing.data?.entries ?? []).filter(entry => entry.isDirectory)
     .sort((left, right) => leaf(left.path).localeCompare(leaf(right.path)))
 
-  return <div className="sandbox-folder-picker" aria-busy={listing.loading}>
-    <nav className="sandbox-picker-crumbs" aria-label="Destination folder path">
+  return <div className="workspace-files-folder-picker" aria-busy={listing.loading}>
+    <nav className="workspace-files-picker-crumbs" aria-label="Destination folder path">
       <button type="button" className="ghost icon-only" aria-label="Up one destination folder" disabled={disabled || current === '.' || listing.loading} onClick={() => onNavigate(parent(current))}><ArrowUp size={15} /></button>
       <button type="button" className="ghost" disabled={disabled || current === '.'} onClick={() => onNavigate('.')}>Working directory</button>
       {parts.map((name, index) => <span key={index}><ChevronRight size={13} />
         <button type="button" className="ghost" disabled={disabled || index === parts.length - 1} onClick={() => onNavigate(parts.slice(0, index + 1).join('/'))}>{name}</button>
       </span>)}
     </nav>
-    <form className="sandbox-address" onSubmit={event => {
+    <form className="workspace-files-address" onSubmit={event => {
       event.preventDefault()
       const next = address.trim().replace(/\\/g, '/').replace(/\/$/, '') || '.'
       if (next !== path) {
@@ -249,9 +249,9 @@ function SandboxFolderPicker({ conversationId, path, source, disabled, onReady, 
     </form>
     {listing.loading && <p role="status" className="hint">Loading folders…</p>}
     {listing.error && <ErrorBanner message={listing.error} onRetry={listing.reload} />}
-    {!listing.loading && !listing.error && !listing.data?.sandboxStarted && <p>No sandbox is available. Send a question first.</p>}
+    {!listing.loading && !listing.error && !listing.data?.sandboxStarted && <p>No workspace environment is available yet. Send a question first.</p>}
     {!listing.loading && !listing.error && listing.data?.sandboxStarted && <>
-      <div className="sandbox-picker-folders">
+      <div className="workspace-files-picker-folders">
         {folders.map(folder => <button type="button" key={folder.path} disabled={disabled || insideSource(folder.path)}
           title={insideSource(folder.path) ? 'A folder cannot be copied or moved into itself.' : folder.path}
           onClick={() => onNavigate(folder.path)}><Folder size={16} /><span>{leaf(folder.path)}</span><ChevronRight size={14} /></button>)}
@@ -263,7 +263,7 @@ function SandboxFolderPicker({ conversationId, path, source, disabled, onReady, 
   </div>
 }
 
-function SandboxActionMenu({ entry, disabled, onSelect }: {
+function WorkspaceFileActionMenu({ entry, disabled, onSelect }: {
   entry: FileSystemEntry
   disabled: boolean
   onSelect: (operation: Operation) => void
@@ -304,7 +304,7 @@ function SandboxActionMenu({ entry, disabled, onSelect }: {
         }
       }}><MoreHorizontal size={15} /></button>
     <div ref={menu} id={id} popover="auto" role="menu" aria-label={`Actions for ${leaf(entry.path)}`}
-      className="sandbox-item-menu" onToggle={event => setExpanded(event.newState === 'open')}
+      className="workspace-files-item-menu" onToggle={event => setExpanded(event.newState === 'open')}
       onKeyDown={event => {
         if (event.key === 'Escape') {
           event.preventDefault()
@@ -330,7 +330,7 @@ function SandboxActionMenu({ entry, disabled, onSelect }: {
       {(['rename', 'copy', 'move', 'delete'] as const).map(operation => {
         const Icon = icons[operation]
         return <button key={operation} type="button" role="menuitem" tabIndex={-1} disabled={disabled}
-          className={operation === 'delete' ? 'sandbox-menu-delete' : undefined}
+          className={operation === 'delete' ? 'workspace-files-menu-delete' : undefined}
           onClick={() => {
             menu.current?.hidePopover()
             trigger.current?.focus()

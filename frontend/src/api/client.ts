@@ -96,14 +96,14 @@ export const saveSitePermission = (input: SitePermissionInput) =>
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input), cache: 'no-store',
   })
 
-export type SandboxOperation = 'mkdir' | 'rename' | 'delete' | 'copy' | 'move' | 'upload'
+export type WorkspaceFileOperation = 'mkdir' | 'rename' | 'delete' | 'copy' | 'move' | 'upload'
 
-export const manageSandboxFile = (conversationId: string, operation: SandboxOperation, path: string, destination?: string, content?: string) =>
+export const manageWorkspaceFile = (conversationId: string, operation: WorkspaceFileOperation, path: string, destination?: string, content?: string) =>
   request<{ path: string }>(`/api/chat/conversations/${encodeURIComponent(conversationId)}/files/manage`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operation, path, destination, content }),
   })
 
-export async function uploadSandboxFile(conversationId: string, path: string, file: File) {
+export async function uploadWorkspaceFile(conversationId: string, path: string, file: File) {
   if (file.size > 5 * 1024 * 1024) {
     throw new Error('Sandbox uploads are limited to 5 MB per file.')
   }
@@ -112,7 +112,7 @@ export async function uploadSandboxFile(conversationId: string, path: string, fi
   for (let offset = 0; offset < bytes.length; offset += 32768) {
     binary += String.fromCharCode(...bytes.subarray(offset, offset + 32768))
   }
-  return manageSandboxFile(conversationId, 'upload', path, undefined, btoa(binary))
+  return manageWorkspaceFile(conversationId, 'upload', path, undefined, btoa(binary))
 }
 
 export interface BrowseItem {

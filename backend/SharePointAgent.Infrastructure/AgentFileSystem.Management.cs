@@ -10,7 +10,7 @@ public sealed partial class AgentFileSystem
 
     private const long MaxCopyBytes = 100 * 1024 * 1024;
 
-    public async Task<SandboxFileChangeResult> ManageAsync(SandboxFileChange change, CancellationToken ct)
+    public async Task<WorkspaceFileChangeResult> ManageAsync(WorkspaceFileChange change, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
         if (change.Operation is not ("mkdir" or "upload" or "rename" or "move" or "copy" or "delete"))

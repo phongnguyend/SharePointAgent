@@ -7,13 +7,13 @@ using Xunit;
 
 namespace SharePointAgent.Tests;
 
-public sealed class SandboxFileManagementTests : IDisposable
+public sealed class WorkspaceFileManagementTests : IDisposable
 {
-    private readonly string root = Path.Combine(Path.GetTempPath(), "sandbox-management-" + Guid.NewGuid().ToString("N"));
+    private readonly string root = Path.Combine(Path.GetTempPath(), "workspace-files-" + Guid.NewGuid().ToString("N"));
 
     private readonly AgentFileSystem files;
 
-    public SandboxFileManagementTests()
+    public WorkspaceFileManagementTests()
     {
         files = new(Options.Create(new LocalWorkingDirectoryOptions { Directory = root }));
     }

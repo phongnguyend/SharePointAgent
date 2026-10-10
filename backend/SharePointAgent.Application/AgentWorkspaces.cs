@@ -55,7 +55,7 @@ public interface IAgentWorkspace
     Task<FileSystemEntry> UnzipAsync(string path, string destination, bool overwrite, CancellationToken cancellationToken);
 
     /// <summary>The file browser's operations, with its stricter path and size rules.</summary>
-    Task<SandboxFileChangeResult> ManageAsync(SandboxFileChange change, CancellationToken cancellationToken);
+    Task<WorkspaceFileChangeResult> ManageAsync(WorkspaceFileChange change, CancellationToken cancellationToken);
 
     /// <summary>Runs code inside an isolated workspace. Only valid when <see cref="IsIsolated"/> is true.</summary>
     Task<WorkspaceExecutionResult> ExecuteAsync(WorkspaceExecution request, CancellationToken cancellationToken);

@@ -264,6 +264,8 @@ export interface FileSystemListing {
   truncated: boolean
   entries: FileSystemEntry[]
   sandboxStarted: boolean
+  /** True when uploading a file or creating a folder starts the environment, as it does when the API runs the agent. */
+  startsOnFirstChange?: boolean
 }
 
 export interface ChatConversation {

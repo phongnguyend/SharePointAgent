@@ -16,7 +16,7 @@ namespace SharePointAgent.Infrastructure;
 /// </summary>
 public sealed class WorkspaceAgentFileBrowser(IAgentWorkspaceProvider workspaces) : IAgentFileBrowser
 {
-    public async Task<SandboxFileChangeResult> ManageAsync(Guid conversationId, SandboxFileChange change, CancellationToken cancellationToken)
+    public async Task<WorkspaceFileChangeResult> ManageAsync(Guid conversationId, WorkspaceFileChange change, CancellationToken cancellationToken)
     {
         var workspace = await workspaces.GetAsync(conversationId, cancellationToken);
         var result = await workspace.ManageAsync(change, cancellationToken);
@@ -30,9 +30,11 @@ public sealed class WorkspaceAgentFileBrowser(IAgentWorkspaceProvider workspaces
         bool recursive,
         CancellationToken cancellationToken)
     {
+        // Browsing never starts an environment. Changing files does, through GetAsync, in whatever mode the
+        // scope has chosen, so a freshly chosen mode can take uploads before the agent has run in it.
         var workspace = await workspaces.FindAsync(conversationId, cancellationToken);
         return workspace is null
-            ? new FileSystemListing(".", 0, false, [], SandboxStarted: false)
+            ? new FileSystemListing(".", 0, false, [], SandboxStarted: false, StartsOnFirstChange: true)
             : await workspace.ListAsync(path, recursive, cancellationToken);
     }
 
@@ -60,13 +62,13 @@ public sealed class FoundryAgentFileBrowser(
 
     private readonly FoundryChatAgentOptions _options = options.Value.Foundry;
 
-    public async Task<SandboxFileChangeResult> ManageAsync(Guid conversationId, SandboxFileChange change, CancellationToken cancellationToken)
+    public async Task<WorkspaceFileChangeResult> ManageAsync(Guid conversationId, WorkspaceFileChange change, CancellationToken cancellationToken)
     {
         var sessionId = await sessions.GetAsync(conversationId, _options.Endpoint, cancellationToken)
             ?? throw new InvalidOperationException("This conversation has no sandbox yet. Send a question first.");
-        return await SendAsync<AgentFileChangeRequest, SandboxFileChangeResult>(sessionId,
+        return await SendAsync<AgentFileChangeRequest, WorkspaceFileChangeResult>(sessionId,
             AgentInvocation.ManageFilesOperation, new(conversationId, change), "application/json",
-            async (response, token) => await response.Content.ReadFromJsonAsync<SandboxFileChangeResult>(ChatStreamWriter<SandboxFileChangeResult>.Json, token)
+            async (response, token) => await response.Content.ReadFromJsonAsync<WorkspaceFileChangeResult>(ChatStreamWriter<WorkspaceFileChangeResult>.Json, token)
                 ?? throw new InvalidDataException("The hosted agent returned an empty file operation response."), cancellationToken);
     }
 
