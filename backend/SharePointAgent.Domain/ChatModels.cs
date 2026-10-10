@@ -70,7 +70,9 @@ public sealed record ChatSandboxSession(
     string? ConfiguredEndpoint,
     bool ReusedOnNextTurn,
     string? WorkspaceMode = null,
-    string? EnvironmentId = null);
+    string? EnvironmentId = null,
+    IReadOnlyList<string>? AvailableWorkspaceModes = null,
+    bool WorkspaceModeIsDefault = true);
 
 public sealed record ChatConversation(
     Guid Id,

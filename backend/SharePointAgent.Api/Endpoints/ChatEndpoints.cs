@@ -183,11 +183,11 @@ public static class ChatEndpoints
             // is dead weight, and saying so is the point of showing the two side by side.
             var reused = !local && binding.SessionId is not null && binding.Endpoint == configured;
 
-            // When the API runs the agent, its isolated environment is tracked on the same row, apart from
-            // the Foundry session. Only the API's own agent registers a workspace provider.
-            var environment = local && services.GetService<IAgentWorkspaceProvider>() is { } workspaces
-                ? await workspaces.DescribeAsync(id, cancellationToken)
-                : null;
+            // When the API runs the agent, its environment is tracked on the same row, apart from the Foundry
+            // session, and the scope may choose among the modes this deployment offers. Only the API's own
+            // agent registers a workspace provider.
+            var workspaces = local ? services.GetService<IAgentWorkspaceProvider>() : null;
+            var environment = workspaces is null ? null : await workspaces.DescribeAsync(id, cancellationToken);
             if (environment is not null)
             {
                 reused = environment.EnvironmentId is not null;
@@ -204,7 +204,45 @@ public static class ChatEndpoints
                 showsEndpoints ? configured : null,
                 reused,
                 environment?.Mode.ToString() ?? (local ? AgentWorkspaceMode.Local.ToString() : null),
-                environment?.EnvironmentId));
+                environment?.EnvironmentId,
+                workspaces?.AvailableModes.Select(mode => mode.ToString()).ToArray(),
+                environment?.IsDefault ?? true));
+        });
+
+        // Chooses where the API's own agent keeps this conversation's files: on the workspace when the
+        // conversation is in one, so all of its conversations move together. Null returns to the default.
+        // The previous environment is kept, so choosing it again finds its files.
+        app.MapPut("/api/chat/conversations/{id:guid}/session/mode", async (
+            Guid id,
+            WorkspaceModeRequest? body,
+            IServiceProvider services,
+            CancellationToken cancellationToken) =>
+        {
+            if (services.GetService<IAgentWorkspaceProvider>() is not { } workspaces)
+            {
+                return Results.Conflict(new { error = "The agent runs in Foundry, which provides its own sandbox; there is no workspace mode to choose." });
+            }
+
+            AgentWorkspaceMode? mode = null;
+            if (!string.IsNullOrWhiteSpace(body?.Mode))
+            {
+                if (!Enum.TryParse<AgentWorkspaceMode>(body.Mode, ignoreCase: true, out var parsed) || !Enum.IsDefined(parsed))
+                {
+                    return Results.BadRequest(new { error = $"'mode' must be one of: {string.Join(", ", workspaces.AvailableModes)}." });
+                }
+                mode = parsed;
+            }
+
+            try
+            {
+                return await workspaces.SetModeAsync(id, mode, cancellationToken)
+                    ? Results.Ok(new { mode = mode?.ToString() })
+                    : Results.NotFound();
+            }
+            catch (ArgumentException exception)
+            {
+                return Results.BadRequest(new { error = exception.Message });
+            }
         });
 
         // Discards the dynamic session or sandbox the API's own agent uses for this conversation's scope,

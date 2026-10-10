@@ -1,3 +1,5 @@
+using SharePointAgent.Application;
+
 namespace SharePointAgent.Persistence;
 
 /// <summary>
@@ -22,6 +24,13 @@ public sealed class ChatWorkspaceEntity
     public string? FoundryEndpoint { get; set; }
 
     public string? FoundrySessionId { get; set; }
+
+    /// <summary>
+    /// Where the API's own agent keeps this workspace's files, as chosen by its users; null uses the
+    /// configured default (AgentWorkspace:Mode). Each mode keeps its own environment, so switching back
+    /// finds the files that were left there.
+    /// </summary>
+    public AgentWorkspaceMode? WorkspaceMode { get; set; }
 
     /// <summary>
     /// The dynamic session the API's own agent uses for this workspace (AgentWorkspace:Mode

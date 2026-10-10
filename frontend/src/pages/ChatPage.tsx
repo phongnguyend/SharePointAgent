@@ -53,6 +53,7 @@ import {
   listWorkspaces,
   getConversationSession,
   resetConversationEnvironment,
+  setConversationWorkspaceMode,
   listConversationFiles,
   downloadConversationFile,
   createWorkspace,
@@ -313,6 +314,19 @@ export default function ChatPage() {
     setError(null)
     try {
       await resetConversationEnvironment(activeId)
+      session.reload()
+      sandboxFiles.reload()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
+  // Each mode keeps its own environment, so switching shows that mode's files and leaves the others intact.
+  const changeWorkspaceMode = async (mode: string | null) => {
+    if (!activeId) return
+    setError(null)
+    try {
+      await setConversationWorkspaceMode(activeId, mode)
       session.reload()
       sandboxFiles.reload()
     } catch (cause) {
@@ -787,7 +801,8 @@ export default function ChatPage() {
                 <SandboxDetails session={session.data?.conversationId === activeId ? session.data.value : null}
                   loading={session.loading} error={session.error} copied={copiedSession}
                   onCopy={async value => setCopiedSession(await copyText(value))}
-                  onReset={readOnly ? undefined : resetEnvironment} />
+                  onReset={readOnly ? undefined : resetEnvironment}
+                  onChangeMode={readOnly ? undefined : changeWorkspaceMode} />
               </div>
               </Modal>
               <section className="conversation-workspace-files" aria-label="Files in the sandbox">
@@ -1366,6 +1381,18 @@ export function SandboxFiles({
  * which one am I in, and who else is in it — and shows plainly when a recorded binding is stale, since
  * that is the case where the files someone expects to still be there will not be.
  */
+/** How a workspace mode reads in the sandbox panel. Local is this server's own disk, shared by everyone using it. */
+function workspaceModeLabel(mode: string | null): string {
+  switch (mode) {
+    case 'DynamicSessions':
+      return 'Dynamic session'
+    case 'Sandboxes':
+      return 'Sandbox'
+    default:
+      return 'This server (shared)'
+  }
+}
+
 function SandboxDetails({
   session,
   loading,
@@ -1373,6 +1400,7 @@ function SandboxDetails({
   copied,
   onCopy,
   onReset,
+  onChangeMode,
 }: {
   session: ChatSandboxSession | null
   loading: boolean
@@ -1381,8 +1409,21 @@ function SandboxDetails({
   onCopy: (value: string) => void
   /** Absent for readers who cannot change the conversation. */
   onReset?: () => Promise<void>
+  /** Absent for readers who cannot change the conversation. Null returns to the configured default. */
+  onChangeMode?: (mode: string | null) => Promise<void>
 }) {
   const [confirmingReset, setConfirmingReset] = useState(false)
+  const [changingMode, setChangingMode] = useState(false)
+  const modes = session?.availableWorkspaceModes ?? []
+  const changeMode = async (value: string) => {
+    if (!onChangeMode) return
+    setChangingMode(true)
+    try {
+      await onChangeMode(value === '' ? null : value)
+    } finally {
+      setChangingMode(false)
+    }
+  }
   const [resetting, setResetting] = useState(false)
   // When the API runs the agent in a dynamic session or sandbox, that environment is what the next turn
   // reaches; the Foundry session ID plays no part.
@@ -1409,6 +1450,20 @@ function SandboxDetails({
       {!error && (loading || !session) ? <span className="hint">Reading the binding…</span> : null}
       {session ? (
         <>
+          {session.mode === 'Local' && modes.length > 1 ? (
+            <label className="chat-sandbox-mode">
+              <span className="hint">Files live in</span>
+              <select
+                value={session.workspaceModeIsDefault ? '' : session.workspaceMode ?? ''}
+                onChange={event => void changeMode(event.target.value)}
+                disabled={!onChangeMode || changingMode}
+                title={session.scope === 'Workspace' ? 'Applies to every conversation in this workspace.' : undefined}
+              >
+                <option value="">{`Default (${workspaceModeLabel(session.workspaceMode)})`}</option>
+                {modes.map(mode => <option key={mode} value={mode}>{workspaceModeLabel(mode)}</option>)}
+              </select>
+            </label>
+          ) : null}
           <span className="hint">
             {session.mode === 'Local' && !isolated
               ? 'Running in the API, which uses one local directory for every conversation.'

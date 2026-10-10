@@ -39,6 +39,23 @@ public interface ISandboxRegistry
 }
 
 /// <summary>
+/// The registry for a deployment whose only sandbox is a shared development one, which binds nothing. It
+/// is never consulted, because the provisioner returns the shared sandbox before reaching any binding.
+/// </summary>
+public sealed class NoSandboxRegistry : ISandboxRegistry
+{
+    public Task<SandboxBinding?> GetAsync(string scope, CancellationToken cancellationToken) => Task.FromResult<SandboxBinding?>(null);
+
+    public Task<bool> TryAddAsync(string scope, SandboxBinding binding, CancellationToken cancellationToken) =>
+        throw new InvalidOperationException("Sandbox bindings need AgentWorkspace:Snapshots storage.");
+
+    public Task SaveAsync(string scope, SandboxBinding binding, CancellationToken cancellationToken) =>
+        throw new InvalidOperationException("Sandbox bindings need AgentWorkspace:Snapshots storage.");
+
+    public Task DeleteBindingAsync(string scope, CancellationToken cancellationToken) => Task.CompletedTask;
+}
+
+/// <summary>
 /// Workspace state in one private Blob container: <c>snapshots/{scope}.zip</c> for dynamic sessions and
 /// <c>sandboxes/{scope}.json</c> for the bindings of the sandboxes the provisioner creates. The container is
 /// private and reached with the application's identity; the bindings hold per-sandbox keys.

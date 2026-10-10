@@ -23,7 +23,7 @@ param tags object = {}
 @description('Outputs of the infra/main.bicep deployment (infra-<environment>), each output name mapped to its value.')
 param infrastructure object
 
-@description('Where the agent working directory lives when the API runs the agent itself (ChatAgent:Mode Local): this host disk, a dynamic session (needs infra/DynamicSessions), or a sandbox bound per workspace (needs infra/Sandboxes). Foundry mode already runs the agent in its own session sandbox.')
+@description('The default for where the agent working directory lives when the API runs the agent itself (ChatAgent:Mode Local): this host disk, a dynamic session (needs infra/DynamicSessions), or a sandbox bound per workspace (needs infra/Sandboxes). Users can choose any configured mode per chat workspace. Foundry mode already runs the agent in its own session sandbox.')
 @allowed([
   'Local'
   'DynamicSessions'

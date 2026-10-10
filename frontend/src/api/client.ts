@@ -354,6 +354,19 @@ export function resetConversationEnvironment(id: string): Promise<{ reset: strin
   })
 }
 
+/**
+ * Chooses where the API's own agent keeps this conversation's files: on its workspace when it is in one, so
+ * all of the workspace's conversations move together. Null returns to the configured default. The previous
+ * environment is kept, so choosing it again finds its files.
+ */
+export function setConversationWorkspaceMode(id: string, mode: string | null): Promise<{ mode: string | null }> {
+  return request<{ mode: string | null }>(`/api/chat/conversations/${encodeURIComponent(id)}/session/mode`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode }),
+  })
+}
+
 /** Reads the sandbox binding for inspection. It runs no turn and changes nothing. */
 export function getConversationSession(id: string, signal?: AbortSignal): Promise<ChatSandboxSession> {
   return request<ChatSandboxSession>(`/api/chat/conversations/${encodeURIComponent(id)}/session`, { signal })

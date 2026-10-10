@@ -79,9 +79,19 @@ public sealed partial class AgentFileSystem
     Task IAgentWorkspace.SaveAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
-/// <summary>Every conversation shares this host's one working directory, as it always has.</summary>
+/// <summary>
+/// Every conversation shares this host's one working directory, as it always has: the provider where no
+/// isolated mode is configured, and in the Foundry host, whose session is itself the isolated environment.
+/// </summary>
 public sealed class LocalAgentWorkspaceProvider(AgentFileSystem files) : IAgentWorkspaceProvider
 {
+    public IReadOnlyList<AgentWorkspaceMode> AvailableModes { get; } = [AgentWorkspaceMode.Local];
+
+    public Task<bool> SetModeAsync(Guid conversationId, AgentWorkspaceMode? mode, CancellationToken cancellationToken) =>
+        mode is null or AgentWorkspaceMode.Local
+            ? Task.FromResult(true)
+            : throw new ArgumentException($"{mode} is not configured on this deployment.");
+
     public Task<IAgentWorkspace> GetAsync(Guid conversationId, CancellationToken cancellationToken) =>
         Task.FromResult<IAgentWorkspace>(files);
 
@@ -89,7 +99,7 @@ public sealed class LocalAgentWorkspaceProvider(AgentFileSystem files) : IAgentW
         Task.FromResult<IAgentWorkspace?>(files);
 
     public Task<AgentWorkspaceEnvironment?> DescribeAsync(Guid conversationId, CancellationToken cancellationToken) =>
-        Task.FromResult<AgentWorkspaceEnvironment?>(null);
+        Task.FromResult<AgentWorkspaceEnvironment?>(new AgentWorkspaceEnvironment(AgentWorkspaceMode.Local, null));
 
     // One directory for everybody, so no conversation may wipe it.
     public Task<bool> ResetAsync(Guid conversationId, CancellationToken cancellationToken) => Task.FromResult(false);

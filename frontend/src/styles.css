@@ -1632,6 +1632,8 @@ button.sandbox-row:hover, button.sandbox-row:focus-visible { background: var(--s
 .chat-sandbox { display: flex; flex-direction: column; gap: 5px; margin-top: 5px; padding: 8px 10px 4px; border-top: 1px solid var(--border); }
 .chat-sandbox .hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-sandbox-id { display: flex; align-items: center; gap: 4px; }
+.chat-sandbox-mode { display: flex; align-items: center; gap: 6px; }
+.chat-sandbox-mode select { min-width: 0; font-size: 12px; }
 .chat-sandbox-id code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 .chat-sandbox-stale { display: flex; align-items: flex-start; gap: 6px; color: var(--warning); font-size: 11px; line-height: 1.4; white-space: normal; }
 .chat-sandbox-stale > svg { flex: none; margin-top: 1px; }

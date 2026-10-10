@@ -10,11 +10,15 @@ using SharePointAgent.Persistence;
 namespace SharePointAgent.Infrastructure.Workspaces;
 
 /// <summary>
-/// Gives each conversation the isolated working directory of its scope: the chat workspace it belongs to,
-/// so a workspace's conversations share files as they do in Foundry, or the conversation itself. The scope
-/// is a database ID, never something a user supplies, and it is the only thing that selects an environment.
-/// The dynamic session or sandbox serving a scope is recorded on its row, apart from any Foundry session,
-/// so the API's own agent has its environment tracked whether or not Foundry is involved.
+/// Gives each conversation the working directory of its scope: the chat workspace it belongs to, so a
+/// workspace's conversations share files as they do in Foundry, or the conversation itself. The scope is a
+/// database ID, never something a user supplies, and it is the only thing that selects an environment.
+/// <para>
+/// Each scope chooses where its files live — this host's disk, a dynamic session, or a sandbox — and the
+/// choice is stored on its row, defaulting to <see cref="AgentWorkspaceOptions.Mode"/>. The dynamic session
+/// or sandbox serving a scope is recorded on the same row, apart from any Foundry session, and each mode
+/// keeps its own environment, so switching back finds the files left there.
+/// </para>
 /// </summary>
 public sealed class IsolatedAgentWorkspaceProvider(
     IHttpClientFactory httpClientFactory,
@@ -25,11 +29,18 @@ public sealed class IsolatedAgentWorkspaceProvider(
     TokenCredential? sessionCredential = null,
     IWorkspaceSnapshotStore? snapshots = null,
     ISandboxProvisioner? sandboxes = null,
-    ISandboxRegistry? bindings = null) : IAgentWorkspaceProvider
+    ISandboxRegistry? bindings = null,
+    AgentFileSystem? local = null) : IAgentWorkspaceProvider
 {
     public const string HttpClientName = "AgentWorkspace";
 
     private static readonly TokenRequestContext SessionScope = new(["https://dynamicsessions.io/.default"]);
+
+    /// <summary>
+    /// Local wherever this host's directory is registered, each isolated mode whose settings and services are
+    /// present, and always the configured default, which startup validation has already checked.
+    /// </summary>
+    public IReadOnlyList<AgentWorkspaceMode> AvailableModes => Enum.GetValues<AgentWorkspaceMode>().Where(IsAvailable).ToArray();
 
     public async Task<IAgentWorkspace> GetAsync(Guid conversationId, CancellationToken cancellationToken)
     {
@@ -37,8 +48,12 @@ public sealed class IsolatedAgentWorkspaceProvider(
         var scope = owner.Scope.ToString("N");
         var settings = options.Value;
         var http = httpClientFactory.CreateClient(HttpClientName);
-        switch (settings.Mode)
+        var mode = ModeOf(owner);
+        switch (mode)
         {
+            case AgentWorkspaceMode.Local:
+                return local ?? throw new InvalidOperationException("This host's working directory is not registered.");
+
             case AgentWorkspaceMode.DynamicSessions:
                 var pool = new Uri(settings.DynamicSessions.PoolManagementEndpoint!);
                 var credential = sessionCredential ?? throw new InvalidOperationException("A credential for the session pool is not registered.");
@@ -59,15 +74,18 @@ public sealed class IsolatedAgentWorkspaceProvider(
                 return new SandboxHostWorkspace(http, endpoint, null, scope, settings, limits.Value, logger);
 
             default:
-                throw new InvalidOperationException($"{settings.Mode} is not an isolated workspace mode.");
+                throw new InvalidOperationException($"{mode} is not a workspace mode.");
         }
     }
 
     public async Task<IAgentWorkspace?> FindAsync(Guid conversationId, CancellationToken cancellationToken)
     {
-        var scope = (await ScopeAsync(conversationId, cancellationToken)).Scope.ToString("N");
-        var exists = options.Value.Mode switch
+        var owner = await ScopeAsync(conversationId, cancellationToken);
+        var scope = owner.Scope.ToString("N");
+        var exists = ModeOf(owner) switch
         {
+            AgentWorkspaceMode.Local => local is not null,
+
             // A session's files outlive it only as a snapshot, which every changing turn saves.
             AgentWorkspaceMode.DynamicSessions => snapshots is not null && await snapshots.ExistsAsync(scope, cancellationToken),
             AgentWorkspaceMode.Sandboxes => options.Value.Sandboxes.UsesSharedSandbox
@@ -80,12 +98,13 @@ public sealed class IsolatedAgentWorkspaceProvider(
     public async Task<AgentWorkspaceEnvironment?> DescribeAsync(Guid conversationId, CancellationToken cancellationToken)
     {
         var owner = await ScopeAsync(conversationId, cancellationToken);
-        var mode = options.Value.Mode;
+        var mode = ModeOf(owner);
+        var isDefault = owner.Mode is null || mode != owner.Mode;
         return mode switch
         {
-            AgentWorkspaceMode.DynamicSessions => new AgentWorkspaceEnvironment(mode, owner.DynamicSessionId),
-            AgentWorkspaceMode.Sandboxes => new AgentWorkspaceEnvironment(mode, options.Value.Sandboxes.UsesSharedSandbox ? null : owner.SandboxId),
-            _ => null
+            AgentWorkspaceMode.DynamicSessions => new AgentWorkspaceEnvironment(mode, owner.DynamicSessionId, isDefault),
+            AgentWorkspaceMode.Sandboxes => new AgentWorkspaceEnvironment(mode, options.Value.Sandboxes.UsesSharedSandbox ? null : owner.SandboxId, isDefault),
+            _ => new AgentWorkspaceEnvironment(mode, null, isDefault)
         };
     }
 
@@ -93,7 +112,7 @@ public sealed class IsolatedAgentWorkspaceProvider(
     {
         var owner = await ScopeAsync(conversationId, cancellationToken);
         var scope = owner.Scope.ToString("N");
-        switch (options.Value.Mode)
+        switch (ModeOf(owner))
         {
             case AgentWorkspaceMode.DynamicSessions:
                 // Without its snapshot, a new session ID starts empty; the old session is stopped rather than
@@ -116,8 +135,63 @@ public sealed class IsolatedAgentWorkspaceProvider(
                 return true;
 
             default:
+                // This host's directory is shared by every scope that uses it, so no conversation may wipe it.
                 return false;
         }
+    }
+
+    public async Task<bool> SetModeAsync(Guid conversationId, AgentWorkspaceMode? mode, CancellationToken cancellationToken)
+    {
+        if (mode is { } chosen && !IsAvailable(chosen))
+        {
+            throw new ArgumentException($"{chosen} is not configured on this deployment. Choose one of: {string.Join(", ", AvailableModes)}.");
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var conversation = await context.ChatConversations.Where(row => row.Id == conversationId)
+            .Select(row => new { row.WorkspaceId }).SingleOrDefaultAsync(cancellationToken);
+        if (conversation is null)
+        {
+            return false;
+        }
+
+        // The environment IDs stay as they are: each belongs to its own mode, so switching back reuses it.
+        if (conversation.WorkspaceId is { } workspaceId)
+        {
+            await context.ChatWorkspaces.Where(row => row.Id == workspaceId)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.WorkspaceMode, mode), cancellationToken);
+            return true;
+        }
+
+        await context.ChatConversations.Where(row => row.Id == conversationId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.WorkspaceMode, mode), cancellationToken);
+        return true;
+    }
+
+    /// <summary>
+    /// The scope's chosen mode while it is still available, otherwise the default. A mode whose settings were
+    /// later removed falls back rather than failing every turn; the choice is kept for when it returns.
+    /// </summary>
+    private AgentWorkspaceMode ModeOf(ScopeOwner owner)
+    {
+        if (owner.Mode is { } chosen && !IsAvailable(chosen))
+        {
+            logger.LogWarning("Workspace {Scope} chose {Mode}, which is not configured; using {Default}.", owner.Scope, chosen, options.Value.Mode);
+            return options.Value.Mode;
+        }
+        return owner.Mode ?? options.Value.Mode;
+    }
+
+    private bool IsAvailable(AgentWorkspaceMode mode)
+    {
+        var settings = options.Value;
+        return mode == settings.Mode || mode switch
+        {
+            AgentWorkspaceMode.Local => local is not null,
+            AgentWorkspaceMode.DynamicSessions => settings.DynamicSessions.IsConfigured && sessionCredential is not null && snapshots is not null,
+            AgentWorkspaceMode.Sandboxes => settings.Sandboxes.IsConfigured && sandboxes is not null,
+            _ => false
+        };
     }
 
     private async Task<string> SessionIdAsync(ScopeOwner owner, CancellationToken cancellationToken)
@@ -215,14 +289,14 @@ public sealed class IsolatedAgentWorkspaceProvider(
         var owner = await context.ChatConversations
             .Where(conversation => conversation.Id == conversationId)
             .Select(conversation => conversation.Workspace == null
-                ? new ScopeOwner(conversation.Id, false, conversation.DynamicSessionId, conversation.SandboxId)
-                : new ScopeOwner(conversation.Workspace.Id, true, conversation.Workspace.DynamicSessionId, conversation.Workspace.SandboxId))
+                ? new ScopeOwner(conversation.Id, false, conversation.WorkspaceMode, conversation.DynamicSessionId, conversation.SandboxId)
+                : new ScopeOwner(conversation.Workspace.Id, true, conversation.Workspace.WorkspaceMode, conversation.Workspace.DynamicSessionId, conversation.Workspace.SandboxId))
             .SingleOrDefaultAsync(cancellationToken);
 
         // An unknown conversation still gets a scope of its own, as before, with nothing recorded for it.
-        return owner ?? new ScopeOwner(conversationId, false, null, null);
+        return owner ?? new ScopeOwner(conversationId, false, null, null, null);
     }
 
     /// <summary>The row that owns a scope's environment: the workspace, or the conversation outside one.</summary>
-    private sealed record ScopeOwner(Guid Scope, bool IsWorkspace, string? DynamicSessionId, string? SandboxId);
+    private sealed record ScopeOwner(Guid Scope, bool IsWorkspace, AgentWorkspaceMode? Mode, string? DynamicSessionId, string? SandboxId);
 }

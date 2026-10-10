@@ -208,7 +208,8 @@ public sealed class ChatAgentService(
 
         // Not in ToolDefinitions: arbitrary code runs only inside an isolated dynamic session or sandbox. With
         // the local working directory it would run on this host, next to the application's own credentials.
-        if (workspaceOptions.Value.Mode != AgentWorkspaceMode.Local && workspace.IsIsolated)
+        // The workspace is the one this conversation's scope chose, so the check follows that choice turn by turn.
+        if (workspace.IsIsolated)
         {
             tools.Add(AIFunctionFactory.Create(
                 typeof(AgentTools).GetMethod(nameof(AgentTools.ExecuteScriptAsync))!,

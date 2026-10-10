@@ -31,6 +31,9 @@ public sealed record CreateSubscriptionRequest(string? Name, int? Days, string? 
 /// </summary>
 public sealed record NewConversation(string? Title, string? UserId, string? AgentId, string? WorkspaceId = null);
 
+/// <summary>Where the API's own agent keeps a conversation's files; null or empty returns to the configured default.</summary>
+public sealed record WorkspaceModeRequest(string? Mode);
+
 /// <summary>
 /// A workspace's name and its rules, on create and on update. <see cref="Instructions"/> is added to
 /// the agent's own instructions for every conversation in the workspace; null or empty clears it. An

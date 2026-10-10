@@ -436,9 +436,94 @@ public sealed class IsolatedWorkspaceTests : IAsyncLifetime
 
         Assert.False(await shared.ResetAsync(database.Alone, default));
         Assert.False(await local.ResetAsync(database.Alone, default));
-        Assert.Null(await local.DescribeAsync(database.Alone, default));
+        Assert.Equal(new AgentWorkspaceEnvironment(AgentWorkspaceMode.Local, null), await local.DescribeAsync(database.Alone, default));
         await provisioner.DidNotReceiveWithAnyArgs().ReleaseAsync(default!, default);
     }
+
+    [Fact]
+    public async Task AScopeCanChooseLocalWhileTheDefaultIsASandbox()
+    {
+        await using var database = await ChatDatabase.CreateAsync();
+        var provisioner = SandboxProvisioner();
+        var local = LocalDirectory();
+        var provider = SandboxesProvider(database.Factory, provisioner, local);
+
+        Assert.True(await provider.SetModeAsync(database.Alone, AgentWorkspaceMode.Local, default));
+
+        Assert.Same(local, await provider.GetAsync(database.Alone, default));
+        Assert.Equal(new AgentWorkspaceEnvironment(AgentWorkspaceMode.Local, null, IsDefault: false), await provider.DescribeAsync(database.Alone, default));
+        Assert.False(await provider.ResetAsync(database.Alone, default));
+        await provisioner.DidNotReceiveWithAnyArgs().AcquireAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task AWorkspacesModeIsSharedByItsConversationsAndSwitchingBackKeepsItsSandbox()
+    {
+        await using var database = await ChatDatabase.CreateAsync();
+        var provisioner = SandboxProvisioner();
+        var provider = SandboxesProvider(database.Factory, provisioner, LocalDirectory());
+        await provider.GetAsync(database.InWorkspace, default);
+
+        await provider.SetModeAsync(database.InWorkspace, AgentWorkspaceMode.Local, default);
+        await using (var db = database.Open())
+        {
+            var workspace = await db.ChatWorkspaces.SingleAsync();
+            Assert.Equal(AgentWorkspaceMode.Local, workspace.WorkspaceMode);
+            Assert.Equal("sbx-1", workspace.SandboxId);
+            Assert.Null((await db.ChatConversations.SingleAsync(c => c.Id == database.InWorkspace)).WorkspaceMode);
+        }
+
+        await provider.SetModeAsync(database.InWorkspace, null, default);
+        Assert.Equal(new AgentWorkspaceEnvironment(AgentWorkspaceMode.Sandboxes, "sbx-1"), await provider.DescribeAsync(database.InWorkspace, default));
+        await provisioner.DidNotReceiveWithAnyArgs().ReleaseAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task OnlyConfiguredModesCanBeChosen()
+    {
+        await using var database = await ChatDatabase.CreateAsync();
+        var provider = SandboxesProvider(database.Factory, SandboxProvisioner(), local: null);
+
+        Assert.Equal([AgentWorkspaceMode.Sandboxes], provider.AvailableModes);
+        await Assert.ThrowsAsync<ArgumentException>(() => provider.SetModeAsync(database.Alone, AgentWorkspaceMode.DynamicSessions, default));
+        await Assert.ThrowsAsync<ArgumentException>(() => provider.SetModeAsync(database.Alone, AgentWorkspaceMode.Local, default));
+        Assert.False(await provider.SetModeAsync(Guid.NewGuid(), null, default));
+    }
+
+    [Fact]
+    public async Task AnIsolatedModeCanBeChosenWhenTheDefaultIsLocal()
+    {
+        await using var database = await ChatDatabase.CreateAsync();
+        var credential = Substitute.For<TokenCredential>();
+        var http = Substitute.For<IHttpClientFactory>();
+        http.CreateClient(Arg.Any<string>()).Returns(_ => new HttpClient(new RecordingHandler(), disposeHandler: false));
+        var local = LocalDirectory();
+        var provider = new IsolatedAgentWorkspaceProvider(http, database.Factory,
+            Options.Create(new AgentWorkspaceOptions
+            {
+                Mode = AgentWorkspaceMode.Local,
+                DynamicSessions = new DynamicSessionsWorkspaceOptions { PoolManagementEndpoint = "https://pool.example/" }
+            }),
+            Options.Create(new LocalWorkingDirectoryOptions()), NullLogger<SandboxHostWorkspace>.Instance, credential, _snapshots, local: local);
+
+        Assert.Equal([AgentWorkspaceMode.Local, AgentWorkspaceMode.DynamicSessions], provider.AvailableModes);
+        Assert.Same(local, await provider.GetAsync(database.Alone, default));
+
+        await provider.SetModeAsync(database.Alone, AgentWorkspaceMode.DynamicSessions, default);
+
+        Assert.True((await provider.GetAsync(database.Alone, default)).IsIsolated);
+        Assert.False((await provider.DescribeAsync(database.Alone, default))!.IsDefault);
+    }
+
+    private static ISandboxProvisioner SandboxProvisioner()
+    {
+        var provisioner = Substitute.For<ISandboxProvisioner>();
+        provisioner.AcquireAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new SandboxBinding("sbx-1", new Uri("https://sandbox.example/"), "key"));
+        return provisioner;
+    }
+
+    private AgentFileSystem LocalDirectory() =>
+        new(Options.Create(new LocalWorkingDirectoryOptions { Directory = Path.Combine(_sandboxRoot, "local") }));
 
     private IsolatedAgentWorkspaceProvider DynamicSessionsProvider(IDbContextFactory<SharePointIndexDbContext> factory, RecordingHandler handler)
     {
@@ -456,13 +541,14 @@ public sealed class IsolatedWorkspaceTests : IAsyncLifetime
             Options.Create(new LocalWorkingDirectoryOptions()), NullLogger<SandboxHostWorkspace>.Instance, credential, _snapshots);
     }
 
-    private static IsolatedAgentWorkspaceProvider SandboxesProvider(IDbContextFactory<SharePointIndexDbContext> factory, ISandboxProvisioner provisioner)
+    private static IsolatedAgentWorkspaceProvider SandboxesProvider(
+        IDbContextFactory<SharePointIndexDbContext> factory, ISandboxProvisioner provisioner, AgentFileSystem? local = null)
     {
         var http = Substitute.For<IHttpClientFactory>();
         http.CreateClient(Arg.Any<string>()).Returns(_ => new HttpClient());
         return new IsolatedAgentWorkspaceProvider(http, factory,
             Options.Create(new AgentWorkspaceOptions { Mode = AgentWorkspaceMode.Sandboxes }),
-            Options.Create(new LocalWorkingDirectoryOptions()), NullLogger<SandboxHostWorkspace>.Instance, sandboxes: provisioner);
+            Options.Create(new LocalWorkingDirectoryOptions()), NullLogger<SandboxHostWorkspace>.Instance, sandboxes: provisioner, local: local);
     }
 
     /// <summary>A workspace with one conversation, and one conversation outside any workspace, in SQLite.</summary>

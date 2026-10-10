@@ -214,20 +214,27 @@ public static class DependencyInjection
         var mode = hostedSession
             ? AgentWorkspaceMode.Local
             : configuration.GetValue($"{AgentWorkspaceOptions.SectionName}:{nameof(AgentWorkspaceOptions.Mode)}", AgentWorkspaceMode.Local);
+
+        // Mode is only the default: a workspace or conversation may choose any mode configured here. A
+        // dynamic session pool keeps files only through snapshots, and created sandboxes are bound through
+        // the same storage, so either one being choosable requires it.
         services.AddOptions<AgentWorkspaceOptions>().Bind(configuration.GetSection(AgentWorkspaceOptions.SectionName))
             .Configure(options => options.Mode = mode)
             .ValidateDataAnnotations()
             .Validate(o => o.Mode != AgentWorkspaceMode.DynamicSessions || o.DynamicSessions.IsConfigured,
                 "AgentWorkspace:DynamicSessions:PoolManagementEndpoint must be the pool's HTTPS management endpoint.")
-            .Validate(o => o.Mode != AgentWorkspaceMode.DynamicSessions || o.Snapshots.IsConfigured,
+            .Validate(o => !o.DynamicSessions.IsConfigured || o.Snapshots.IsConfigured,
                 "AgentWorkspace:Snapshots:ServiceUri (managed identity) or ConnectionString is required for dynamic sessions, whose files are otherwise lost after the cooldown.")
             .Validate(o => o.Mode != AgentWorkspaceMode.Sandboxes || o.Sandboxes.IsConfigured,
                 "AgentWorkspace:Sandboxes needs SubscriptionId, ResourceGroup, SandboxGroup, and DiskImageId to create a sandbox per workspace.")
-            .Validate(o => o.Mode != AgentWorkspaceMode.Sandboxes || o.Sandboxes.UsesSharedSandbox || o.Snapshots.IsConfigured,
+            .Validate(o => !o.Sandboxes.IsConfigured || o.Sandboxes.UsesSharedSandbox || o.Snapshots.IsConfigured,
                 "AgentWorkspace:Snapshots storage holds the per-workspace sandbox bindings; configure ServiceUri (managed identity) or ConnectionString.")
             .ValidateOnStart();
 
-        if (mode == AgentWorkspaceMode.Local)
+        // The Foundry host's session is itself the isolated environment, and a deployment with no isolated
+        // mode configured has only this host's directory to offer.
+        var configured = configuration.GetSection(AgentWorkspaceOptions.SectionName).Get<AgentWorkspaceOptions>() ?? new AgentWorkspaceOptions();
+        if (hostedSession || (mode == AgentWorkspaceMode.Local && !configured.DynamicSessions.IsConfigured && !configured.Sandboxes.IsConfigured))
         {
             services.AddSingleton<IAgentWorkspaceProvider, LocalAgentWorkspaceProvider>();
             return services;
@@ -248,20 +255,24 @@ public static class DependencyInjection
                 {
                     ManagedIdentityClientId = string.IsNullOrWhiteSpace(clientId) ? Environment.GetEnvironmentVariable("AZURE_CLIENT_ID") : clientId
                 }),
-                sp.GetRequiredService<Workspaces.ISandboxRegistry>(),
+                // A shared development sandbox needs no bindings, and may run without workspace storage.
+                options.Value.Snapshots.IsConfigured ? sp.GetRequiredService<Workspaces.ISandboxRegistry>() : new Workspaces.NoSandboxRegistry(),
                 options,
                 sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Workspaces.AcaSandboxProvisioner>>());
         });
         services.AddSingleton<IAgentWorkspaceProvider>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<AgentWorkspaceOptions>>();
-            var clientId = options.Value.DynamicSessions.ManagedIdentityClientId;
-            TokenCredential? credential = options.Value.Mode == AgentWorkspaceMode.DynamicSessions
+            var settings = options.Value;
+            var clientId = settings.DynamicSessions.ManagedIdentityClientId;
+            TokenCredential? credential = settings.DynamicSessions.IsConfigured
                 ? new DefaultAzureCredential(new DefaultAzureCredentialOptions
                 {
                     ManagedIdentityClientId = string.IsNullOrWhiteSpace(clientId) ? Environment.GetEnvironmentVariable("AZURE_CLIENT_ID") : clientId
                 })
                 : null;
+
+            // Each service is passed only when its mode is configured, so the provider offers exactly those modes.
             return new Workspaces.IsolatedAgentWorkspaceProvider(
                 sp.GetRequiredService<IHttpClientFactory>(),
                 sp.GetRequiredService<IDbContextFactory<SharePointIndexDbContext>>(),
@@ -269,9 +280,10 @@ public static class DependencyInjection
                 sp.GetRequiredService<IOptions<LocalWorkingDirectoryOptions>>(),
                 sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Workspaces.SandboxHostWorkspace>>(),
                 credential,
-                sp.GetRequiredService<Workspaces.IWorkspaceSnapshotStore>(),
-                sp.GetRequiredService<Workspaces.ISandboxProvisioner>(),
-                sp.GetRequiredService<Workspaces.ISandboxRegistry>());
+                settings.Snapshots.IsConfigured ? sp.GetRequiredService<Workspaces.IWorkspaceSnapshotStore>() : null,
+                settings.Sandboxes.IsConfigured ? sp.GetRequiredService<Workspaces.ISandboxProvisioner>() : null,
+                settings.Snapshots.IsConfigured ? sp.GetRequiredService<Workspaces.ISandboxRegistry>() : null,
+                sp.GetRequiredService<AgentFileSystem>());
         });
         return services;
     }

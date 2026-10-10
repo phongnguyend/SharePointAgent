@@ -237,7 +237,13 @@ export interface ChatSandboxSession {
   workspaceMode: 'Local' | 'DynamicSessions' | 'Sandboxes' | null
   /** The dynamic session or sandbox the API's own agent uses, tracked apart from any Foundry session. */
   environmentId: string | null
+  /** The modes this conversation's scope may choose; null under Foundry. */
+  availableWorkspaceModes: WorkspaceMode[] | null
+  /** True when the scope has not chosen a mode and follows the configured default. */
+  workspaceModeIsDefault: boolean
 }
+
+export type WorkspaceMode = 'Local' | 'DynamicSessions' | 'Sandboxes'
 
 export interface FileSystemEntry {
   /** Relative to the top of the working directory, with forward slashes. */

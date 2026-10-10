@@ -67,9 +67,15 @@ public interface IAgentWorkspace
     Task SaveAsync(CancellationToken cancellationToken);
 }
 
-/// <summary>Finds the working directory a conversation uses: its workspace's when it is in one, else its own.</summary>
+/// <summary>
+/// Finds the working directory a conversation uses: its workspace's when it is in one, else its own. Where
+/// it lives is the scope's chosen <see cref="AgentWorkspaceMode"/>, or the configured default.
+/// </summary>
 public interface IAgentWorkspaceProvider
 {
+    /// <summary>The modes a scope may choose: Local, plus each isolated mode this deployment has configured.</summary>
+    IReadOnlyList<AgentWorkspaceMode> AvailableModes { get; }
+
     /// <summary>The conversation's working directory, created or resumed as needed.</summary>
     Task<IAgentWorkspace> GetAsync(Guid conversationId, CancellationToken cancellationToken);
 
@@ -90,13 +96,21 @@ public interface IAgentWorkspaceProvider
     /// where there is nothing of its own to reset: a local workspace or a shared development sandbox.
     /// </summary>
     Task<bool> ResetAsync(Guid conversationId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Chooses where the conversation's scope keeps its files from now on; null returns it to the default.
+    /// The previous environment is left as it is, so choosing it again finds its files. Returns false when
+    /// there is no such conversation; a mode that is not available is an <see cref="ArgumentException"/>.
+    /// </summary>
+    Task<bool> SetModeAsync(Guid conversationId, AgentWorkspaceMode? mode, CancellationToken cancellationToken);
 }
 
 /// <summary>
-/// The dynamic session or sandbox a conversation's workspace scope uses. <see cref="EnvironmentId"/> is
-/// null until the first turn creates one, and for a shared development sandbox.
+/// Where a conversation's workspace scope keeps its files. <see cref="EnvironmentId"/> names the dynamic
+/// session or sandbox, and is null for Local, until the first turn creates one, and for a shared development
+/// sandbox. <see cref="IsDefault"/> is true when the scope has not chosen a mode of its own.
 /// </summary>
-public sealed record AgentWorkspaceEnvironment(AgentWorkspaceMode Mode, string? EnvironmentId);
+public sealed record AgentWorkspaceEnvironment(AgentWorkspaceMode Mode, string? EnvironmentId, bool IsDefault = true);
 
 /// <summary>Inline code or a workspace script, run with the workspace as its default working directory.</summary>
 public sealed record WorkspaceExecution(
@@ -114,7 +128,7 @@ public sealed class AgentWorkspaceUnavailableException(string message, Exception
 
 public enum AgentWorkspaceMode
 {
-    /// <summary>This host's disk, shared by every conversation. In Foundry, the hosted session's own disk.</summary>
+    /// <summary>This host's disk, shared by every conversation that uses it. In Foundry, the hosted session's own disk.</summary>
     Local,
 
     /// <summary>A custom-container session per workspace or conversation in an Azure Container Apps session pool.</summary>
@@ -133,6 +147,10 @@ public sealed class AgentWorkspaceOptions
 {
     public const string SectionName = "AgentWorkspace";
 
+    /// <summary>
+    /// The default for a workspace or conversation that has not chosen a mode. Every isolated mode that is
+    /// configured below can be chosen as well, whatever the default is.
+    /// </summary>
     public AgentWorkspaceMode Mode { get; set; } = AgentWorkspaceMode.Local;
 
     /// <summary>Per request to the isolated environment; executions get their own timeout on top.</summary>
