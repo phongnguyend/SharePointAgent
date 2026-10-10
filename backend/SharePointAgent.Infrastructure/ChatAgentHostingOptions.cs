@@ -4,13 +4,20 @@ using SharePointAgent.Domain;
 
 namespace SharePointAgent.Infrastructure;
 
-public enum ChatAgentExecutionMode { Local, Foundry }
-
 public sealed class ChatAgentHostingOptions : IValidatableObject
 {
     public const string SectionName = "ChatAgent";
+
+    /// <summary>
+    /// The default for a workspace or conversation that has not chosen where its agent runs. Foundry can be
+    /// chosen whenever <see cref="FoundryChatAgentOptions.Endpoint"/> is configured, whatever the default is.
+    /// </summary>
     public ChatAgentExecutionMode Mode { get; set; } = ChatAgentExecutionMode.Local;
+
     public FoundryChatAgentOptions Foundry { get; set; } = new();
+
+    /// <summary>True when Foundry can be chosen: it is the default, or its endpoint is configured.</summary>
+    public bool IsFoundryConfigured => Mode == ChatAgentExecutionMode.Foundry || !string.IsNullOrWhiteSpace(Foundry.Endpoint);
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
@@ -19,7 +26,8 @@ public sealed class ChatAgentHostingOptions : IValidatableObject
             yield return new("ChatAgent:Mode must be Local or Foundry.");
         }
 
-        if (Mode != ChatAgentExecutionMode.Foundry)
+        // A configured endpoint is validated even when Foundry is not the default, because it can be chosen.
+        if (!IsFoundryConfigured)
         {
             yield break;
         }

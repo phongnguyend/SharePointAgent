@@ -367,6 +367,18 @@ export function setConversationWorkspaceMode(id: string, mode: string | null): P
   })
 }
 
+/**
+ * Chooses where this conversation's agent runs: in the API ('Local') or as the Foundry hosted agent. On its
+ * workspace when it is in one. Null returns to the configured default. Each keeps its own files.
+ */
+export function setConversationAgentMode(id: string, mode: string | null): Promise<{ mode: string | null }> {
+  return request<{ mode: string | null }>(`/api/chat/conversations/${encodeURIComponent(id)}/session/agent-mode`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode }),
+  })
+}
+
 /** Reads the sandbox binding for inspection. It runs no turn and changes nothing. */
 export function getConversationSession(id: string, signal?: AbortSignal): Promise<ChatSandboxSession> {
   return request<ChatSandboxSession>(`/api/chat/conversations/${encodeURIComponent(id)}/session`, { signal })

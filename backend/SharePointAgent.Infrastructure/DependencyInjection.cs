@@ -112,8 +112,19 @@ public static class DependencyInjection
         services.AddHttpClient<ChatTranscriptionService>(client => client.Timeout = TimeSpan.FromMinutes(2));
         services.AddOptions<ChatAgentHostingOptions>().Bind(configuration.GetSection(ChatAgentHostingOptions.SectionName))
             .ValidateDataAnnotations().ValidateOnStart();
-        var mode = configuration.GetValue<ChatAgentExecutionMode>("ChatAgent:Mode");
-        if (mode == ChatAgentExecutionMode.Foundry)
+
+        // ChatAgent:Mode is only the default: each workspace or conversation chooses where its agent runs, so
+        // the API's own agent is always registered and the Foundry one whenever its endpoint is configured.
+        // Each mode's executor and file browser are keyed by mode, and the routers pick per conversation.
+        services.AddLocalChatAgent(configuration);
+        services.AddKeyedSingleton<IChatAgentExecutor>(ChatAgentExecutionMode.Local, (sp, _) => sp.GetRequiredService<ChatAgentService>());
+        services.AddKeyedSingleton<IAgentFileBrowser>(ChatAgentExecutionMode.Local, (sp, _) => sp.GetRequiredService<WorkspaceAgentFileBrowser>());
+        services.AddSingleton<IChatAgentModeSelector, ChatAgentModeSelector>();
+        services.AddTransient<IChatAgentExecutor, RoutingChatAgentExecutor>();
+        services.AddTransient<IAgentFileBrowser, RoutingAgentFileBrowser>();
+
+        var hosting = configuration.GetSection(ChatAgentHostingOptions.SectionName).Get<ChatAgentHostingOptions>() ?? new ChatAgentHostingOptions();
+        if (hosting.IsFoundryConfigured)
         {
             services.AddSingleton<TokenCredential>(sp => new DefaultAzureCredential(new DefaultAzureCredentialOptions
             {
@@ -121,7 +132,7 @@ public static class DependencyInjection
             }));
             services.AddHttpClient("FoundryChatAgent", client => client.Timeout = Timeout.InfiniteTimeSpan)
                 .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
-            services.AddTransient<IChatAgentExecutor>(sp =>
+            services.AddKeyedTransient<IChatAgentExecutor>(ChatAgentExecutionMode.Foundry, (sp, _) =>
             {
                 var options = sp.GetRequiredService<IOptions<ChatAgentHostingOptions>>();
                 return new FoundryChatAgentExecutor(
@@ -131,15 +142,11 @@ public static class DependencyInjection
 
             // The working directory is in the sandbox, so browsing it is a request to the host rather
             // than a disk read. Nothing in this process has that directory to read.
-            services.AddTransient<IAgentFileBrowser>(sp => new FoundryAgentFileBrowser(
+            services.AddKeyedTransient<IAgentFileBrowser>(ChatAgentExecutionMode.Foundry, (sp, _) => new FoundryAgentFileBrowser(
                 sp.GetRequiredService<IHttpClientFactory>().CreateClient("FoundryChatAgent"),
                 sp.GetRequiredService<TokenCredential>(),
                 sp.GetRequiredService<IFoundrySessionRepository>(),
                 sp.GetRequiredService<IOptions<ChatAgentHostingOptions>>()));
-        }
-        else
-        {
-            services.AddLocalChatAgent(configuration);
         }
         return services;
     }
@@ -165,8 +172,12 @@ public static class DependencyInjection
         services.AddAttachmentFileServices(configuration);
         AddChatStorage(services, configuration);
 
-        // The Foundry hosted session is itself the isolated environment, so its own disk is the workspace.
-        return services.AddLocalChatAgent(configuration, hostedSession: true);
+        // The Foundry hosted session is itself the isolated environment, so its own disk is the workspace, and
+        // this host only ever runs the agent itself.
+        services.AddLocalChatAgent(configuration, hostedSession: true);
+        services.AddSingleton<IChatAgentExecutor>(sp => sp.GetRequiredService<ChatAgentService>());
+        services.AddSingleton<IAgentFileBrowser>(sp => sp.GetRequiredService<WorkspaceAgentFileBrowser>());
+        return services;
     }
 
     private static IServiceCollection AddLocalChatAgent(this IServiceCollection services, IConfiguration configuration, bool hostedSession = false)
@@ -187,7 +198,7 @@ public static class DependencyInjection
             .Validate(o => string.IsNullOrWhiteSpace(o.Endpoint) || o.UsedManagedIdentity || !string.IsNullOrWhiteSpace(o.ApiKey), "DocumentIntelligence:ApiKey is required when an endpoint is configured and UsedManagedIdentity is false.").ValidateOnStart();
         services.AddHttpClient<DocumentIntelligenceClient>();
         services.AddAgentWorkspaces(configuration, hostedSession);
-        services.AddSingleton<IAgentFileBrowser, WorkspaceAgentFileBrowser>();
+        services.AddSingleton<WorkspaceAgentFileBrowser>();
         services.AddSingleton<ChatAgentContextLoader>();
         services.AddGraphRetrievalServices(configuration);
 
@@ -198,7 +209,6 @@ public static class DependencyInjection
             services.AddSingleton<AgentDocumentOutlines>();
         }
         services.AddSingleton<ChatAgentService>();
-        services.AddSingleton<IChatAgentExecutor>(sp => sp.GetRequiredService<ChatAgentService>());
         return services;
     }
 

@@ -165,6 +165,7 @@ public static class ChatEndpoints
             Guid id,
             IFoundrySessionRepository sessions,
             IOptions<ChatAgentHostingOptions> hosting,
+            IChatAgentModeSelector agentModes,
             IServiceProvider services,
             CancellationToken cancellationToken) =>
         {
@@ -174,8 +175,10 @@ public static class ChatEndpoints
                 return Results.NotFound();
             }
 
+            // Where this conversation's agent runs is its scope's choice, or the configured default.
             var options = hosting.Value;
-            var local = options.Mode != ChatAgentExecutionMode.Foundry;
+            var agentMode = await agentModes.ResolveAsync(id, cancellationToken);
+            var local = agentMode.Mode != ChatAgentExecutionMode.Foundry;
             var configured = local ? null : options.Foundry.Endpoint;
             var showsEndpoints = AppAccess.CanReadAdministration(context.AppUser().Roles);
 
@@ -194,7 +197,7 @@ public static class ChatEndpoints
             }
 
             return Results.Ok(new ChatSandboxSession(
-                options.Mode.ToString(),
+                agentMode.Mode.ToString(),
                 binding.WorkspaceId is null ? "Conversation" : "Workspace",
                 binding.WorkspaceId,
                 binding.WorkspaceName,
@@ -206,7 +209,40 @@ public static class ChatEndpoints
                 environment?.Mode.ToString() ?? (local ? AgentWorkspaceMode.Local.ToString() : null),
                 environment?.EnvironmentId,
                 workspaces?.AvailableModes.Select(mode => mode.ToString()).ToArray(),
-                environment?.IsDefault ?? true));
+                environment?.IsDefault ?? true,
+                agentModes.AvailableModes.Select(mode => mode.ToString()).ToArray(),
+                agentMode.IsDefault));
+        });
+
+        // Chooses where this conversation's agent runs: in the API or as the Foundry hosted agent. On the
+        // workspace when the conversation is in one, so all of its conversations move together; null returns
+        // to the default. Each keeps its own working directory, so switching back finds its files.
+        app.MapPut("/api/chat/conversations/{id:guid}/session/agent-mode", async (
+            Guid id,
+            AgentModeRequest? body,
+            IChatAgentModeSelector agentModes,
+            CancellationToken cancellationToken) =>
+        {
+            ChatAgentExecutionMode? mode = null;
+            if (!string.IsNullOrWhiteSpace(body?.Mode))
+            {
+                if (!Enum.TryParse<ChatAgentExecutionMode>(body.Mode, ignoreCase: true, out var parsed) || !Enum.IsDefined(parsed))
+                {
+                    return Results.BadRequest(new { error = $"'mode' must be one of: {string.Join(", ", agentModes.AvailableModes)}." });
+                }
+                mode = parsed;
+            }
+
+            try
+            {
+                return await agentModes.SetModeAsync(id, mode, cancellationToken)
+                    ? Results.Ok(new { mode = mode?.ToString() })
+                    : Results.NotFound();
+            }
+            catch (ArgumentException exception)
+            {
+                return Results.BadRequest(new { error = exception.Message });
+            }
         });
 
         // Chooses where the API's own agent keeps this conversation's files: on the workspace when the

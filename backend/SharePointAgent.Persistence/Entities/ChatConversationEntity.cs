@@ -23,6 +23,9 @@ public sealed class ChatConversationEntity
     /// <summary>Where the API's own agent keeps files when the conversation is in no workspace; null uses the default.</summary>
     public AgentWorkspaceMode? WorkspaceMode { get; set; }
 
+    /// <summary>Where the agent runs when the conversation is in no workspace; null uses the default.</summary>
+    public ChatAgentExecutionMode? AgentMode { get; set; }
+
     /// <summary>The dynamic session the API's own agent uses when the conversation is in no workspace.</summary>
     public string? DynamicSessionId { get; set; }
 

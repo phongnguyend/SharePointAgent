@@ -72,7 +72,9 @@ public sealed record ChatSandboxSession(
     string? WorkspaceMode = null,
     string? EnvironmentId = null,
     IReadOnlyList<string>? AvailableWorkspaceModes = null,
-    bool WorkspaceModeIsDefault = true);
+    bool WorkspaceModeIsDefault = true,
+    IReadOnlyList<string>? AvailableAgentModes = null,
+    bool AgentModeIsDefault = true);
 
 public sealed record ChatConversation(
     Guid Id,

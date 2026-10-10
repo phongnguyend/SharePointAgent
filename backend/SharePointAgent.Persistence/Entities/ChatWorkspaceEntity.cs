@@ -33,6 +33,13 @@ public sealed class ChatWorkspaceEntity
     public AgentWorkspaceMode? WorkspaceMode { get; set; }
 
     /// <summary>
+    /// Where this workspace's agent runs, as chosen by its users: in the API or as the Foundry hosted agent.
+    /// Null uses the configured default (ChatAgent:Mode). The Foundry session and the API's environment are
+    /// kept apart, so switching back finds each one's files.
+    /// </summary>
+    public ChatAgentExecutionMode? AgentMode { get; set; }
+
+    /// <summary>
     /// The dynamic session the API's own agent uses for this workspace (AgentWorkspace:Mode
     /// DynamicSessions). Independent of the Foundry session; cleared to start a fresh environment.
     /// </summary>

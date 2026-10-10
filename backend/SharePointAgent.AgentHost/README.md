@@ -1,6 +1,6 @@
 # Local API or Foundry execution
 
-The API selects `IChatAgentExecutor` with `ChatAgent:Mode`. `Local` (the default) runs `ChatAgentService` in the API process. `Foundry` calls this separate host using Foundry's **Invocations protocol 2.0.0**. Both use the same agent, tools, context loader, and streaming writer.
+Each chat workspace (or conversation outside one) chooses where its agent runs, under **Agent runs in** in the conversation's **Workspace details** panel. `Local` runs `ChatAgentService` in the API process; `Foundry` calls this separate host using Foundry's **Invocations protocol 2.0.0**. `ChatAgent:Mode` is only the default for scopes that have not chosen (`Local` unless configured). Foundry can be chosen whenever `ChatAgent:Foundry:Endpoint` is configured, and the API's own agent is always available. The choice is stored as `AgentMode` on the workspace or conversation row (`PUT /api/chat/conversations/{id}/session/agent-mode`); `RoutingChatAgentExecutor` and `RoutingAgentFileBrowser` send each turn and file request to the chosen agent. The Foundry session and the API's own environment are kept apart, so switching back finds each one's files. Both use the same agent, tools, context loader, and streaming writer.
 
 ## History and streaming
 

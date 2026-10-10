@@ -263,6 +263,7 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
 
             // The isolated environment the API's own agent uses, tracked apart from the Foundry session.
             entity.Property(x => x.WorkspaceMode).HasConversion<string>().HasMaxLength(32);
+            entity.Property(x => x.AgentMode).HasConversion<string>().HasMaxLength(32);
             entity.Property(x => x.DynamicSessionId).HasMaxLength(200);
             entity.Property(x => x.SandboxId).HasMaxLength(200);
             entity.Property(x => x.CreatedAtUtc).HasPrecision(7);
@@ -282,6 +283,7 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
             entity.Property(x => x.FoundryEndpoint).HasMaxLength(2048);
             entity.Property(x => x.FoundrySessionId).HasMaxLength(200);
             entity.Property(x => x.WorkspaceMode).HasConversion<string>().HasMaxLength(32);
+            entity.Property(x => x.AgentMode).HasConversion<string>().HasMaxLength(32);
             entity.Property(x => x.DynamicSessionId).HasMaxLength(200);
             entity.Property(x => x.SandboxId).HasMaxLength(200);
             entity.Property(x => x.CreatedAtUtc).HasPrecision(7);

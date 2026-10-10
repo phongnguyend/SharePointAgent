@@ -54,6 +54,7 @@ import {
   getConversationSession,
   resetConversationEnvironment,
   setConversationWorkspaceMode,
+  setConversationAgentMode,
   listConversationFiles,
   downloadConversationFile,
   createWorkspace,
@@ -327,6 +328,19 @@ export default function ChatPage() {
     setError(null)
     try {
       await setConversationWorkspaceMode(activeId, mode)
+      session.reload()
+      workspaceFiles.reload()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
+  // The API's agent and the Foundry agent keep separate files, so switching shows the chosen one's files.
+  const changeAgentMode = async (mode: string | null) => {
+    if (!activeId) return
+    setError(null)
+    try {
+      await setConversationAgentMode(activeId, mode)
       session.reload()
       workspaceFiles.reload()
     } catch (cause) {
@@ -802,7 +816,8 @@ export default function ChatPage() {
                   loading={session.loading} error={session.error} copied={copiedSession}
                   onCopy={async value => setCopiedSession(await copyText(value))}
                   onReset={readOnly ? undefined : resetEnvironment}
-                  onChangeMode={readOnly ? undefined : changeWorkspaceMode} />
+                  onChangeMode={readOnly ? undefined : changeWorkspaceMode}
+                  onChangeAgentMode={readOnly ? undefined : changeAgentMode} />
               </div>
               </Modal>
               <section className="conversation-workspace-files" aria-label="Workspace files">
@@ -1387,6 +1402,11 @@ export function WorkspaceFiles({
  * which one am I in, and who else is in it — and shows plainly when a recorded binding is stale, since
  * that is the case where the files someone expects to still be there will not be.
  */
+/** How an agent mode reads in the sandbox panel. */
+function agentModeLabel(mode: string | null): string {
+  return mode === 'Foundry' ? 'Foundry hosted agent' : 'This API'
+}
+
 /** How a workspace mode reads in the sandbox panel. Local is this server's own disk, shared by everyone using it. */
 function workspaceModeLabel(mode: string | null): string {
   switch (mode) {
@@ -1407,6 +1427,7 @@ function SandboxDetails({
   onCopy,
   onReset,
   onChangeMode,
+  onChangeAgentMode,
 }: {
   session: ChatSandboxSession | null
   loading: boolean
@@ -1417,15 +1438,18 @@ function SandboxDetails({
   onReset?: () => Promise<void>
   /** Absent for readers who cannot change the conversation. Null returns to the configured default. */
   onChangeMode?: (mode: string | null) => Promise<void>
+  /** Absent for readers who cannot change the conversation. Null returns to the configured default. */
+  onChangeAgentMode?: (mode: string | null) => Promise<void>
 }) {
   const [confirmingReset, setConfirmingReset] = useState(false)
   const [changingMode, setChangingMode] = useState(false)
   const modes = session?.availableWorkspaceModes ?? []
-  const changeMode = async (value: string) => {
-    if (!onChangeMode) return
+  const agentModes = session?.availableAgentModes ?? []
+  const changeMode = async (value: string, change: ((mode: string | null) => Promise<void>) | undefined) => {
+    if (!change) return
     setChangingMode(true)
     try {
-      await onChangeMode(value === '' ? null : value)
+      await change(value === '' ? null : value)
     } finally {
       setChangingMode(false)
     }
@@ -1456,12 +1480,26 @@ function SandboxDetails({
       {!error && (loading || !session) ? <span className="hint">Reading the binding…</span> : null}
       {session ? (
         <>
+          {agentModes.length > 1 ? (
+            <label className="chat-sandbox-mode">
+              <span className="hint">Agent runs in</span>
+              <select
+                value={session.agentModeIsDefault ? '' : session.mode}
+                onChange={event => void changeMode(event.target.value, onChangeAgentMode)}
+                disabled={!onChangeAgentMode || changingMode}
+                title={session.scope === 'Workspace' ? 'Applies to every conversation in this workspace.' : undefined}
+              >
+                <option value="">{`Default (${agentModeLabel(session.mode)})`}</option>
+                {agentModes.map(mode => <option key={mode} value={mode}>{agentModeLabel(mode)}</option>)}
+              </select>
+            </label>
+          ) : null}
           {session.mode === 'Local' && modes.length > 1 ? (
             <label className="chat-sandbox-mode">
               <span className="hint">Files live in</span>
               <select
                 value={session.workspaceModeIsDefault ? '' : session.workspaceMode ?? ''}
-                onChange={event => void changeMode(event.target.value)}
+                onChange={event => void changeMode(event.target.value, onChangeMode)}
                 disabled={!onChangeMode || changingMode}
                 title={session.scope === 'Workspace' ? 'Applies to every conversation in this workspace.' : undefined}
               >

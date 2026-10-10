@@ -241,6 +241,10 @@ export interface ChatSandboxSession {
   availableWorkspaceModes: WorkspaceMode[] | null
   /** True when the scope has not chosen a mode and follows the configured default. */
   workspaceModeIsDefault: boolean
+  /** Where this conversation's agent may run: Local, plus Foundry when it is configured. */
+  availableAgentModes: Array<'Local' | 'Foundry'> | null
+  /** True when the scope has not chosen where its agent runs and follows the configured default. */
+  agentModeIsDefault: boolean
 }
 
 export type WorkspaceMode = 'Local' | 'DynamicSessions' | 'Sandboxes'

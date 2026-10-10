@@ -77,6 +77,39 @@ public sealed record AgentFileReadRequest(Guid ConversationId, string Path);
 
 public sealed record AgentFileChangeRequest(Guid ConversationId, WorkspaceFileChange Change);
 
+/// <summary>
+/// Where a conversation's agent runs: in this API process, or as the Foundry hosted agent in its own session
+/// sandbox. Each keeps its own working directory, so switching shows that mode's files.
+/// </summary>
+public enum ChatAgentExecutionMode
+{
+    Local,
+
+    Foundry
+}
+
+/// <summary>Where a conversation's agent runs, and whether that is the configured default rather than a choice.</summary>
+public sealed record ChatAgentModeChoice(ChatAgentExecutionMode Mode, bool IsDefault);
+
+/// <summary>
+/// Chooses where each conversation's agent runs. The choice is stored on the conversation's workspace, so all
+/// of its conversations move together, or on the conversation outside one; without a choice the configured
+/// default applies.
+/// </summary>
+public interface IChatAgentModeSelector
+{
+    /// <summary>Local, plus Foundry when its endpoint is configured.</summary>
+    IReadOnlyList<ChatAgentExecutionMode> AvailableModes { get; }
+
+    Task<ChatAgentModeChoice> ResolveAsync(Guid conversationId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Chooses where the conversation's scope runs its agent; null returns it to the default. Returns false when
+    /// there is no such conversation; a mode that is not available is an <see cref="ArgumentException"/>.
+    /// </summary>
+    Task<bool> SetModeAsync(Guid conversationId, ChatAgentExecutionMode? mode, CancellationToken cancellationToken);
+}
+
 public interface IChatAgentExecutor
 {
     Task<ChatTurn> RunStreamingAsync(
