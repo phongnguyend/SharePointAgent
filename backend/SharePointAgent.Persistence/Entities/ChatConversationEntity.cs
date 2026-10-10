@@ -17,6 +17,13 @@ public sealed class ChatConversationEntity
 
     public string? FoundryEndpoint { get; set; }
     public string? FoundrySessionId { get; set; }
+
+    /// <summary>The dynamic session the API's own agent uses when the conversation is in no workspace.</summary>
+    public string? DynamicSessionId { get; set; }
+
+    /// <summary>The sandbox the API's own agent uses when the conversation is in no workspace.</summary>
+    public string? SandboxId { get; set; }
+
     public DateTimeOffset CreatedAtUtc { get; set; }
     public DateTimeOffset UpdatedAtUtc { get; set; }
     public long InputTokenCount { get; set; }

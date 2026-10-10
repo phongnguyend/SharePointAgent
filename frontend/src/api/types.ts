@@ -233,6 +233,10 @@ export interface ChatSandboxSession {
   configuredEndpoint: string | null
   /** False when the binding was made against a different endpoint, so the next turn starts anew. */
   reusedOnNextTurn: boolean
+  /** Where the API's own agent keeps files (Local mode only); null under Foundry. */
+  workspaceMode: 'Local' | 'DynamicSessions' | 'Sandboxes' | null
+  /** The dynamic session or sandbox the API's own agent uses, tracked apart from any Foundry session. */
+  environmentId: string | null
 }
 
 export interface FileSystemEntry {

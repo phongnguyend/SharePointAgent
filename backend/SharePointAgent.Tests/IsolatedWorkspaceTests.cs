@@ -311,6 +311,177 @@ public sealed class IsolatedWorkspaceTests : IAsyncLifetime
         await provisioner.DidNotReceiveWithAnyArgs().AcquireAsync(default!, default);
     }
 
+    [Fact]
+    public async Task ADynamicSessionIdIsRecordedOnTheScopeRowApartFromTheScope()
+    {
+        await using var database = await ChatDatabase.CreateAsync();
+        var provider = DynamicSessionsProvider(database.Factory, new RecordingHandler());
+
+        await provider.GetAsync(database.InWorkspace, default);
+        await provider.GetAsync(database.InWorkspace, default);
+
+        await using var db = database.Open();
+        var recorded = (await db.ChatWorkspaces.SingleAsync()).DynamicSessionId;
+        Assert.False(string.IsNullOrEmpty(recorded));
+        Assert.NotEqual(database.WorkspaceId.ToString("N"), recorded);
+        Assert.Null((await db.ChatWorkspaces.SingleAsync()).FoundrySessionId);
+        Assert.Equal(new AgentWorkspaceEnvironment(AgentWorkspaceMode.DynamicSessions, recorded),
+            await provider.DescribeAsync(database.InWorkspace, default));
+    }
+
+    [Fact]
+    public async Task ASandboxIdIsRecordedOnTheScopeRowWhenItIsAcquired()
+    {
+        await using var database = await ChatDatabase.CreateAsync();
+        var provisioner = Substitute.For<ISandboxProvisioner>();
+        provisioner.AcquireAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new SandboxBinding("sbx-1", new Uri("https://sandbox.example/"), "key"));
+        var provider = SandboxesProvider(database.Factory, provisioner);
+
+        Assert.Equal(new AgentWorkspaceEnvironment(AgentWorkspaceMode.Sandboxes, null), await provider.DescribeAsync(database.Alone, default));
+        await provider.GetAsync(database.Alone, default);
+
+        await using var db = database.Open();
+        Assert.Equal("sbx-1", (await db.ChatConversations.SingleAsync(c => c.Id == database.Alone)).SandboxId);
+        Assert.Equal(new AgentWorkspaceEnvironment(AgentWorkspaceMode.Sandboxes, "sbx-1"), await provider.DescribeAsync(database.Alone, default));
+    }
+
+    [Fact]
+    public async Task ResettingADynamicSessionDropsItsFilesStopsItAndStartsANewOne()
+    {
+        await using var database = await ChatDatabase.CreateAsync();
+        var handler = new RecordingHandler();
+        var provider = DynamicSessionsProvider(database.Factory, handler);
+        await provider.GetAsync(database.Alone, default);
+        var first = (await provider.DescribeAsync(database.Alone, default))!.EnvironmentId!;
+        await _snapshots.SaveAsync(database.Alone.ToString("N"), new MemoryStream([1, 2, 3]), default);
+
+        Assert.True(await provider.ResetAsync(database.Alone, default));
+
+        Assert.False(_snapshots.Has(database.Alone.ToString("N")));
+        Assert.Null((await provider.DescribeAsync(database.Alone, default))!.EnvironmentId);
+        var stop = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Post, stop.Method);
+        Assert.Equal($"https://pool.example/.management/stopSession?api-version=2025-02-02-preview&identifier={first}", stop.RequestUri!.AbsoluteUri);
+
+        await provider.GetAsync(database.Alone, default);
+        Assert.NotEqual(first, (await provider.DescribeAsync(database.Alone, default))!.EnvironmentId);
+    }
+
+    [Fact]
+    public async Task ResettingASandboxReleasesItForTheWholeWorkspace()
+    {
+        await using var database = await ChatDatabase.CreateAsync();
+        var provisioner = Substitute.For<ISandboxProvisioner>();
+        provisioner.AcquireAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new SandboxBinding("sbx-1", new Uri("https://sandbox.example/"), "key"));
+        var provider = SandboxesProvider(database.Factory, provisioner);
+        await provider.GetAsync(database.InWorkspace, default);
+
+        Assert.True(await provider.ResetAsync(database.InWorkspace, default));
+
+        await provisioner.Received(1).ReleaseAsync(database.WorkspaceId.ToString("N"), Arg.Any<CancellationToken>());
+        await using var db = database.Open();
+        Assert.Null((await db.ChatWorkspaces.SingleAsync()).SandboxId);
+    }
+
+    [Fact]
+    public async Task ASharedDevelopmentSandboxOrALocalWorkspaceCannotBeReset()
+    {
+        await using var database = await ChatDatabase.CreateAsync();
+        var provisioner = Substitute.For<ISandboxProvisioner>();
+        var shared = new IsolatedAgentWorkspaceProvider(Substitute.For<IHttpClientFactory>(), database.Factory,
+            Options.Create(new AgentWorkspaceOptions
+            {
+                Mode = AgentWorkspaceMode.Sandboxes,
+                Sandboxes = new SandboxesWorkspaceOptions { SharedEndpoint = "https://shared.example/", SharedApiKey = "key" }
+            }),
+            Options.Create(new LocalWorkingDirectoryOptions()), NullLogger<SandboxHostWorkspace>.Instance, sandboxes: provisioner);
+        var local = new LocalAgentWorkspaceProvider(null!);
+
+        Assert.False(await shared.ResetAsync(database.Alone, default));
+        Assert.False(await local.ResetAsync(database.Alone, default));
+        Assert.Null(await local.DescribeAsync(database.Alone, default));
+        await provisioner.DidNotReceiveWithAnyArgs().ReleaseAsync(default!, default);
+    }
+
+    private IsolatedAgentWorkspaceProvider DynamicSessionsProvider(IDbContextFactory<SharePointIndexDbContext> factory, RecordingHandler handler)
+    {
+        var credential = Substitute.For<TokenCredential>();
+        credential.GetTokenAsync(Arg.Any<TokenRequestContext>(), Arg.Any<CancellationToken>())
+            .Returns(new AccessToken("session-token", DateTimeOffset.UtcNow.AddHours(1)));
+        var http = Substitute.For<IHttpClientFactory>();
+        http.CreateClient(Arg.Any<string>()).Returns(_ => new HttpClient(handler, disposeHandler: false));
+        return new IsolatedAgentWorkspaceProvider(http, factory,
+            Options.Create(new AgentWorkspaceOptions
+            {
+                Mode = AgentWorkspaceMode.DynamicSessions,
+                DynamicSessions = new DynamicSessionsWorkspaceOptions { PoolManagementEndpoint = "https://pool.example/" }
+            }),
+            Options.Create(new LocalWorkingDirectoryOptions()), NullLogger<SandboxHostWorkspace>.Instance, credential, _snapshots);
+    }
+
+    private static IsolatedAgentWorkspaceProvider SandboxesProvider(IDbContextFactory<SharePointIndexDbContext> factory, ISandboxProvisioner provisioner)
+    {
+        var http = Substitute.For<IHttpClientFactory>();
+        http.CreateClient(Arg.Any<string>()).Returns(_ => new HttpClient());
+        return new IsolatedAgentWorkspaceProvider(http, factory,
+            Options.Create(new AgentWorkspaceOptions { Mode = AgentWorkspaceMode.Sandboxes }),
+            Options.Create(new LocalWorkingDirectoryOptions()), NullLogger<SandboxHostWorkspace>.Instance, sandboxes: provisioner);
+    }
+
+    /// <summary>A workspace with one conversation, and one conversation outside any workspace, in SQLite.</summary>
+    private sealed class ChatDatabase : IAsyncDisposable
+    {
+        private readonly SqliteConnection _connection;
+        private readonly DbContextOptions<SharePointIndexDbContext> _options;
+
+        private ChatDatabase(SqliteConnection connection)
+        {
+            _connection = connection;
+            _options = new DbContextOptionsBuilder<SharePointIndexDbContext>().UseSqlite(connection).Options;
+            Factory = Substitute.For<IDbContextFactory<SharePointIndexDbContext>>();
+            Factory.CreateDbContextAsync(Arg.Any<CancellationToken>()).Returns(_ => Open());
+        }
+
+        public IDbContextFactory<SharePointIndexDbContext> Factory { get; }
+
+        public Guid WorkspaceId { get; } = Guid.NewGuid();
+
+        public Guid InWorkspace { get; } = Guid.NewGuid();
+
+        public Guid Alone { get; } = Guid.NewGuid();
+
+        public static async Task<ChatDatabase> CreateAsync()
+        {
+            var connection = new SqliteConnection("Data Source=:memory:");
+            await connection.OpenAsync();
+            connection.CreateFunction("NEWSEQUENTIALID", () => Guid.NewGuid().ToString().ToUpperInvariant());
+            var database = new ChatDatabase(connection);
+            await using var db = database.Open();
+            await db.Database.EnsureCreatedAsync();
+            db.ChatWorkspaces.Add(new ChatWorkspaceEntity { Id = database.WorkspaceId, Name = "Team" });
+            db.ChatConversations.Add(new ChatConversationEntity { Id = database.InWorkspace, Title = "a", WorkspaceId = database.WorkspaceId });
+            db.ChatConversations.Add(new ChatConversationEntity { Id = database.Alone, Title = "b" });
+            await db.SaveChangesAsync();
+            return database;
+        }
+
+        public SharePointIndexDbContext Open() => new(_options);
+
+        public ValueTask DisposeAsync() => _connection.DisposeAsync();
+    }
+
+    /// <summary>Records requests, such as stopping a session, and answers each with 200.</summary>
+    private sealed class RecordingHandler : HttpMessageHandler
+    {
+        public List<HttpRequestMessage> Requests { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK));
+        }
+    }
+
     private sealed class InMemorySnapshots : IWorkspaceSnapshotStore
     {
         private readonly Dictionary<string, byte[]> _archives = [];

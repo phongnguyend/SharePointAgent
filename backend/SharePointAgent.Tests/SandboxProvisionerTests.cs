@@ -190,6 +190,21 @@ public sealed class SandboxProvisionerTests
         Assert.Empty(_plane.Requests);
     }
 
+    [Fact]
+    public async Task ReleasingAWorkspaceDeletesItsSandboxAndTheNextUseCreatesAnother()
+    {
+        var provisioner = Provisioner();
+        var binding = await provisioner.AcquireAsync("scope-a", default);
+
+        await provisioner.ReleaseAsync("scope-a", default);
+
+        Assert.Contains(_plane.Requests, request => request.Method == "DELETE" && request.Uri.Contains($"/sandboxes/{binding.SandboxId}?"));
+        Assert.Null(await _bindings.GetAsync("scope-a", default));
+        var replacement = await provisioner.AcquireAsync("scope-a", default);
+        Assert.NotEqual(binding.SandboxId, replacement.SandboxId);
+        Assert.NotEqual(binding.ApiKey, replacement.ApiKey);
+    }
+
     private sealed record RecordedRequest(string Method, string Uri, string? Authorization, string? Body);
 
     /// <summary>Creates sandboxes that report Creating once, then Running with their port URL.</summary>

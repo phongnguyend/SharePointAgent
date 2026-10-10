@@ -23,6 +23,18 @@ public sealed class ChatWorkspaceEntity
 
     public string? FoundrySessionId { get; set; }
 
+    /// <summary>
+    /// The dynamic session the API's own agent uses for this workspace (AgentWorkspace:Mode
+    /// DynamicSessions). Independent of the Foundry session; cleared to start a fresh environment.
+    /// </summary>
+    public string? DynamicSessionId { get; set; }
+
+    /// <summary>
+    /// The sandbox the API's own agent uses for this workspace (AgentWorkspace:Mode Sandboxes). Its
+    /// address and key stay in the private workspace storage; this records which sandbox it is.
+    /// </summary>
+    public string? SandboxId { get; set; }
+
     public DateTimeOffset CreatedAtUtc { get; set; }
 
     public DateTimeOffset UpdatedAtUtc { get; set; }

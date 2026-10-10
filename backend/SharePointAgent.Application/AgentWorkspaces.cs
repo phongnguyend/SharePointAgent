@@ -66,7 +66,25 @@ public interface IAgentWorkspaceProvider
     /// run anything must never start a session or create a sandbox for it.
     /// </summary>
     Task<IAgentWorkspace?> FindAsync(Guid conversationId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The isolated environment serving the conversation, for inspection; null for a local workspace.
+    /// Reading it starts nothing.
+    /// </summary>
+    Task<AgentWorkspaceEnvironment?> DescribeAsync(Guid conversationId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Discards the isolated environment and its files, so the next turn starts a fresh one. Returns false
+    /// where there is nothing of its own to reset: a local workspace or a shared development sandbox.
+    /// </summary>
+    Task<bool> ResetAsync(Guid conversationId, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// The dynamic session or sandbox a conversation's workspace scope uses. <see cref="EnvironmentId"/> is
+/// null until the first turn creates one, and for a shared development sandbox.
+/// </summary>
+public sealed record AgentWorkspaceEnvironment(AgentWorkspaceMode Mode, string? EnvironmentId);
 
 /// <summary>Inline code or a workspace script, run with the workspace as its default working directory.</summary>
 public sealed record WorkspaceExecution(

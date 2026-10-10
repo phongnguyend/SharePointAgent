@@ -87,4 +87,10 @@ public sealed class LocalAgentWorkspaceProvider(AgentFileSystem files) : IAgentW
 
     public Task<IAgentWorkspace?> FindAsync(Guid conversationId, CancellationToken cancellationToken) =>
         Task.FromResult<IAgentWorkspace?>(files);
+
+    public Task<AgentWorkspaceEnvironment?> DescribeAsync(Guid conversationId, CancellationToken cancellationToken) =>
+        Task.FromResult<AgentWorkspaceEnvironment?>(null);
+
+    // One directory for everybody, so no conversation may wipe it.
+    public Task<bool> ResetAsync(Guid conversationId, CancellationToken cancellationToken) => Task.FromResult(false);
 }

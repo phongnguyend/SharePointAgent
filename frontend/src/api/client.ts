@@ -344,6 +344,16 @@ export function downloadConversationFile(
   return downloadBlob(`/api/chat/conversations/${encodeURIComponent(id)}/files/content?${query}`, signal)
 }
 
+/**
+ * Discards the dynamic session or sandbox the API's own agent uses for this conversation, with its files.
+ * A workspace's conversations share it, so all of them start afresh on their next turn.
+ */
+export function resetConversationEnvironment(id: string): Promise<{ reset: string }> {
+  return request<{ reset: string }>(`/api/chat/conversations/${encodeURIComponent(id)}/session/reset`, {
+    method: 'POST',
+  })
+}
+
 /** Reads the sandbox binding for inspection. It runs no turn and changes nothing. */
 export function getConversationSession(id: string, signal?: AbortSignal): Promise<ChatSandboxSession> {
   return request<ChatSandboxSession>(`/api/chat/conversations/${encodeURIComponent(id)}/session`, { signal })

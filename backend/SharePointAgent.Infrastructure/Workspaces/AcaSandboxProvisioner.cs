@@ -16,6 +16,9 @@ namespace SharePointAgent.Infrastructure.Workspaces;
 public interface ISandboxProvisioner
 {
     Task<SandboxBinding> AcquireAsync(string scope, CancellationToken cancellationToken);
+
+    /// <summary>Deletes the scope's sandbox and its binding, so the next acquire creates a new one.</summary>
+    Task ReleaseAsync(string scope, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -84,6 +87,32 @@ public sealed class AcaSandboxProvisioner(
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
                 throw new AgentWorkspaceUnavailableException("The sandbox did not start in time. Try again shortly.");
+            }
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    public async Task ReleaseAsync(string scope, CancellationToken cancellationToken)
+    {
+        if (Settings.UsesSharedSandbox)
+        {
+            return;
+        }
+
+        // Under the scope's gate, so a turn starting in this process waits and then creates a new sandbox.
+        var gate = _locks.GetOrAdd(scope, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            var existing = await registry.GetAsync(scope, cancellationToken);
+            await registry.DeleteBindingAsync(scope, cancellationToken);
+            if (existing?.SandboxId is { } sandboxId)
+            {
+                await DeleteSandboxAsync(sandboxId, cancellationToken);
+                logger.LogInformation("Deleted sandbox {SandboxId} of workspace {Scope} on request.", sandboxId, scope);
             }
         }
         finally
@@ -242,7 +271,7 @@ public sealed class AcaSandboxProvisioner(
         }
         catch (HttpRequestException exception)
         {
-            logger.LogWarning(exception, "Could not delete the surplus sandbox {SandboxId}.", sandboxId);
+            logger.LogWarning(exception, "Could not delete the sandbox {SandboxId}.", sandboxId);
         }
     }
 

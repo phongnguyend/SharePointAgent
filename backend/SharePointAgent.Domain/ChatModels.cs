@@ -56,6 +56,8 @@ public sealed record FoundrySessionBinding(
 /// row holds the binding — a workspace shares one across its conversations, a conversation outside one
 /// keeps its own. A binding recorded against a different endpoint than the one configured now is
 /// reported rather than hidden, because the next turn will start a new sandbox instead of reusing it.
+/// When the API runs the agent itself, <see cref="WorkspaceMode"/> says where its files live and
+/// <see cref="EnvironmentId"/> names the dynamic session or sandbox, tracked apart from any Foundry session.
 /// </summary>
 public sealed record ChatSandboxSession(
     string Mode,
@@ -66,7 +68,9 @@ public sealed record ChatSandboxSession(
     string? SessionId,
     string? BoundEndpoint,
     string? ConfiguredEndpoint,
-    bool ReusedOnNextTurn);
+    bool ReusedOnNextTurn,
+    string? WorkspaceMode = null,
+    string? EnvironmentId = null);
 
 public sealed record ChatConversation(
     Guid Id,

@@ -260,6 +260,10 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
             // The sandbox binding a grouped conversation uses instead of its own.
             entity.Property(x => x.FoundryEndpoint).HasMaxLength(2048);
             entity.Property(x => x.FoundrySessionId).HasMaxLength(200);
+
+            // The isolated environment the API's own agent uses, tracked apart from the Foundry session.
+            entity.Property(x => x.DynamicSessionId).HasMaxLength(200);
+            entity.Property(x => x.SandboxId).HasMaxLength(200);
             entity.Property(x => x.CreatedAtUtc).HasPrecision(7);
             entity.Property(x => x.UpdatedAtUtc).HasPrecision(7);
 
@@ -276,6 +280,8 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
             entity.Property(x => x.UserId).HasMaxLength(200);
             entity.Property(x => x.FoundryEndpoint).HasMaxLength(2048);
             entity.Property(x => x.FoundrySessionId).HasMaxLength(200);
+            entity.Property(x => x.DynamicSessionId).HasMaxLength(200);
+            entity.Property(x => x.SandboxId).HasMaxLength(200);
             entity.Property(x => x.CreatedAtUtc).HasPrecision(7);
             entity.Property(x => x.UpdatedAtUtc).HasPrecision(7);
 

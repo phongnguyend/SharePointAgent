@@ -10,6 +10,7 @@ import {
   Copy,
   Cpu,
   RefreshCw,
+  RotateCcw,
   ExternalLink,
   Eye,
   Folder,
@@ -51,6 +52,7 @@ import {
   downloadAttachmentFile,
   listWorkspaces,
   getConversationSession,
+  resetConversationEnvironment,
   listConversationFiles,
   downloadConversationFile,
   createWorkspace,
@@ -304,6 +306,19 @@ export default function ChatPage() {
     const timer = setTimeout(() => setCopiedSession(false), 1800)
     return () => clearTimeout(timer)
   }, [copiedSession])
+
+  // A reset wipes the files of every conversation sharing the environment, so the panel asks first.
+  const resetEnvironment = async () => {
+    if (!activeId) return
+    setError(null)
+    try {
+      await resetConversationEnvironment(activeId)
+      session.reload()
+      sandboxFiles.reload()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
 
   const newChat = async (agentId: string | null = null) => {
     if (creatingConversation) return
@@ -771,7 +786,8 @@ export default function ChatPage() {
                 </details>}
                 <SandboxDetails session={session.data?.conversationId === activeId ? session.data.value : null}
                   loading={session.loading} error={session.error} copied={copiedSession}
-                  onCopy={async value => setCopiedSession(await copyText(value))} />
+                  onCopy={async value => setCopiedSession(await copyText(value))}
+                  onReset={readOnly ? undefined : resetEnvironment} />
               </div>
               </Modal>
               <section className="conversation-workspace-files" aria-label="Files in the sandbox">
@@ -1356,13 +1372,34 @@ function SandboxDetails({
   error,
   copied,
   onCopy,
+  onReset,
 }: {
   session: ChatSandboxSession | null
   loading: boolean
   error: string | null
   copied: boolean
   onCopy: (value: string) => void
+  /** Absent for readers who cannot change the conversation. */
+  onReset?: () => Promise<void>
 }) {
+  const [confirmingReset, setConfirmingReset] = useState(false)
+  const [resetting, setResetting] = useState(false)
+  // When the API runs the agent in a dynamic session or sandbox, that environment is what the next turn
+  // reaches; the Foundry session ID plays no part.
+  const isolated = session?.mode === 'Local'
+    && (session.workspaceMode === 'DynamicSessions' || session.workspaceMode === 'Sandboxes')
+  const environmentKind = session?.workspaceMode === 'Sandboxes' ? 'sandbox' : 'dynamic session'
+  const shownId = isolated ? session?.environmentId ?? null : session?.sessionId ?? null
+  const reset = async () => {
+    if (!onReset) return
+    setResetting(true)
+    try {
+      await onReset()
+    } finally {
+      setResetting(false)
+      setConfirmingReset(false)
+    }
+  }
   return (
     <div className="chat-sandbox">
       <span className="chat-agent-menu-label">
@@ -1373,27 +1410,43 @@ function SandboxDetails({
       {session ? (
         <>
           <span className="hint">
-            {session.mode === 'Local'
+            {session.mode === 'Local' && !isolated
               ? 'Running in the API, which uses one local directory for every conversation.'
-              : session.scope === 'Workspace'
+              : `${isolated ? `Running in the API, in its own ${environmentKind}. ` : ''}${session.scope === 'Workspace'
                 ? `Shared with ${session.sharedWithConversations} ${session.sharedWithConversations === 1 ? 'conversation' : 'conversations'} in this workspace.`
-                : 'Private to this conversation.'}
+                : 'Private to this conversation.'}`}
           </span>
-          {session.mode === 'Foundry' ? (
-            session.sessionId ? (
+          {session.mode === 'Foundry' || isolated ? (
+            shownId ? (
               <div className="chat-sandbox-id">
-                <code title={session.sessionId}>{session.sessionId}</code>
+                <code title={shownId}>{shownId}</code>
                 <button
                   className="ghost icon-only"
-                  aria-label="Copy session ID"
-                  title="Copy session ID"
-                  onClick={() => onCopy(session.sessionId!)}
+                  aria-label={`Copy ${isolated ? environmentKind : 'session'} ID`}
+                  title={`Copy ${isolated ? environmentKind : 'session'} ID`}
+                  onClick={() => onCopy(shownId)}
                 >
                   {copied ? <Check size={13} /> : <Copy size={13} />}
                 </button>
               </div>
             ) : (
-              <span className="hint">No session yet. The next turn starts one.</span>
+              <span className="hint">
+                {isolated ? `No ${environmentKind} yet. The next turn starts one.` : 'No session yet. The next turn starts one.'}
+              </span>
+            )
+          ) : null}
+          {isolated && onReset && shownId ? (
+            confirmingReset ? (
+              <span className="chat-sandbox-stale">
+                <TriangleAlert size={13} aria-hidden="true" />
+                {`Delete this ${environmentKind} and its files${session.scope === 'Workspace' ? ' for every conversation in the workspace' : ''}?`}
+                <button className="danger" onClick={reset} disabled={resetting}>{resetting ? 'Resetting…' : 'Reset'}</button>
+                <button className="ghost" onClick={() => setConfirmingReset(false)} disabled={resetting}>Cancel</button>
+              </span>
+            ) : (
+              <button className="ghost" onClick={() => setConfirmingReset(true)}>
+                <RotateCcw size={13} />Reset {environmentKind}
+              </button>
             )
           ) : null}
           {session.sessionId && !session.reusedOnNextTurn ? (

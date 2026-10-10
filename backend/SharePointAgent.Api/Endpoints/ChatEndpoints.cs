@@ -165,6 +165,7 @@ public static class ChatEndpoints
             Guid id,
             IFoundrySessionRepository sessions,
             IOptions<ChatAgentHostingOptions> hosting,
+            IServiceProvider services,
             CancellationToken cancellationToken) =>
         {
             var binding = await sessions.DescribeAsync(id, cancellationToken);
@@ -181,6 +182,17 @@ public static class ChatEndpoints
             // Only a binding made against the endpoint in force now is sent back to Foundry; any other
             // is dead weight, and saying so is the point of showing the two side by side.
             var reused = !local && binding.SessionId is not null && binding.Endpoint == configured;
+
+            // When the API runs the agent, its isolated environment is tracked on the same row, apart from
+            // the Foundry session. Only the API's own agent registers a workspace provider.
+            var environment = local && services.GetService<IAgentWorkspaceProvider>() is { } workspaces
+                ? await workspaces.DescribeAsync(id, cancellationToken)
+                : null;
+            if (environment is not null)
+            {
+                reused = environment.EnvironmentId is not null;
+            }
+
             return Results.Ok(new ChatSandboxSession(
                 options.Mode.ToString(),
                 binding.WorkspaceId is null ? "Conversation" : "Workspace",
@@ -190,7 +202,43 @@ public static class ChatEndpoints
                 local ? null : binding.SessionId,
                 showsEndpoints ? binding.Endpoint : null,
                 showsEndpoints ? configured : null,
-                reused));
+                reused,
+                environment?.Mode.ToString() ?? (local ? AgentWorkspaceMode.Local.ToString() : null),
+                environment?.EnvironmentId));
+        });
+
+        // Discards the dynamic session or sandbox the API's own agent uses for this conversation's scope,
+        // with its files, so the next turn starts a fresh one. A workspace's conversations share it.
+        app.MapPost("/api/chat/conversations/{id:guid}/session/reset", async (
+            Guid id,
+            IFoundrySessionRepository sessions,
+            IServiceProvider services,
+            CancellationToken cancellationToken) =>
+        {
+            if (await sessions.DescribeAsync(id, cancellationToken) is null)
+            {
+                return Results.NotFound();
+            }
+
+            if (services.GetService<IAgentWorkspaceProvider>() is not { } workspaces)
+            {
+                return Results.Conflict(new { error = "This conversation has no isolated environment of its own to reset." });
+            }
+
+            try
+            {
+                if (!await workspaces.ResetAsync(id, cancellationToken))
+                {
+                    return Results.Conflict(new { error = "This conversation has no isolated environment of its own to reset." });
+                }
+            }
+            catch (AgentWorkspaceUnavailableException exception)
+            {
+                // Its messages are written for users and name no resources.
+                return Results.Problem(exception.Message, statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+
+            return Results.Ok(new { reset = id });
         });
 
         app.MapPost("/api/chat/conversations/{id:guid}/branch/{messageId:guid}", async (
