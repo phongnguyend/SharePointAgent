@@ -312,6 +312,43 @@ public sealed class IsolatedWorkspaceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ZippingAndUnzippingWorkInsideTheIsolatedWorkspace()
+    {
+        var workspace = Workspace();
+        await workspace.WriteTextAsync("report/summary.md", "# Summary", overwrite: false, default);
+
+        var archive = await workspace.ZipAsync(["report"], "report.zip", overwrite: false, default);
+        var extracted = await workspace.UnzipAsync("report.zip", "restored", overwrite: false, default);
+
+        Assert.Equal("report.zip", archive.Path);
+        Assert.Equal("restored", extracted.Path);
+        Assert.Equal("# Summary", await File.ReadAllTextAsync(Path.Combine(_sandboxRoot, "restored", "report", "summary.md")));
+    }
+
+    [Theory]
+    [InlineData(".agent-workspace")]
+    [InlineData("nested/.agent-restore.zip")]
+    [InlineData("../escaped.txt")]
+    public async Task AnArchiveThatWouldTouchBookkeepingOrEscapeIsRefusedBeforeExtraction(string entryName)
+    {
+        var workspace = Workspace();
+        using (var buffer = new MemoryStream())
+        {
+            using (var archive = new System.IO.Compression.ZipArchive(buffer, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+            {
+                using var writer = new StreamWriter(archive.CreateEntry(entryName).Open());
+                writer.Write("bad");
+            }
+            buffer.Position = 0;
+            await workspace.WriteAsync("bad.zip", buffer, overwrite: false, default);
+        }
+
+        await Assert.ThrowsAsync<ArgumentException>(() => workspace.UnzipAsync("bad.zip", "out", overwrite: false, default));
+
+        Assert.False(Directory.Exists(Path.Combine(_sandboxRoot, "out")));
+    }
+
+    [Fact]
     public async Task ADynamicSessionIdIsRecordedOnTheScopeRowApartFromTheScope()
     {
         await using var database = await ChatDatabase.CreateAsync();

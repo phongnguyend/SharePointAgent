@@ -436,20 +436,22 @@ public sealed class SandboxWorkspace
             throw new ArgumentException("The archive cannot include itself.");
         }
 
+        // Listed before writing, so an archive created inside a directory being zipped never includes itself.
+        var files = sources
+            .SelectMany(source => Directory.Exists(source)
+                ? new DirectoryInfo(source).EnumerateFiles("*", Recursive).Select(file => file.FullName)
+                : [source])
+            .Where(file => !string.Equals(file, destination, PathComparison))
+            .Distinct(PathComparison == StringComparison.OrdinalIgnoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal)
+            .ToList();
         var temporary = $"{destination}.{Guid.NewGuid():N}.partial";
         try
         {
             using (var archive = ZipFile.Open(temporary, ZipArchiveMode.Create))
             {
-                foreach (var source in sources)
+                foreach (var file in files)
                 {
-                    var files = Directory.Exists(source)
-                        ? new DirectoryInfo(source).EnumerateFiles("*", Recursive).Select(file => file.FullName)
-                        : [source];
-                    foreach (var file in files)
-                    {
-                        archive.CreateEntryFromFile(file, Relative(file), CompressionLevel.Optimal);
-                    }
+                    archive.CreateEntryFromFile(file, Relative(file), CompressionLevel.Optimal);
                 }
             }
 

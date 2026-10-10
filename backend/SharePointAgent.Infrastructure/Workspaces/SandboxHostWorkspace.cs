@@ -160,6 +160,45 @@ public sealed class SandboxHostWorkspace : IAgentWorkspace
         MarkDirty();
     }
 
+    public async Task<FileSystemEntry> ZipAsync(IReadOnlyList<string> paths, string destination, bool overwrite, CancellationToken cancellationToken)
+    {
+        if (paths is not { Count: > 0 })
+        {
+            throw new ArgumentException("Name at least one file or directory to zip.");
+        }
+
+        var sources = paths.Select(NormalizePath).ToList();
+        var entry = await SendAsync<SandboxEntry>(HttpMethod.Post, "files/zip", Query(),
+            JsonContent.Create(new { paths = sources, destination = RequireFilePath(destination), overwrite }, options: Json), cancellationToken);
+        MarkDirty();
+        return ToEntry(entry);
+    }
+
+    /// <summary>
+    /// Checks the archive here before SandboxHost extracts it: SandboxHost keeps entries inside the
+    /// destination, but only this side knows the reserved bookkeeping names an archive must not overwrite.
+    /// </summary>
+    public async Task<FileSystemEntry> UnzipAsync(string path, string destination, bool overwrite, CancellationToken cancellationToken)
+    {
+        var source = RequireFilePath(path);
+        var target = NormalizePath(destination);
+        var content = await ReadAsync(source, cancellationToken);
+        try
+        {
+            using var archive = new System.IO.Compression.ZipArchive(new MemoryStream(content.Content), System.IO.Compression.ZipArchiveMode.Read);
+            WorkspaceArchives.Check(archive);
+        }
+        catch (InvalidDataException)
+        {
+            throw new ArgumentException($"'{source}' is not a valid zip file.");
+        }
+
+        var entry = await SendAsync<SandboxEntry>(HttpMethod.Post, "files/unzip", Query(),
+            JsonContent.Create(new { path = source, destination = target, overwrite }, options: Json), cancellationToken);
+        MarkDirty();
+        return ToEntry(entry);
+    }
+
     /// <summary>The file browser's operations, with the same path rule, size limits, and refusals as the local workspace.</summary>
     public async Task<SandboxFileChangeResult> ManageAsync(SandboxFileChange change, CancellationToken cancellationToken)
     {

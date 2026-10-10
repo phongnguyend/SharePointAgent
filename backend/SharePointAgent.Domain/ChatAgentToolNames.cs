@@ -37,6 +37,13 @@ public static class ChatAgentToolNames
 
     public const string DeleteFile = "delete_file";
 
+    public const string ZipFiles = "zip_files";
+
+    public const string UnzipFile = "unzip_file";
+
+    /// <summary>Offered only when the working directory is isolated; never on the host's own disk.</summary>
+    public const string ExecuteScript = "execute_script";
+
     public const string DownloadSharePointFile = "download_sharepoint_file";
 
     public const string UploadSharePointFile = "upload_sharepoint_file";

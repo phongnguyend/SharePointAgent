@@ -42,6 +42,18 @@ public interface IAgentWorkspace
 
     Task DeleteAsync(string path, bool recursive, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Packs files and directories into a zip whose entry names are relative to the top of the working
+    /// directory. The archive is written whole or not at all, and it cannot include itself.
+    /// </summary>
+    Task<FileSystemEntry> ZipAsync(IReadOnlyList<string> paths, string destination, bool overwrite, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Extracts a zip into a directory of the working directory. Entries that would land outside it, or on a
+    /// reserved name, refuse the whole archive, as does one that expands past the extract limit.
+    /// </summary>
+    Task<FileSystemEntry> UnzipAsync(string path, string destination, bool overwrite, CancellationToken cancellationToken);
+
     /// <summary>The file browser's operations, with its stricter path and size rules.</summary>
     Task<SandboxFileChangeResult> ManageAsync(SandboxFileChange change, CancellationToken cancellationToken);
 

@@ -9,10 +9,16 @@ public static class AgentsEndpoints
 {
     public static void MapAgentsEndpoints(this WebApplication app)
     {
-        app.MapGet("/api/agents/capabilities", async (CancellationToken cancellationToken) =>
+        // Script execution is listed only where the API runs the agent itself in an isolated workspace,
+        // because that is the only place the tool is registered.
+        app.MapGet("/api/agents/capabilities", async (
+            IOptions<ChatAgentHostingOptions> hostingOptions,
+            IOptions<AgentWorkspaceOptions> workspaceOptions,
+            CancellationToken cancellationToken) =>
             Results.Ok(new
             {
-                tools = ChatAgentService.GetTools(),
+                tools = ChatAgentService.GetTools(hostingOptions.Value.Mode == ChatAgentExecutionMode.Local
+                    && workspaceOptions.Value.Mode != AgentWorkspaceMode.Local),
                 skills = await ChatAgentSkills.GetCatalogAsync(cancellationToken)
             }));
 
