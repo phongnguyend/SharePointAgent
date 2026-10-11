@@ -37,6 +37,8 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
 
     public DbSet<TranscriptionTokenUsageEntity> TranscriptionTokenUsage => Set<TranscriptionTokenUsageEntity>();
 
+    public DbSet<JevTokenUsageEntity> JevTokenUsage => Set<JevTokenUsageEntity>();
+
     public DbSet<ImageDescriptionTokenUsageEntity> ImageDescriptionTokenUsage => Set<ImageDescriptionTokenUsageEntity>();
 
     public DbSet<ChatTokenUsageEntity> ChatTokenUsage => Set<ChatTokenUsageEntity>();
@@ -55,6 +57,17 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<JevTokenUsageEntity>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedOnAdd();
+            entity.Property(x => x.ModelId).HasMaxLength(200);
+            entity.Property(x => x.TraceId).HasMaxLength(32);
+            entity.HasIndex(x => x.Day);
+            entity.HasIndex(x => new { x.ModelId, x.Month });
+            entity.HasIndex(x => new { x.UserId, x.CreatedAtUtc });
+            entity.HasIndex(x => x.TraceId);
+        });
         modelBuilder.Entity<WorkerHeartbeatEntity>(entity =>
         {
             entity.HasKey(x => x.Id);

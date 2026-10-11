@@ -585,3 +585,31 @@ export interface TimedSearch {
   error: string | null
   elapsedMs: number
 }
+
+export interface JevUsageFilter {
+  from: string
+  to: string
+  model: string
+  user: string
+  traceId: string
+}
+export interface JevUsageReport {
+  summary: ImageDescriptionUsageTotals
+  daily: (ImageDescriptionUsageTotals & { day: string })[]
+  models: (ImageDescriptionUsageTotals & { modelId: string })[]
+  items: {
+    id: string
+    createdAtUtc: string
+    userId: string | null
+    userName: string | null
+    userEmail: string | null
+    conversationId: string | null
+    questionId: string | null
+    modelId: string
+    traceId: string | null
+    questionCount: number
+    inputTokens: number
+    outputTokens: number
+    totalTokens: number
+  }[]
+}

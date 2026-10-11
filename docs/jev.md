@@ -63,7 +63,33 @@ before sending. HTTP failures throw `HttpRequestException` with `StatusCode`;
 invalid response JSON or missing/mismatched answers throw `JsonException`.
 Upstream error bodies are omitted to avoid exposing submitted content.
 There are no automatic retries; callers can handle rate limits (429) and overload
-(529) with bounded backoff. Token usage is returned, not persisted in usage reports.
+(529) with bounded backoff.
+
+## Token usage tracking
+
+The application hosts inject the database context factory into `JevClient`.
+Successful evaluations record one `JevTokenUsage` row with the resolved model,
+input/output/total tokens, question count, UTC day/month, and current activity
+trace ID. Model-list calls and unsuccessful evaluations do not create usage rows.
+State, instructions, and answers are not stored in this ledger.
+
+Supply attribution when available:
+
+```csharp
+var usage = new JevUsageContext(userId, conversationId, questionId);
+var result = await jevClient.EvaluateAsync(state, questions, usage, cancellationToken);
+```
+
+Calls without attribution appear as **Unattributed**. The **Token usage → Jev**
+tab provides totals, date/model/user/trace filters, and paginated call details.
+Its endpoint is `GET /api/usage/jev` under the existing usage-report access policy.
+Jev has its own ledger and is not included in the existing monthly chat quota.
+Usage persistence continues after a completed evaluation even if the caller
+disconnects; database write failures propagate to the caller.
+
+Apply the `AddJevTokenUsage` migration before deploying the updated hosts.
+Manually constructed clients without a database factory return usage without
+persisting it; production callers should use dependency injection.
 
 To register the client in another host, call
 `services.AddJevClient(configuration)`. No provider SDK package is required.

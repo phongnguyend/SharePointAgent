@@ -20,6 +20,7 @@ public sealed class EmbeddingUsageReportTests
         Assert.Equal(allowed, AppAccess.Allows([role], "GET", "/api/usage/content-safety"));
         Assert.Equal(allowed, AppAccess.Allows([role], "GET", "/api/usage/image-descriptions"));
         Assert.Equal(allowed, AppAccess.Allows([role], "GET", "/api/usage/transcriptions"));
+        Assert.Equal(allowed, AppAccess.Allows([role], "GET", "/api/usage/jev"));
     }
 
     [Theory]

@@ -3,11 +3,15 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using SharePointAgent.Application;
+using Microsoft.EntityFrameworkCore;
+using SharePointAgent.Persistence;
+using System.Diagnostics;
 
 namespace SharePointAgent.Infrastructure;
 
 /// <summary>Server-side client for TypeSafe's Jev structured decision API.</summary>
-public sealed class JevClient(HttpClient httpClient, IOptions<JevOptions> options)
+public sealed class JevClient(HttpClient httpClient, IOptions<JevOptions> options,
+    IDbContextFactory<SharePointIndexDbContext>? contextFactory = null)
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
@@ -15,9 +19,13 @@ public sealed class JevClient(HttpClient httpClient, IOptions<JevOptions> option
         RespectRequiredConstructorParameters = true
     };
 
+    public Task<JevResult> EvaluateAsync(object state, IReadOnlyDictionary<string, JevQuestion> questions,
+        CancellationToken cancellationToken = default) => EvaluateAsync(state, questions, new JevUsageContext(), cancellationToken);
+
     public async Task<JevResult> EvaluateAsync(object state, IReadOnlyDictionary<string, JevQuestion> questions,
-        CancellationToken cancellationToken = default)
+        JevUsageContext usageContext, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(usageContext);
         ValidateDescription(state, nameof(state));
         ArgumentNullException.ThrowIfNull(questions);
         if (questions.Count == 0)
@@ -80,6 +88,32 @@ public sealed class JevClient(HttpClient httpClient, IOptions<JevOptions> option
                 (q.Value, answer) is not ((JevChoiceQuestion, JevChoiceAnswer) or (JevScoreQuestion, JevScoreAnswer) or (JevNoulQuestion, JevNoulAnswer))))
         {
             throw new JsonException("Jev returned missing or mismatched answers.");
+        }
+        if (result.Usage.InputTokens < 0 || result.Usage.OutputTokens < 0)
+        {
+            throw new JsonException("Jev returned negative token usage.");
+        }
+        if (contextFactory is not null)
+        {
+            var now = DateTimeOffset.UtcNow;
+            // The evaluation has completed: persist billed usage even if the caller disconnected.
+            await using var db = await contextFactory.CreateDbContextAsync(CancellationToken.None);
+            db.JevTokenUsage.Add(new JevTokenUsageEntity
+            {
+                CreatedAtUtc = now,
+                Day = now.Year * 10000 + now.Month * 100 + now.Day,
+                Month = now.Year * 100 + now.Month,
+                UserId = usageContext.UserId,
+                ConversationId = usageContext.ConversationId,
+                QuestionId = usageContext.QuestionId,
+                ModelId = result.Model,
+                TraceId = Activity.Current?.TraceId.ToString(),
+                QuestionCount = questions.Count,
+                InputTokens = result.Usage.InputTokens,
+                OutputTokens = result.Usage.OutputTokens,
+                TotalTokens = checked(result.Usage.InputTokens + result.Usage.OutputTokens)
+            });
+            await db.SaveChangesAsync(CancellationToken.None);
         }
         return result;
     }

@@ -1,6 +1,8 @@
 import { authorizedFetch, API_BASE } from '../auth'
 import type {
   ImageDescriptionUsageReport,
+  JevUsageReport,
+  JevUsageFilter,
   ImageDescriptionUsageFilter,
   VoiceUsageFilter,
   VoiceUsageReport,
@@ -895,3 +897,6 @@ export async function timedSearch(
     }
   }
 }
+
+export const getJevUsage = (filters: JevUsageFilter, skip: number, signal?: AbortSignal) =>
+  request<JevUsageReport>(`/api/usage/jev${query({ ...filters, skip, top: 25 })}`, { signal })

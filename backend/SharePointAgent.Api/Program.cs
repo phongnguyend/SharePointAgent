@@ -52,6 +52,9 @@ app.MapEmbeddingUsage();
 app.MapTokenUsage();
 app.MapContentSafetyUsage();
 app.MapImageDescriptionUsage();
+
+app.MapJevUsage();
+
 app.MapTranscriptionUsage();
 app.MapSystemEndpoints();
 app.MapSharePointWebhookEndpoints();
