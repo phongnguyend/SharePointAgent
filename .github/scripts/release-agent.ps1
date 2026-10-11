@@ -22,6 +22,9 @@ $connection = @{ properties = @{
 if (-not [string]::IsNullOrWhiteSpace($env:OLLAYA_API_KEY)) {
   $connection.properties.credentials.keys.ollayaApiKey = $env:OLLAYA_API_KEY
 }
+if (-not [string]::IsNullOrWhiteSpace($env:JEV_API_KEY)) {
+  $connection.properties.credentials.keys.jevApiKey = $env:JEV_API_KEY
+}
 $path = Write-RequestBody 'foundry-secrets' $connection
 try {
   az rest --method put --url "https://management.azure.com$($hosting.foundryProjectId)/connections/agent-secrets?api-version=2025-06-01" --body "@$path" --output none
@@ -66,6 +69,11 @@ $environment = @{
 }
 if (-not [string]::IsNullOrWhiteSpace($env:OLLAYA_API_KEY)) {
   $environment.Ollaya__ApiKey = (Connection-Secret 'ollayaApiKey')
+}
+if (-not [string]::IsNullOrWhiteSpace($env:JEV_API_KEY)) {
+  $environment.Jev__ApiKey = (Connection-Secret 'jevApiKey')
+} else {
+  $environment.Jev__ApiKey = ''
 }
 $definition = @{
   kind = 'hosted'

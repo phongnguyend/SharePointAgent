@@ -73,6 +73,7 @@ Configure these settings under **Settings → Environments → dev/test → Envi
 | `DOCUMENTSIGNING__DOCUSIGN__SENDERUSERID` | Variable | API signing: Shared sender's API user GUID. Runtime key: `DocumentSigning__DocuSign__SenderUserId`. |
 | `DOCUMENTSIGNING__RETURNURL` | Variable | API signing: `https://YOUR_FRONTEND/attachment-files`; required for the DocuSign return redirect. Runtime key: `DocumentSigning__ReturnUrl`. |
 | `FRONTEND_ORIGIN` | Variable | Frontend HTTPS origin for CORS; configure its Entra redirect URI separately |
+| `JEV_API_KEY` | Optional secret | TypeSafe provider API key for Jev. API/Background releases and Container Apps application-image deployments map it to `Jev__ApiKey` through a Container App secret. AgentHost uses a Foundry connection secret reference. Omit to leave Jev unconfigured. |
 | `MARKITDOWN_API_KEY` | Secret | Shared MarkItDown authentication key, at least 32 characters |
 | `MARKITDOWN_IMAGE` | Optional variable | Existing MarkItDown image, e.g. `YOUR_REGISTRY.azurecr.io/markitdown:EXISTING_TAG`; set all three image variables together |
 | `OLLAYA_API_KEY` | Secret | Deploy Ollaya infrastructure and Release Ollaya: bearer key the Ollaya server requires, at least 32 characters; Ollaya ingress is external. API, Background, and AgentHost releases pass it as `Ollaya__ApiKey` when set. Container key: `OLLAYA_API_KEY`. |
@@ -93,6 +94,14 @@ Configure these settings under **Settings → Environments → dev/test → Envi
 | `SHAREPOINT_TENANT_ID` | Variable | Required for application deployments: Entra tenant ID for SharePoint Graph access and application sign-in; can differ from `AZURE_TENANT_ID` and has no fallback |
 | `SQL_ENTRA_ADMIN_OBJECT_ID` | Variable | Object ID of the SQL administrator matching the configured principal type, not its application/client ID |
 | `SQL_ENTRA_ADMINISTRATOR_PRINCIPAL_TYPE` | Optional variable | `Application` (default), `Group` or `User`; use `Application` for a managed identity or service principal |
+
+### Configure the Jev API key
+
+Create a provider API key in your TypeSafe account and save it as `JEV_API_KEY` in each GitHub environment (`dev` / `test`) that uses Jev. This is a provider-issued credential; do not generate it with the service-key script below.
+
+Run **Release API**, **Release Background**, and **Release AgentHost** to apply or rotate the key. The combined **Release services** workflow uses the same environment secret. **Deploy Container Apps infrastructure** also supplies it when application images are configured. Direct Bicep deployments accept the secure `jevApiKey` parameter.
+
+The key is optional. Removing it and rerunning those releases clears `Jev__ApiKey` for the newly deployed configuration; existing Container App secrets may remain stored but are no longer referenced. No key is sent to the frontend, MarkItDown, or PageIndex. See [Jev client configuration](../docs/jev.md).
 
 <a id="generate-the-markitdown-api-key"></a>
 

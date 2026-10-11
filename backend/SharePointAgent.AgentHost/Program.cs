@@ -16,6 +16,7 @@ InvocationsServer.Run<ChatAgentInvocation>(args: args, configure: builder =>
     }
     builder.Services.AddHostedChatAgentServices(builder.Configuration);
     builder.Services.AddOllayaClient(builder.Configuration);
+    builder.Services.AddJevClient(builder.Configuration);
 });
 
 public partial class Program;

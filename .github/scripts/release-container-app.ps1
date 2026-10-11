@@ -44,6 +44,12 @@ $secrets = @(
   @{ name = 'webhook-client-state'; value = $env:SHAREPOINT_CLIENT_STATE }
   @{ name = 'markitdown-api-key'; value = $env:MARKITDOWN_API_KEY }
 )
+if (-not [string]::IsNullOrWhiteSpace($env:JEV_API_KEY)) {
+  $commonEnvironment += @{ name = 'Jev__ApiKey'; secretRef = 'jev-api-key' }
+  $secrets += @{ name = 'jev-api-key'; value = $env:JEV_API_KEY }
+} else {
+  $commonEnvironment += @{ name = 'Jev__ApiKey'; value = '' }
+}
 # Optional until Ollaya is released; an empty Container Apps secret is rejected, so it is added only when set.
 if (-not [string]::IsNullOrWhiteSpace($env:OLLAYA_API_KEY)) {
   $commonEnvironment += @{ name = 'Ollaya__ApiKey'; secretRef = 'ollaya-api-key' }

@@ -90,6 +90,9 @@ param sharePointClientState string = ''
 @secure()
 param markItDownApiKey string = ''
 
+@secure()
+param jevApiKey string = ''
+
 var namePrefix = toLower('${workloadName}-${environmentName}')
 var uniqueSuffix = uniqueString(namePrefix, subscription().subscriptionId, resourceGroup().id)
 var resourceTags = union(tags, {
@@ -202,14 +205,15 @@ var commonEnv = [
   { name: 'MarkItDown__Endpoint', value: markItDownUrl }
   { name: 'PageIndex__Endpoint', value: pageIndexUrl }
   { name: 'MarkItDown__ApiKey', secretRef: 'markitdown-api-key' }
+  (empty(jevApiKey) ? { name: 'Jev__ApiKey', value: '' } : { name: 'Jev__ApiKey', secretRef: 'jev-api-key' })
   { name: 'DocumentIntelligence__UsedManagedIdentity', value: 'true' }
   { name: 'DocumentIntelligence__Endpoint', value: infrastructure.documentIntelligenceEndpoint }
 ]
-var secrets = [
+var secrets = concat([
   { name: 'graph-client-secret', value: sharePointClientSecret }
   { name: 'webhook-client-state', value: sharePointClientState }
   { name: 'markitdown-api-key', value: markItDownApiKey }
-]
+], empty(jevApiKey) ? [] : [{ name: 'jev-api-key', value: jevApiKey }])
 
 resource markItDown 'Microsoft.App/containerApps@2025-01-01' = {
   name: markItDownName

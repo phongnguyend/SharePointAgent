@@ -24,6 +24,19 @@ namespace SharePointAgent.Infrastructure;
 
 public static class DependencyInjection
 {
+    public static IServiceCollection AddJevClient(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<JevOptions>().Bind(configuration.GetSection(JevOptions.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(o => Uri.TryCreate(o.Endpoint, UriKind.Absolute, out var uri) && uri.Scheme == "https" &&
+                uri.UserInfo.Length == 0 && uri.Query.Length == 0 && uri.Fragment.Length == 0,
+                "Jev:Endpoint must be an HTTPS base URL without credentials, query, or fragment.");
+        services.AddHttpClient<JevClient>((sp, client) =>
+            client.Timeout = TimeSpan.FromSeconds(sp.GetRequiredService<IOptions<JevOptions>>().Value.TimeoutSeconds))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+        return services;
+    }
+
     public static IServiceCollection AddPageIndexClient(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<PageIndexOptions>().Bind(configuration.GetSection(PageIndexOptions.SectionName))

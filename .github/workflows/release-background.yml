@@ -70,6 +70,7 @@ jobs:
           SHAREPOINT_CLIENT_SECRET: ${{ secrets.SHAREPOINT_CLIENT_SECRET }}
           SHAREPOINT_CLIENT_STATE: ${{ secrets.SHAREPOINT_CLIENT_STATE }}
           MARKITDOWN_API_KEY: ${{ secrets.MARKITDOWN_API_KEY }}
+          JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
           OLLAYA_API_KEY: ${{ secrets.OLLAYA_API_KEY }}
         run: |
           if ($env:DEPLOY_ENVIRONMENT -eq 'local') {
@@ -110,6 +111,7 @@ jobs:
           SHAREPOINT_CLIENT_SECRET: ${{ secrets.SHAREPOINT_CLIENT_SECRET }}
           SHAREPOINT_CLIENT_STATE: ${{ secrets.SHAREPOINT_CLIENT_STATE }}
           MARKITDOWN_API_KEY: ${{ secrets.MARKITDOWN_API_KEY }}
+          JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
           OLLAYA_API_KEY: ${{ secrets.OLLAYA_API_KEY }}
       - name: Deployment summary
         run: |

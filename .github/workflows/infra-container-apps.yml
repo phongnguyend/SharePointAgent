@@ -70,6 +70,7 @@ jobs:
           SHAREPOINT_CLIENT_SECRET: ${{ secrets.SHAREPOINT_CLIENT_SECRET }}
           SHAREPOINT_CLIENT_STATE: ${{ secrets.SHAREPOINT_CLIENT_STATE }}
           MARKITDOWN_API_KEY: ${{ secrets.MARKITDOWN_API_KEY }}
+          JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
           SHAREPOINT_SITE_HOSTNAME: ${{ vars.SHAREPOINT_SITE_HOSTNAME }}
           SHAREPOINT_SITE_PATH: ${{ vars.SHAREPOINT_SITE_PATH }}
           SHAREPOINT_DOCUMENT_LIBRARY_NAME: ${{ vars.SHAREPOINT_DOCUMENT_LIBRARY_NAME }}
@@ -113,6 +114,7 @@ jobs:
             $parameters[$image] = @{ value = $reference }
           }
           if ($useApplicationImages) {
+            $parameters.jevApiKey = @{ value = [string]$env:JEV_API_KEY }
             $mapping = @{
               sharePointTenantId = 'SHAREPOINT_TENANT_ID'
               sharePointClientId = 'SHAREPOINT_CLIENT_ID'
