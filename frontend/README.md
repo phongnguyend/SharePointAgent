@@ -4,6 +4,17 @@ A React front end for `SharePointAgent.Api`. It shows the worker's SQL Server st
 `SharePointIndexedFiles` and `SharePointDeltaState` tables — and runs the three retrieval strategies
 against the search index, side by side.
 
+## API clients
+
+API functions live in `src/api/` grouped by feature: `adminClient.ts`, `agentClient.ts`,
+`attachmentClient.ts`, `chatClient.ts`, `searchClient.ts`, `sharePointClient.ts`,
+`signatureClient.ts`, and `usageClient.ts`. Shared authenticated JSON requests, downloads,
+query strings, and API errors live in `http.ts`; shared response types remain in `types.ts`.
+
+Import from the feature client when adding code. `client.ts` re-exports the existing public
+API so current imports continue to work. Feature clients should import shared helpers from
+`http.ts`, not through `client.ts`.
+
 ## Pages
 
 **Chat** shows a microphone button in the composer when the API reports dictation as enabled and the browser supports recording. `DictationButton` records with `MediaRecorder` (WebM/Opus, or MP4 on Safari), shows a timer with stop and cancel, stops at the server's time limit, and appends the returned transcript to the draft for review; it never sends the message itself.
