@@ -3,16 +3,16 @@ using SharePointAgent.Persistence;
 
 namespace SharePointAgent.Api;
 
-public static class JevUsageEndpoints
+public static class SystemOneUsageEndpoints
 {
-    public static void MapJevUsage(this WebApplication app)
+    public static void MapSystemOneUsage(this WebApplication app)
     {
-        app.MapGet("/api/usage/jev", ReadAsync);
+        app.MapGet("/api/usage/systemone", ReadAsync);
     }
 
     public static async Task<IResult> ReadAsync(SharePointIndexDbContext db,
         DateOnly? from = null, DateOnly? to = null, string? model = null, string? user = null,
-        string? traceId = null, int skip = 0, int top = 25, CancellationToken ct = default)
+        string? traceId = null, int skip = 0, int top = 25, string? provider = null, CancellationToken ct = default)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var start = from ?? new DateOnly(today.Year, today.Month, 1);
@@ -23,7 +23,11 @@ public static class JevUsageEndpoints
         }
         var startDay = start.Year * 10000 + start.Month * 100 + start.Day;
         var endDay = end.Year * 10000 + end.Month * 100 + end.Day;
-        var query = db.JevTokenUsage.AsNoTracking().Where(x => x.Day >= startDay && x.Day <= endDay);
+        var query = db.SystemOneUsage.AsNoTracking().Where(x => x.Day >= startDay && x.Day <= endDay);
+        if (!string.IsNullOrWhiteSpace(provider))
+        {
+            query = query.Where(x => x.Provider == provider.Trim());
+        }
         if (!string.IsNullOrWhiteSpace(model))
         {
             query = query.Where(x => x.ModelId == model.Trim());
@@ -61,7 +65,7 @@ public static class JevUsageEndpoints
         var items = await query.OrderByDescending(x => x.CreatedAtUtc).ThenBy(x => x.Id).Skip(skip).Take(top)
             .Select(x => new
             {
-                x.Id, x.CreatedAtUtc, x.UserId, x.ConversationId, x.QuestionId, x.QuestionCount, x.TraceId, x.ModelId,
+                x.Id, x.CreatedAtUtc, x.UserId, x.ConversationId, x.QuestionId, x.QuestionCount, x.TraceId, x.ModelId, x.Provider,
                 x.InputTokens, x.OutputTokens, x.TotalTokens,
                 UserName = db.Users.Where(u => u.Id == x.UserId).Select(u => u.DisplayName != "" ? u.DisplayName : u.Email).FirstOrDefault(),
                 UserEmail = db.Users.Where(u => u.Id == x.UserId).Select(u => u.Email).FirstOrDefault()

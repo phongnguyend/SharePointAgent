@@ -23,8 +23,7 @@ Switching between providers preserves each one's input, results, and pending eva
 Leaving Playgrounds or reloading the page resets this in-memory state. Previous playground URLs redirect to the new sub-tabs. Edit the
 sample request JSON and run choice, score, or noul questions. Results show typed answers,
 model, token counts, elapsed time, and trace ID. Credentials and deployment selection
-come from the API host configuration. Jev usage is attributed to the current admin;
-Microsoft Decision usage is displayed only. Cancelling stops waiting but cannot undo
+come from the API host configuration. Both providers record usage attributed to the current admin in **Token usage → SystemOne Usage**. Cancelling stops waiting but cannot undo
 an evaluation already processed by the provider.
 
 **Chat** shows a microphone button in the composer when the API reports dictation as enabled and the browser supports recording. `DictationButton` records with `MediaRecorder` (WebM/Opus, or MP4 on Safari), shows a timer with stop and cancel, stops at the server's time limit, and appends the returned transcript to the draft for review; it never sends the message itself.

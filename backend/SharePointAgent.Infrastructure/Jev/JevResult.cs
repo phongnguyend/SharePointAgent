@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace SharePointAgent.Infrastructure;
 
-public sealed record JevResult(string Model, Dictionary<string, JevAnswer> Answers, JevTokenUsage Usage);
+public sealed record JevResult(string Model, Dictionary<string, JevAnswer> Answers, SystemOneUsage Usage);
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(JevChoiceAnswer), "choice")]
@@ -17,10 +17,6 @@ public sealed record JevScoreAnswer(double Score, Dictionary<string, JsonElement
     Dictionary<string, double> Probabilities, double Confidence) : JevAnswer;
 
 public sealed record JevNoulAnswer(double Noul) : JevAnswer;
-
-public sealed record JevTokenUsage(
-    [property: JsonPropertyName("input_tokens")] long InputTokens,
-    [property: JsonPropertyName("output_tokens")] long OutputTokens);
 
 public sealed record JevModel(string Name, string Description,
     [property: JsonPropertyName("release_date")] string ReleaseDate);

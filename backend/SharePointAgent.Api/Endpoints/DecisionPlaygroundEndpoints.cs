@@ -50,8 +50,9 @@ public static class DecisionPlaygroundEndpoints
             {
                 object result = provider == "jev"
                     ? await context.RequestServices.GetRequiredService<JevClient>().EvaluateAsync(state, (Dictionary<string, JevQuestion>)parsedQuestions,
-                        new JevUsageContext(UserId: context.AppUser().Id), cancellationToken)
-                    : await context.RequestServices.GetRequiredService<MicrosoftDecisionClient>().EvaluateAsync(state, (Dictionary<string, MicrosoftDecisionQuestion>)parsedQuestions, cancellationToken);
+                        new SystemOneUsageContext(UserId: context.AppUser().Id), cancellationToken)
+                    : await context.RequestServices.GetRequiredService<MicrosoftDecisionClient>().EvaluateAsync(state, (Dictionary<string, MicrosoftDecisionQuestion>)parsedQuestions,
+                        new SystemOneUsageContext(UserId: context.AppUser().Id), cancellationToken);
                 return Results.Json(new { result, elapsedMs = timer.ElapsedMilliseconds, traceId = Activity.Current?.TraceId.ToString() }, Json);
             }
             catch (ArgumentException)

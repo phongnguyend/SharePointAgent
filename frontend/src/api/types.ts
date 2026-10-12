@@ -586,18 +586,20 @@ export interface TimedSearch {
   elapsedMs: number
 }
 
-export interface JevUsageFilter {
+export interface SystemOneUsageFilter {
+  provider: string
   from: string
   to: string
   model: string
   user: string
   traceId: string
 }
-export interface JevUsageReport {
+export interface SystemOneUsageReport {
   summary: ImageDescriptionUsageTotals
   daily: (ImageDescriptionUsageTotals & { day: string })[]
   models: (ImageDescriptionUsageTotals & { modelId: string })[]
   items: {
+    provider: string
     id: string
     createdAtUtc: string
     userId: string | null

@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace SharePointAgent.Infrastructure;
 
-public sealed record MicrosoftDecisionResult(string Model, Dictionary<string, MicrosoftDecisionAnswer> Answers, MicrosoftDecisionTokenUsage Usage);
+public sealed record MicrosoftDecisionResult(string Model, Dictionary<string, MicrosoftDecisionAnswer> Answers, SystemOneUsage Usage);
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(MicrosoftDecisionChoiceAnswer), "choice")]
@@ -17,8 +17,4 @@ public sealed record MicrosoftDecisionScoreAnswer(double Score, Dictionary<strin
     Dictionary<string, double> Probabilities, double Confidence) : MicrosoftDecisionAnswer;
 
 public sealed record MicrosoftDecisionNoulAnswer(double Noul) : MicrosoftDecisionAnswer;
-
-public sealed record MicrosoftDecisionTokenUsage(
-    [property: JsonPropertyName("input_tokens")] long InputTokens,
-    [property: JsonPropertyName("output_tokens")] long OutputTokens);
 

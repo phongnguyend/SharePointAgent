@@ -54,7 +54,7 @@ app.MapTokenUsage();
 app.MapContentSafetyUsage();
 app.MapImageDescriptionUsage();
 
-app.MapJevUsage();
+app.MapSystemOneUsage();
 
 app.MapDecisionPlaygroundEndpoints();
 

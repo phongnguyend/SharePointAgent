@@ -71,7 +71,7 @@ There are no automatic retries; callers can handle rate limits (429) and overloa
 ## Token usage tracking
 
 The application hosts inject the database context factory into `JevClient`.
-Successful evaluations record one `JevTokenUsage` row with the resolved model,
+Successful evaluations record one `SystemOneUsage` row with the provider and resolved model,
 input/output/total tokens, question count, UTC day/month, and current activity
 trace ID. Model-list calls and unsuccessful evaluations do not create usage rows.
 State, instructions, and answers are not stored in this ledger.
@@ -79,18 +79,18 @@ State, instructions, and answers are not stored in this ledger.
 Supply attribution when available:
 
 ```csharp
-var usage = new JevUsageContext(userId, conversationId, questionId);
+var usage = new SystemOneUsageContext(userId, conversationId, questionId);
 var result = await jevClient.EvaluateAsync(state, questions, usage, cancellationToken);
 ```
 
-Calls without attribution appear as **Unattributed**. The **Token usage → Jev**
-tab provides totals, date/model/user/trace filters, and paginated call details.
-Its endpoint is `GET /api/usage/jev` under the existing usage-report access policy.
-Jev has its own ledger and is not included in the existing monthly chat quota.
+Calls without attribution appear as **Unattributed**. The **Token usage → SystemOne Usage**
+tab provides totals, date/provider/model/user/trace filters, and paginated call details.
+Its endpoint is `GET /api/usage/systemone` under the existing usage-report access policy.
+Jev and Microsoft Decision share this ledger, which is not included in the existing monthly chat quota.
 Usage persistence continues after a completed evaluation even if the caller
 disconnects; database write failures propagate to the caller.
 
-Apply the `AddJevTokenUsage` migration before deploying the updated hosts.
+Apply the `RenameJevUsageToSystemOneUsage` migration before deploying the updated hosts.
 Manually constructed clients without a database factory return usage without
 persisting it; production callers should use dependency injection.
 

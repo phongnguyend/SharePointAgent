@@ -66,7 +66,7 @@ export default function DecisionPlaygroundPage({ provider }: { provider: Decisio
             {running && <button type="button" onClick={() => { controller.current?.abort(); setError('Request cancelled. The provider may already have processed it.') }}><Square size={15} />Cancel</button>}
             <button type="button" disabled={running} onClick={() => { setInput(sample); setResult(null); setError('') }}><RotateCcw size={15} />Reset example</button>
           </div>
-          <small>{provider === 'jev' ? 'Usage is recorded under your user in the Jev usage report.' : 'Token usage is returned here; it is not saved in the usage report.'}</small>
+          <small>Usage is recorded under your user in the SystemOne usage report.</small>
         </div>
         <div className="stack" aria-live="polite" aria-busy={running}>
           <h3>Result</h3>

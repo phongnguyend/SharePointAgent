@@ -57,8 +57,10 @@ var outputTokens = result.Usage.OutputTokens;
 
 Types are in `SharePointAgent.Infrastructure`; options are in
 `SharePointAgent.Application`. Score criteria run from lowest to highest. Noul answers
-are probabilities. The client returns usage to the caller; it does not persist usage
-or add a Token usage UI tab. Requests honor cancellation and the configured timeout,
+are probabilities. Both clients record completed evaluations in `SystemOneUsage` when a database factory is registered.
+The Token usage → SystemOne Usage tab reports both providers with a provider filter.
+Pass `SystemOneUsageContext` before the cancellation token to attribute a call to a user, conversation, or question.
+Apply `RenameJevUsageToSystemOneUsage` before deploying; it preserves existing Jev history. Requests honor cancellation and the configured timeout,
 and upstream HTTP errors expose status codes without exposing response bodies.
 Automatic retries and redirects are disabled to avoid duplicate evaluations and
 forwarding credentials to another endpoint.

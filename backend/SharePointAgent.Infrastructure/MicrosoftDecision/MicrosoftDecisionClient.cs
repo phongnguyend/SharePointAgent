@@ -6,12 +6,15 @@ using Microsoft.Extensions.Logging;
 using SharePointAgent.Application;
 using Azure.Core;
 using Azure.Identity;
+using Microsoft.EntityFrameworkCore;
+using SharePointAgent.Persistence;
 
 namespace SharePointAgent.Infrastructure;
 
 /// <summary>Server-side client for Microsoft Foundry's structured decision API.</summary>
 public sealed class MicrosoftDecisionClient(HttpClient httpClient, IOptions<MicrosoftDecisionOptions> options,
-    TokenCredential? credential = null, ILogger<MicrosoftDecisionClient>? logger = null)
+    TokenCredential? credential = null, ILogger<MicrosoftDecisionClient>? logger = null,
+    IDbContextFactory<SharePointIndexDbContext>? contextFactory = null)
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
@@ -21,9 +24,15 @@ public sealed class MicrosoftDecisionClient(HttpClient httpClient, IOptions<Micr
 
     private readonly TokenCredential tokenCredential = credential ?? new DefaultAzureCredential();
 
-    public async Task<MicrosoftDecisionResult> EvaluateAsync(object state,
+    public Task<MicrosoftDecisionResult> EvaluateAsync(object state,
         IReadOnlyDictionary<string, MicrosoftDecisionQuestion> questions, CancellationToken cancellationToken = default)
+        => EvaluateAsync(state, questions, new SystemOneUsageContext(), cancellationToken);
+
+    public async Task<MicrosoftDecisionResult> EvaluateAsync(object state,
+        IReadOnlyDictionary<string, MicrosoftDecisionQuestion> questions, SystemOneUsageContext usageContext,
+        CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(usageContext);
         ValidateDescription(state, nameof(state));
         ArgumentNullException.ThrowIfNull(questions);
         if (questions.Count == 0)
@@ -93,6 +102,7 @@ public sealed class MicrosoftDecisionClient(HttpClient httpClient, IOptions<Micr
         {
             throw new JsonException("MicrosoftDecision returned negative token usage.");
         }
+        await SystemOneUsageRecorder.RecordAsync(contextFactory, "MicrosoftDecision", result.Model, questions.Count, result.Usage, usageContext);
         return result;
     }
 

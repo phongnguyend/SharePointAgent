@@ -16,10 +16,12 @@ using Xunit;
 
 namespace SharePointAgent.Tests;
 
-public sealed class JevUsageTests
+public sealed class SystemOneUsageTests
 {
-    [Fact]
-    public async Task RecordsUsageWithDatabaseIdAndReportsFiltersAndPagination()
+    [Theory]
+    [InlineData("Jev")]
+    [InlineData("MicrosoftDecision")]
+    public async Task RecordsUsageWithDatabaseIdAndReportsFiltersAndPagination(string provider)
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
@@ -33,11 +35,26 @@ public sealed class JevUsageTests
         using var http = new HttpClient(new Handler());
         var client = new JevClient(http, Options.Create(new JevOptions { ApiKey = "test" }), new Factory(options));
         var userId = Guid.NewGuid();
-        var context = new JevUsageContext(userId, Guid.NewGuid(), Guid.NewGuid());
+        var context = new SystemOneUsageContext(userId, Guid.NewGuid(), Guid.NewGuid());
         var questions = new Dictionary<string, JevQuestion> { ["check"] = new JevNoulQuestion("Yes?") };
-        await client.EvaluateAsync("private state", questions, context);
-        var row = await db.JevTokenUsage.SingleAsync();
+        if (provider == "Jev")
+        {
+            await client.EvaluateAsync("private state", questions, context);
+        }
+        else
+        {
+            var microsoft = new MicrosoftDecisionClient(http, Options.Create(new MicrosoftDecisionOptions
+            {
+                Endpoint = "https://decision.example/providers/microsoft/v1/systemone", ApiKey = "test"
+            }), contextFactory: new Factory(options));
+            await microsoft.EvaluateAsync("private state", new Dictionary<string, MicrosoftDecisionQuestion>
+            {
+                ["check"] = new MicrosoftDecisionNoulQuestion("Yes?")
+            }, context);
+        }
+        var row = await db.SystemOneUsage.SingleAsync();
         Assert.Equal(databaseId, row.Id);
+        Assert.Equal(provider, row.Provider);
         Assert.Equal(userId, row.UserId);
         Assert.Equal(context.QuestionId, row.QuestionId);
         Assert.Equal(activity.TraceId.ToString(), row.TraceId);
@@ -54,18 +71,23 @@ public sealed class JevUsageTests
         Assert.Equal(1, report.GetProperty("daily").GetArrayLength());
         Assert.Equal(1, report.GetProperty("models").GetArrayLength());
         Assert.Equal(1, report.GetProperty("items").GetArrayLength());
+        Assert.Equal(provider, report.GetProperty("items")[0].GetProperty("provider").GetString());
+        var filtered = await SystemOneUsageEndpoints.ReadAsync(db, day, day, provider: "other");
+        var filteredJson = JsonSerializer.SerializeToElement(Assert.IsAssignableFrom<IValueHttpResult>(filtered).Value,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.Equal(0, filteredJson.GetProperty("summary").GetProperty("calls").GetInt32());
         Assert.Equal(0, (await Read(db, day, model: "other")).GetProperty("summary").GetProperty("calls").GetInt32());
         Assert.Equal(0, (await Read(db, day, trace: "other")).GetProperty("items").GetArrayLength());
         Assert.Equal(0, (await Read(db, day, skip: 1)).GetProperty("items").GetArrayLength());
-        Assert.Equal(400, Assert.IsAssignableFrom<IStatusCodeHttpResult>(await JevUsageEndpoints.ReadAsync(db, day, day, top: 0)).StatusCode);
+        Assert.Equal(400, Assert.IsAssignableFrom<IStatusCodeHttpResult>(await SystemOneUsageEndpoints.ReadAsync(db, day, day, top: 0)).StatusCode);
         await client.ListModelsAsync();
-        Assert.Equal(1, await db.JevTokenUsage.CountAsync());
+        Assert.Equal(1, await db.SystemOneUsage.CountAsync());
     }
 
     private static async Task<JsonElement> Read(SharePointIndexDbContext db, DateOnly day, string? user = null,
         string? model = null, string? trace = null, int skip = 0)
     {
-        var response = await JevUsageEndpoints.ReadAsync(db, day, day, model, user, trace, skip);
+        var response = await SystemOneUsageEndpoints.ReadAsync(db, day, day, model, user, trace, skip);
         return JsonSerializer.SerializeToElement(Assert.IsAssignableFrom<IValueHttpResult>(response).Value,
             new JsonSerializerOptions(JsonSerializerDefaults.Web));
     }

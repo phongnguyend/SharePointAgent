@@ -1,8 +1,8 @@
 import { request, query } from './http'
 import type {
   ImageDescriptionUsageReport,
-  JevUsageReport,
-  JevUsageFilter,
+  SystemOneUsageReport,
+  SystemOneUsageFilter,
   ImageDescriptionUsageFilter,
   VoiceUsageFilter,
   VoiceUsageReport,
@@ -28,5 +28,5 @@ export const getChatTokenUsage = (filters: ChatUsageFilter, skip: number, signal
 export const getEmbeddingUsage = (filters: EmbeddingUsageFilter, skip: number, signal?: AbortSignal) =>
   request<EmbeddingUsageReport>(`/api/usage/embeddings${query({ ...filters, skip, top: 25 })}`, { signal })
 
-export const getJevUsage = (filters: JevUsageFilter, skip: number, signal?: AbortSignal) =>
-  request<JevUsageReport>(`/api/usage/jev${query({ ...filters, skip, top: 25 })}`, { signal })
+export const getSystemOneUsage = (filters: SystemOneUsageFilter, skip: number, signal?: AbortSignal) =>
+  request<SystemOneUsageReport>(`/api/usage/systemone${query({ ...filters, skip, top: 25 })}`, { signal })

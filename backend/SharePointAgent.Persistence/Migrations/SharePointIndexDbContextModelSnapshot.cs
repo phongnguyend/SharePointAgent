@@ -1053,65 +1053,6 @@ namespace SharePointAgent.Persistence.Migrations
                     b.ToTable("SharePointIndexedFiles", (string)null);
                 });
 
-            modelBuilder.Entity("SharePointAgent.Persistence.JevTokenUsageEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
-                        .HasDefaultValueSql("NEWSEQUENTIALID()");
-
-                    b.Property<Guid?>("ConversationId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<int>("Day")
-                        .HasColumnType("int");
-
-                    b.Property<long>("InputTokens")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("ModelId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<int>("Month")
-                        .HasColumnType("int");
-
-                    b.Property<long>("OutputTokens")
-                        .HasColumnType("bigint");
-
-                    b.Property<int>("QuestionCount")
-                        .HasColumnType("int");
-
-                    b.Property<Guid?>("QuestionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<long>("TotalTokens")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("TraceId")
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
-
-                    b.Property<Guid?>("UserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Day");
-
-                    b.HasIndex("TraceId");
-
-                    b.HasIndex("ModelId", "Month");
-
-                    b.HasIndex("UserId", "CreatedAtUtc");
-
-                    b.ToTable("JevTokenUsage");
-                });
-
             modelBuilder.Entity("SharePointAgent.Persistence.SignatureRequestEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1226,6 +1167,72 @@ namespace SharePointAgent.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("SigningTemplates");
+                });
+
+            modelBuilder.Entity("SharePointAgent.Persistence.SystemOneUsageEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<Guid?>("ConversationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("Day")
+                        .HasColumnType("int");
+
+                    b.Property<long>("InputTokens")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ModelId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("int");
+
+                    b.Property<long>("OutputTokens")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)")
+                        .HasDefaultValue("Jev");
+
+                    b.Property<int>("QuestionCount")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("QuestionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("TotalTokens")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("TraceId")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Day");
+
+                    b.HasIndex("TraceId");
+
+                    b.HasIndex("ModelId", "Month");
+
+                    b.HasIndex("UserId", "CreatedAtUtc");
+
+                    b.ToTable("SystemOneUsage");
                 });
 
             modelBuilder.Entity("SharePointAgent.Persistence.TranscriptionTokenUsageEntity", b =>

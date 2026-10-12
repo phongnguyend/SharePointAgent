@@ -37,7 +37,7 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
 
     public DbSet<TranscriptionTokenUsageEntity> TranscriptionTokenUsage => Set<TranscriptionTokenUsageEntity>();
 
-    public DbSet<JevTokenUsageEntity> JevTokenUsage => Set<JevTokenUsageEntity>();
+    public DbSet<SystemOneUsageEntity> SystemOneUsage => Set<SystemOneUsageEntity>();
 
     public DbSet<ImageDescriptionTokenUsageEntity> ImageDescriptionTokenUsage => Set<ImageDescriptionTokenUsageEntity>();
 
@@ -57,10 +57,11 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-        modelBuilder.Entity<JevTokenUsageEntity>(entity =>
+        modelBuilder.Entity<SystemOneUsageEntity>(entity =>
         {
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedOnAdd();
+            entity.Property(x => x.Provider).HasMaxLength(32).HasDefaultValue("Jev");
             entity.Property(x => x.ModelId).HasMaxLength(200);
             entity.Property(x => x.TraceId).HasMaxLength(32);
             entity.HasIndex(x => x.Day);

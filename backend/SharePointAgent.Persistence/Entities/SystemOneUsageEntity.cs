@@ -1,7 +1,7 @@
 namespace SharePointAgent.Persistence;
 
 // Usage survives removal of the related conversation or user.
-public sealed class JevTokenUsageEntity
+public sealed class SystemOneUsageEntity
 {
     public Guid Id { get; set; }
 
@@ -16,6 +16,8 @@ public sealed class JevTokenUsageEntity
     public Guid? ConversationId { get; set; }
 
     public Guid? QuestionId { get; set; }
+
+    public string Provider { get; set; } = "Jev";
 
     public string ModelId { get; set; } = "";
 
