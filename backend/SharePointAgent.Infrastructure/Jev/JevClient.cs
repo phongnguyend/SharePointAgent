@@ -80,7 +80,7 @@ public sealed class JevClient(HttpClient httpClient, IOptions<JevOptions> option
                     throw new ArgumentException("Unsupported Jev question type.", nameof(questions));
             }
         }
-        using var request = CreateRequest(HttpMethod.Post, "systemone");
+        using var request = CreateRequest(HttpMethod.Post);
         request.Content = JsonContent.Create(new { state, model = options.Value.Model, questions }, options: Json);
         var result = await SendAsync<JevResult>(request, cancellationToken);
         if (string.IsNullOrWhiteSpace(result.Model) || result.Usage is null || result.Answers is null ||
@@ -125,7 +125,7 @@ public sealed class JevClient(HttpClient httpClient, IOptions<JevOptions> option
         return result.Models is not null ? result : throw new JsonException("Jev returned an invalid model list.");
     }
 
-    private HttpRequestMessage CreateRequest(HttpMethod method, string path)
+    private HttpRequestMessage CreateRequest(HttpMethod method, string? relativePath = null)
     {
         var config = options.Value;
         if (!config.IsConfigured)
@@ -133,12 +133,12 @@ public sealed class JevClient(HttpClient httpClient, IOptions<JevOptions> option
             throw new InvalidOperationException("Set Jev:ApiKey before calling Jev.");
         }
         if (!Uri.TryCreate(config.Endpoint, UriKind.Absolute, out var endpoint) || endpoint.Scheme != "https" ||
-            endpoint.UserInfo.Length > 0 || endpoint.Query.Length > 0 || endpoint.Fragment.Length > 0)
+            endpoint.UserInfo.Length > 0 || endpoint.Fragment.Length > 0 || endpoint.AbsolutePath == "/")
         {
-            throw new InvalidOperationException("Jev:Endpoint must be an HTTPS base URL without credentials, query, or fragment.");
+            throw new InvalidOperationException("Jev:Endpoint must be the full HTTPS evaluation URL, without credentials or fragment.");
         }
         ArgumentException.ThrowIfNullOrWhiteSpace(config.Model);
-        var request = new HttpRequestMessage(method, config.Endpoint.TrimEnd('/') + "/" + path);
+        var request = new HttpRequestMessage(method, relativePath is null ? endpoint : new Uri(endpoint, relativePath));
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", config.ApiKey);
         return request;
     }

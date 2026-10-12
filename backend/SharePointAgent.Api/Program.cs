@@ -18,6 +18,7 @@ builder.Services.AddDocumentSigningServices(builder.Configuration);
 builder.Services.AddIndexedFileReindexServices(builder.Configuration);
 builder.Services.AddOllayaClient(builder.Configuration);
 builder.Services.AddJevClient(builder.Configuration);
+builder.Services.AddMicrosoftDecisionClient(builder.Configuration);
 
 // Graph RAG operator endpoints need the graph store even when the chat agent runs in Foundry. Registered
 // only when GraphRag:RetrievalEnabled or GraphRag:ShadowRetrieval is set.
@@ -54,6 +55,8 @@ app.MapContentSafetyUsage();
 app.MapImageDescriptionUsage();
 
 app.MapJevUsage();
+
+app.MapDecisionPlaygroundEndpoints();
 
 app.MapTranscriptionUsage();
 app.MapSystemEndpoints();

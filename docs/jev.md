@@ -13,7 +13,7 @@ frontend configuration. For dev/test deployments, set the GitHub environment sec
 ```json
 {
   "Jev": {
-    "Endpoint": "https://api.typesafe.ai/v1",
+    "Endpoint": "https://api.typesafe.ai/v1/systemone",
     "ApiKey": null,
     "Model": "jev-latest",
     "TimeoutSeconds": 60
@@ -21,7 +21,10 @@ frontend configuration. For dev/test deployments, set the GitHub environment sec
 }
 ```
 
-The endpoint includes `/v1`. Use a versioned model ID when reproducible model
+The endpoint is the full evaluation URL, including `/v1/systemone`; the client
+sends it directly without appending a path. Update any existing user-secret or
+environment override that still ends in `/v1`. `ListModelsAsync` resolves the sibling
+`models` URL (by default `/v1/models`). Use a versioned model ID when reproducible model
 selection matters; `jev-latest` is an alias. The response includes the actual
 model ID. See [available models](https://docs.typesafe.ai/models).
 

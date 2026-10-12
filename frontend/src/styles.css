@@ -3776,3 +3776,33 @@ button.signing-field-remove {
     animation: none;
   }
 }
+.decision-playground-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.decision-json {
+  width: 100%;
+  min-height: 360px;
+  box-sizing: border-box;
+  padding: 12px;
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.decision-result {
+  min-height: 0;
+  max-height: 600px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .decision-playground-grid {
+    grid-template-columns: 1fr;
+  }
+}

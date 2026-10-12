@@ -11,6 +11,26 @@ namespace SharePointAgent.Tests;
 
 public sealed class JevClientTests
 {
+    [Theory]
+    [InlineData("https://jev.example/custom/systemone")]
+    [InlineData("https://jev.example/custom/systemone?version=test")]
+    public async Task UsesFullEvaluationUrlAndSiblingModelsUrl(string endpoint)
+    {
+        using var http = new HttpClient(new Handler((request, _) =>
+        {
+            if (request.Method == HttpMethod.Post)
+            {
+                Assert.Equal(endpoint, request.RequestUri!.AbsoluteUri);
+                return Task.FromResult(Response("""{"model":"jev","answers":{"check":{"type":"noul","noul":0.9}},"usage":{"input_tokens":10,"output_tokens":0}}"""));
+            }
+            Assert.Equal("https://jev.example/custom/models", request.RequestUri!.AbsoluteUri);
+            return Task.FromResult(Response("""{"models":[]}"""));
+        }));
+        var client = new JevClient(http, Options.Create(new JevOptions { Endpoint = endpoint, ApiKey = "test-key" }));
+        await client.EvaluateAsync("state", new Dictionary<string, JevQuestion> { ["check"] = new JevNoulQuestion("Yes?") });
+        await client.ListModelsAsync();
+    }
+
     [Fact]
     public async Task SendsMixedQuestionsAndReadsTypedAnswersAndUsage()
     {

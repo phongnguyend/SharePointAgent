@@ -7,7 +7,7 @@ public sealed class JevOptions
     public const string SectionName = "Jev";
 
     [Required]
-    public string Endpoint { get; set; } = "https://api.typesafe.ai/v1";
+    public string Endpoint { get; set; } = "https://api.typesafe.ai/v1/systemone";
 
     public string? ApiKey { get; set; }
 

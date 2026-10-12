@@ -24,13 +24,26 @@ namespace SharePointAgent.Infrastructure;
 
 public static class DependencyInjection
 {
+    public static IServiceCollection AddMicrosoftDecisionClient(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<MicrosoftDecisionOptions>().Bind(configuration.GetSection(MicrosoftDecisionOptions.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(o => !o.IsConfigured || (Uri.TryCreate(o.Endpoint, UriKind.Absolute, out var uri) && uri.Scheme == "https" &&
+                uri.UserInfo.Length == 0 && uri.Fragment.Length == 0 && uri.AbsolutePath != "/"),
+                "MicrosoftDecision:Endpoint must be the full HTTPS decision API URL, without credentials or fragment.");
+        services.AddHttpClient<MicrosoftDecisionClient>((sp, client) =>
+            client.Timeout = TimeSpan.FromSeconds(sp.GetRequiredService<IOptions<MicrosoftDecisionOptions>>().Value.TimeoutSeconds))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+        return services;
+    }
+
     public static IServiceCollection AddJevClient(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<JevOptions>().Bind(configuration.GetSection(JevOptions.SectionName))
             .ValidateDataAnnotations()
             .Validate(o => Uri.TryCreate(o.Endpoint, UriKind.Absolute, out var uri) && uri.Scheme == "https" &&
-                uri.UserInfo.Length == 0 && uri.Query.Length == 0 && uri.Fragment.Length == 0,
-                "Jev:Endpoint must be an HTTPS base URL without credentials, query, or fragment.");
+                uri.UserInfo.Length == 0 && uri.Fragment.Length == 0 && uri.AbsolutePath != "/",
+                "Jev:Endpoint must be the full HTTPS evaluation URL, without credentials or fragment.");
         services.AddHttpClient<JevClient>((sp, client) =>
             client.Timeout = TimeSpan.FromSeconds(sp.GetRequiredService<IOptions<JevOptions>>().Value.TimeoutSeconds))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });

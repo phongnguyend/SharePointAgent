@@ -1,12 +1,13 @@
 import { useId } from 'react'
 import { Navigate, useSearchParams } from 'react-router-dom'
-import { Activity, FilePenLine, GitBranch, ShieldCheck, Webhook } from 'lucide-react'
+import { Activity, FilePenLine, FlaskConical, GitBranch, ShieldCheck, Webhook } from 'lucide-react'
 import { canManageAdministration, canReadAdministration, useAppUser } from '../components/AppUserContext'
 import DeltaStatePage from './DeltaStatePage'
 import SubscriptionsPage from './SubscriptionsPage'
 import DocumentSigningConfigurationPage from './DocumentSigningConfigurationPage'
 import SitePermissionsPage from './SitePermissionsPage'
 import ServiceHealthPage from './ServiceHealthPage'
+import PlaygroundsPage from './PlaygroundsPage'
 
 export default function AdminPage() {
   const user = useAppUser()
@@ -18,6 +19,9 @@ export default function AdminPage() {
     { key: 'health', label: 'Service health', Icon: Activity },
     ...(canManageAdministration(user) ? [{ key: 'document-signing-configuration', label: 'Document signing', Icon: FilePenLine }] : []),
     ...(canManageAdministration(user) ? [{ key: 'site-permissions', label: 'Site access', Icon: ShieldCheck }] : []),
+    ...(canManageAdministration(user) ? [
+      { key: 'playgrounds', label: 'Playgrounds', Icon: FlaskConical },
+    ] : []),
   ]
   const requested = params.get('tab') || 'delta'
   if (!canReadAdministration(user)) {
@@ -25,6 +29,9 @@ export default function AdminPage() {
   }
   if (requested === 'document-signing' && canManageAdministration(user)) {
     return <Navigate to="/admin?tab=document-signing-configuration" replace />
+  }
+  if ((requested === 'jev-playground' || requested === 'microsoft-decision-playground') && canManageAdministration(user)) {
+    return <Navigate to={`/admin?tab=playgrounds&provider=${requested === 'jev-playground' ? 'jev' : 'microsoft-decision'}`} replace />
   }
   if (!tabs.some(tab => tab.key === requested)) {
     return <Navigate to="/admin?tab=delta" replace />
@@ -51,7 +58,7 @@ export default function AdminPage() {
     </div>
     {tabs.map(({ key }) => <div key={key} role="tabpanel" id={`${id}-${key}-panel`}
       aria-labelledby={`${id}-${key}`} hidden={requested !== key}>
-      {requested === key && (key === 'delta' ? <DeltaStatePage /> : key === 'subscriptions' ? <SubscriptionsPage /> : key === 'health' ? <ServiceHealthPage /> : key === 'site-permissions' ? <SitePermissionsPage /> : <DocumentSigningConfigurationPage />)}
+      {requested === key && (key === 'playgrounds' ? <PlaygroundsPage /> : key === 'delta' ? <DeltaStatePage /> : key === 'subscriptions' ? <SubscriptionsPage /> : key === 'health' ? <ServiceHealthPage /> : key === 'site-permissions' ? <SitePermissionsPage /> : <DocumentSigningConfigurationPage />)}
     </div>)}
   </div>
 }
