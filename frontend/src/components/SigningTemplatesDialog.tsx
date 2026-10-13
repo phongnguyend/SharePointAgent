@@ -1,3 +1,4 @@
+import { useToast } from './Toast'
 import { useRef, useState } from 'react'
 import { Check, Download, FilePlus2, Pencil, RefreshCw, Save, Trash2 } from 'lucide-react'
 import {
@@ -28,7 +29,7 @@ export function SigningTemplatesDialog({ fields, pageCount, onLoad, onClose }: {
   const [newName, setNewName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const toast = useToast()
   const pending = useRef(false)
   const hasFields = fields.length > 0
 
@@ -39,7 +40,7 @@ export function SigningTemplatesDialog({ fields, pageCount, onLoad, onClose }: {
     pending.current = true
     setBusy(true)
     setError(null)
-    setNotice(null)
+
     try {
       await action()
     } catch (cause) {
@@ -61,7 +62,7 @@ export function SigningTemplatesDialog({ fields, pageCount, onLoad, onClose }: {
   }}>
     <LoadingBar active={busy || templates.loading} />
     {(error || templates.error) && <ErrorBanner message={error || templates.error || ''} />}
-    {notice && <p className="signing-notice" role="status">{notice}</p>}
+
 
     <form className="signing-template-save" onSubmit={event => {
       event.preventDefault()
@@ -69,7 +70,7 @@ export function SigningTemplatesDialog({ fields, pageCount, onLoad, onClose }: {
         const saved = await createSigningTemplate({ name, fields, pageCount })
         setName('')
         setRevision(value => value + 1)
-        setNotice(`Saved ${plural(saved.fields.length, 'field')} as "${saved.name}".`)
+        toast.success(`Saved ${plural(saved.fields.length, 'field')} as "${saved.name}".`)
       })
     }}>
       <h3>Save current fields as a new template</h3>
@@ -100,7 +101,7 @@ export function SigningTemplatesDialog({ fields, pageCount, onLoad, onClose }: {
                 const saved = await renameSigningTemplate(template.id, newName)
                 setConfirm(null)
                 setRevision(value => value + 1)
-                setNotice(`Renamed "${template.name}" to "${saved.name}".`)
+                toast.success(`Renamed "${template.name}" to "${saved.name}".`)
               })
             }}>
               <input type="text" required maxLength={100} value={newName} aria-label={`New name for ${template.name}`} autoFocus
@@ -135,7 +136,7 @@ export function SigningTemplatesDialog({ fields, pageCount, onLoad, onClose }: {
               const saved = await updateSigningTemplate(template.id, { name: template.name, fields, pageCount })
               setConfirm(null)
               setRevision(value => value + 1)
-              setNotice(`Updated "${saved.name}" with ${plural(saved.fields.length, 'field')}.`)
+              toast.success(`Updated "${saved.name}" with ${plural(saved.fields.length, 'field')}.`)
             })}><Save size={14} />Update template</button>
             <button type="button" className="ghost" disabled={busy} onClick={() => setConfirm(null)}>Cancel</button>
           </div> : confirming === 'delete' ? <div className="row signing-template-confirm" role="group" aria-label={`Delete ${template.name}`}>
@@ -144,7 +145,7 @@ export function SigningTemplatesDialog({ fields, pageCount, onLoad, onClose }: {
               await deleteSigningTemplate(template.id)
               setConfirm(null)
               setRevision(value => value + 1)
-              setNotice(`Deleted "${template.name}".`)
+              toast.success(`Deleted "${template.name}".`)
             })}><Trash2 size={14} />Delete</button>
             <button type="button" className="ghost" disabled={busy} onClick={() => setConfirm(null)}>Cancel</button>
           </div> : confirming === 'rename' ? null : <div className="row signing-template-actions">

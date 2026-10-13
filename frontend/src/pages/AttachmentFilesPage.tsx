@@ -1,3 +1,4 @@
+import { useToast } from '../components/Toast'
 import { useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Download, Eye, FileText, HardDrive, MessageSquare, Paperclip, RefreshCw, RotateCw, SearchX, Trash2, X } from 'lucide-react'
@@ -45,6 +46,7 @@ const STATUS_CLASSES: Record<UploadIndexStatus, string> = {
 }
 
 export default function AttachmentFilesPage() {
+  const toast = useToast()
   const [tab, setTab] = useState<'files' | 'usage'>('files')
   const tabId = useId()
   const canReadSystemStorage = canReadAdministration(useAppUser())
@@ -123,7 +125,11 @@ export default function AttachmentFilesPage() {
     setActionError(null)
     try {
       const result = await reindexAttachmentFile(id)
-      if (result.status === 'Failed') setActionError(result.errorMessage ?? 'Indexing failed.')
+      if (result.status === 'Failed') {
+        setActionError(result.errorMessage ?? 'Indexing failed.')
+      } else {
+        toast.success('Attachment reindexed.')
+      }
       page.reload()
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : String(cause))
@@ -137,6 +143,7 @@ export default function AttachmentFilesPage() {
     setActionError(null)
     try {
       await deleteOrphanAttachmentFile(id)
+      toast.success('Attachment deleted.')
       storage.reload()
       setConfirmDelete(null)
       page.reload()

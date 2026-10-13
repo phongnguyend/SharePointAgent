@@ -1,3 +1,4 @@
+import { useToast } from '../components/Toast'
 import { useState, type ReactNode } from 'react'
 import {
   Ban,
@@ -49,7 +50,7 @@ export default function SubscriptionsPage() {
   const [dialogError, setDialogError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const toast = useToast()
 
   const data = overview.data
   const isCreating = editing === 'new'
@@ -91,10 +92,10 @@ export default function SubscriptionsPage() {
   const run = async (key: string, message: string, action: () => Promise<unknown>) => {
     setBusy(key)
     setActionError(null)
-    setNotice(null)
+
     try {
       await action()
-      setNotice(message)
+      toast.success(message)
       overview.reload()
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : String(cause))
@@ -110,11 +111,11 @@ export default function SubscriptionsPage() {
   const save = async () => {
     setBusy('save')
     setDialogError(null)
-    setNotice(null)
+
     try {
       if (target === null) {
         await createSubscription(subscriptionName, lifetimeDays, notificationUrl, clientStateInput)
-        setNotice('Subscription created.')
+        toast.success('Subscription created.')
       } else {
         const updateId = target.id ?? target.databaseId
         if (!updateId) {
@@ -127,7 +128,7 @@ export default function SubscriptionsPage() {
           notificationUrl,
           clientStateInput,
         )
-        setNotice(
+        toast.success(
           target.id === null
             ? `${result.subscription.name} Graph subscription created — its ID is ${result.subscription.id}.`
             : result.warning ??
@@ -171,12 +172,7 @@ export default function SubscriptionsPage() {
 
       {overview.error ? <ErrorBanner message={overview.error} onRetry={overview.reload} /> : null}
       {actionError ? <ErrorBanner message={actionError} /> : null}
-      {notice ? (
-        <div className="banner success" role="status">
-          <CircleCheck size={17} color="var(--good)" style={{ marginTop: 2 }} />
-          <div style={{ flex: 1 }}>{notice}</div>
-        </div>
-      ) : null}
+
 
       {data && data.items.length > 0 ? (
         <div className="stack">

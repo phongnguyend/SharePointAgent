@@ -89,7 +89,7 @@ import {
   formatScore,
   formatTokenUsage,
 } from '../lib/format'
-import { copyText } from '../lib/clipboard'
+import { useCopy } from '../lib/useCopy'
 import { useAsync } from '../lib/useAsync'
 
 /** Match the API's caps, so a box stops where the request would be rejected. */
@@ -97,6 +97,7 @@ const WORKSPACE_NAME_LIMIT = 200
 const WORKSPACE_RULES_LIMIT = 8000
 
 export default function ChatPage() {
+  const copyText = useCopy()
   const readOnly = !canManageOwnContent(useAppUser())
   const conversations = useAsync((signal) => listConversations(signal), [])
   const workspaces = useAsync((signal) => listWorkspaces(signal), [])
@@ -1743,6 +1744,7 @@ function MessageTraceAction({ traceId }: { traceId?: string | null }) {
 }
 
 function MessageCopyButton({ content, label }: { content: string; label: string }) {
+  const copyText = useCopy()
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {

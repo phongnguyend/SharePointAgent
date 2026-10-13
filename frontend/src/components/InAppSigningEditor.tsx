@@ -1,3 +1,4 @@
+import { useToast } from './Toast'
 import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { CalendarDays, CheckCheck, Eye, Hand, LayoutTemplate, PenLine, Save, Signature, TextCursorInput, Trash2, Type, X } from 'lucide-react'
 import { Document, Page } from 'react-pdf'
@@ -94,7 +95,7 @@ export default function InAppSigningEditor({ attachmentId, requestId, name, onCl
   const [activePage, setActivePage] = useState(1)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const toast = useToast()
   const [confirmClose, setConfirmClose] = useState(false)
   const [preview, setPreview] = useState<{ key: number; pdf: Blob } | null>(null)
   const [showTemplates, setShowTemplates] = useState(false)
@@ -161,7 +162,7 @@ export default function InAppSigningEditor({ attachmentId, requestId, name, onCl
     pending.current = true
     setBusy(true)
     setError(null)
-    setNotice(null)
+
     try {
       await action()
     } catch (cause) {
@@ -217,7 +218,7 @@ export default function InAppSigningEditor({ attachmentId, requestId, name, onCl
     setMode('place')
     setShowTemplates(false)
     setError(null)
-    setNotice(`Loaded ${loaded.length} field${loaded.length === 1 ? '' : 's'} from "${template.name}"`
+    toast.info(`Loaded ${loaded.length} field${loaded.length === 1 ? '' : 's'} from "${template.name}"`
       + (skipped ? `; ${skipped} on pages beyond this document's ${pageSizes.length} were skipped` : '')
       + '. Review their positions, then choose Save fields.')
   }
@@ -250,7 +251,7 @@ export default function InAppSigningEditor({ attachmentId, requestId, name, onCl
     setPreview(current => ({ key: (current?.key ?? 0) + 1, pdf: new Blob([pdf as BlobPart], { type: 'application/pdf' }) }))
     const empty = values.filter(x => !x.value?.trim()).length
     if (empty) {
-      setNotice(`The preview leaves out ${empty} empty field${empty === 1 ? '' : 's'}. Complete ${empty === 1 ? 'it' : 'them'} before finishing.`)
+      toast.info(`The preview leaves out ${empty} empty field${empty === 1 ? '' : 's'}. Complete ${empty === 1 ? 'it' : 'them'} before finishing.`)
     }
   })
 
@@ -394,7 +395,7 @@ export default function InAppSigningEditor({ attachmentId, requestId, name, onCl
         </div>}
         {editable && <button disabled={busy || !dirty} onClick={() => void run(async () => {
           await save()
-          setNotice(mode === 'place' ? 'Fields saved. Choose Sign to fill them in.' : 'Progress saved.')
+          toast.info(mode === 'place' ? 'Fields saved. Choose Sign to fill them in.' : 'Progress saved.')
         })}><Save size={14} />{mode === 'place' ? 'Save fields' : 'Save'}</button>}
         {editable && <button disabled={busy || !original} onClick={showPreview}
           title="See the signed PDF before finishing. Nothing is saved."><Eye size={14} />Preview</button>}
@@ -403,7 +404,7 @@ export default function InAppSigningEditor({ attachmentId, requestId, name, onCl
       </div>}>
       <LoadingBar active={busy || loading} />
       {error && <ErrorBanner message={error} />}
-      {notice && <p className="signing-notice" role="status">{notice}</p>}
+
       {status && !editable && <p className="signing-notice" role="status">This request has been finished. Preview or download the signed PDF from the signing requests list.</p>}
       <div className="in-app-signing-layout">
         {showPalette && <aside className="signing-palette" aria-label="Fields">

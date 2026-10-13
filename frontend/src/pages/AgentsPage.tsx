@@ -1,5 +1,6 @@
+import { useToast } from '../components/Toast'
 import { useState } from 'react'
-import { Bot, Check, CircleCheck, Cloud, Eye, Pencil, Plus, RefreshCw, RotateCcw, Server, X, Wrench, BookOpen, FileText } from 'lucide-react'
+import { Bot, Check, Cloud, Eye, Pencil, Plus, RefreshCw, RotateCcw, Server, X, Wrench, BookOpen, FileText } from 'lucide-react'
 import {
   createAgent,
   getDefaultAgentInstructions,
@@ -25,7 +26,7 @@ export default function AgentsPage() {
   const [instructions, setInstructions] = useState('')
   const [busy, setBusy] = useState(false)
   const [dialogError, setDialogError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const toast = useToast()
   const editingDefault =
     editing !== null && editing !== 'new' && editing.name.toLowerCase() === 'default'
 
@@ -56,14 +57,14 @@ export default function AgentsPage() {
 
     setBusy(true)
     setDialogError(null)
-    setNotice(null)
+
     try {
       if (editing === 'new') {
         await createAgent(trimmedName, trimmedModelId, trimmedInstructions)
-        setNotice('Agent created.')
+        toast.success('Agent created.')
       } else if (editing) {
         await updateAgent(editing.id, trimmedName, trimmedModelId, trimmedInstructions)
-        setNotice('Agent updated.')
+        toast.success('Agent updated.')
       }
       setEditing(null)
       agents.reload()
@@ -127,12 +128,7 @@ export default function AgentsPage() {
           </div>
         </section>
       ) : null}
-      {notice ? (
-        <div className="banner success" role="status">
-          <CircleCheck size={17} color="var(--good)" />
-          <div>{notice}</div>
-        </div>
-      ) : null}
+
 
       {agents.data && agents.data.length > 0 ? (
         <div className="agent-grid">

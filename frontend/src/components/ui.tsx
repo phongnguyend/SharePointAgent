@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { copyText } from '../lib/clipboard'
+import { useCopy } from '../lib/useCopy'
 import {
   Check,
   ChevronLeft,
@@ -131,6 +131,7 @@ export function Field({
 }
 
 export function CopyButton({ value, label = 'Copy' }: { value: string; label?: string }) {
+  const copyText = useCopy()
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {

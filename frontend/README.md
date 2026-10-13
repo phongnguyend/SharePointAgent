@@ -26,7 +26,22 @@ The app styles every dialog; native dialog behavior supplies keyboard focus trap
 Escape handling, and focus restoration. Browser `alert`, `confirm`, and `prompt` are
 not used. Existing confirmations and file previews use the same modal component.
 
+## Toast notifications
+
+`ToastProvider` is mounted once around the application. Use `useToast()` from
+`components/Toast` for `success`, `info`, `warning`, and `error` feedback. Toasts are
+dismissible, deduplicated, and limited to five visible messages. Normal messages
+expire after six seconds; errors remain until dismissed. Timers pause on hover,
+keyboard focus, or a hidden browser tab. `{ duration: 0 }` keeps any message visible.
+The viewport follows the active modal so notifications remain usable while a dialog
+is open, and live regions announce messages without moving focus. Styling supports
+light/dark themes, small screens, and reduced motion.
+
+Use `useCopy()` from `lib/useCopy` for clipboard actions. Keep form errors and
+persistent page state inline; transient operation feedback uses toasts.
+
 ## Pages
+
 
 
 **Admin → Playgrounds** is a Global Admin-only tab with **Jev** and **Microsoft Decision** sub-tabs

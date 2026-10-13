@@ -1,3 +1,4 @@
+import { useToast } from '../components/Toast'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Eye, List, Pencil, RotateCcw, Save, ShieldCheck, Trash2 } from 'lucide-react'
 import { deleteSitePermission, getSitePermissionDefaults, listSitePermissions, saveSitePermission, type SitePermissionInput, type SitePermissionResult, type SitePermissionListing } from '../api/client'
@@ -18,7 +19,7 @@ export default function SitePermissionsPage() {
   const [deleting, setDeleting] = useState<(SitePermissionListing['permissions'][number] & { siteUrl: string; tenantId: string; privilegedClientId: string }) | null>(null)
   const [deleteSecret, setDeleteSecret] = useState('')
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [deletedMessage, setDeletedMessage] = useState<string | null>(null)
+  const toast = useToast()
 
   useEffect(() => {
     const controller = new AbortController()
@@ -64,7 +65,7 @@ export default function SitePermissionsPage() {
       await deleteSitePermission(request)
       setListing(current => current && current.siteUrl === selected.siteUrl && current.tenantId === selected.tenantId
         ? { ...current, permissions: current.permissions.filter(grant => grant.permissionId !== selected.permissionId) } : current)
-      setDeletedMessage(`Deleted permission for ${selected.displayName || selected.clientId} on ${selected.siteUrl}.`)
+      toast.success(`Deleted permission for ${selected.displayName || selected.clientId} on ${selected.siteUrl}.`)
       setDeleting(null)
     } catch (cause) {
       setDeleteError(cause instanceof Error ? cause.message : 'Could not delete permission. Refresh the list before retrying.')
@@ -82,7 +83,7 @@ export default function SitePermissionsPage() {
     setError(null)
     setResult(null)
     setListing(null)
-    setDeletedMessage(null)
+
     const request = { tenantId: input.tenantId, clientId: input.clientId, clientSecret: input.clientSecret, siteUrl: input.siteUrl }
     setInput(current => ({ ...current, clientSecret: '' }))
     try {
@@ -104,11 +105,12 @@ export default function SitePermissionsPage() {
     setError(null)
     setResult(null)
     setListing(null)
-    setDeletedMessage(null)
+
     const request = { ...input }
     setInput(current => ({ ...current, clientSecret: '' }))
     try {
       setResult(await saveSitePermission(request))
+      toast.success('Site permission saved.')
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not configure site permissions.')
     } finally {
@@ -190,7 +192,7 @@ export default function SitePermissionsPage() {
             setError(null)
             setResult(null)
             setListing(null)
-            setDeletedMessage(null)
+
           }}><RotateCcw size={15} aria-hidden="true" />Clear form</button>
         </div>
       </form>
@@ -209,14 +211,14 @@ export default function SitePermissionsPage() {
                 onClick={() => {
                   setDeleteSecret('')
                   setDeleteError(null)
-                  setDeletedMessage(null)
+
                   setDeleting({ ...grant, siteUrl: listing.siteUrl, tenantId: listing.tenantId, privilegedClientId: input.clientId })
                 }}><Trash2 size={15} aria-hidden="true" /></button></td>
             </tr>)}</tbody>
           </table>
         </div>}
       </section>}
-      {deletedMessage && <p role="status">{deletedMessage}</p>}
+
       {deleting && <Modal open title="Delete site permission" icon={<Trash2 size={16} />} onClose={closeDelete}
         footer={<>
           <button type="button" disabled={busy} onClick={closeDelete}>Cancel</button>

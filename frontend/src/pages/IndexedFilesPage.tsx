@@ -1,8 +1,9 @@
+import { useToast } from '../components/Toast'
 import { useState, type CSSProperties } from 'react'
 import {
   ArrowDown,
   ArrowUp,
-  CircleCheck,
+
   ExternalLink,
   Eye,
   FileText,
@@ -60,7 +61,7 @@ export default function IndexedFilesPage() {
   const [markdownFile, setMarkdownFile] = useState<IndexedFileRow | null>(null)
   const [reindexingKey, setReindexingKey] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const toast = useToast()
 
   const debouncedSearch = useDebounced(search)
   const debouncedDriveId = useDebounced(driveId)
@@ -96,13 +97,13 @@ export default function IndexedFilesPage() {
     if (reindexingKey !== null) return
     setReindexingKey(`${file.driveId}:${file.itemId}`)
     setActionError(null)
-    setNotice(null)
+
     try {
       const updated = await reindexIndexedFile(file)
       setSelected((current) =>
         current?.driveId === updated.driveId && current.itemId === updated.itemId ? updated : current,
       )
-      setNotice(`${updated.name} was reindexed.`)
+      toast.success(`${updated.name} was reindexed.`)
       page.reload()
       labels.reload()
     } catch (cause) {
@@ -169,7 +170,7 @@ export default function IndexedFilesPage() {
       {page.error ? <ErrorBanner message={page.error} onRetry={page.reload} /> : null}
       {labels.error ? <ErrorBanner message={labels.error} onRetry={labels.reload} /> : null}
       {actionError ? <ErrorBanner message={actionError} /> : null}
-      {notice ? <div className="banner success" role="status"><CircleCheck size={17} color="var(--good)" />{notice}</div> : null}
+
 
       {/* The detail panel only claims its column once a row is selected, so the table has the whole
           width while it is being scanned. */}

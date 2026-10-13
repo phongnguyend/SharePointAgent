@@ -1,3 +1,4 @@
+import { useCopy } from '../lib/useCopy'
 import { useEffect, useRef, useState } from 'react'
 import { Copy, ExternalLink, Eye, EyeOff, FilePenLine, RefreshCw, Trash2 } from 'lucide-react'
 import { beginAdobeAuthorization, exchangeAdobeAuthorization, getAdobeAuthorizationConfiguration, type AdobeAuthorizationTokens } from '../api/client'
@@ -10,7 +11,7 @@ export default function DocumentSigningConfigurationPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [revealed, setRevealed] = useState(false)
-  const [copied, setCopied] = useState<string | null>(null)
+  const copyText = useCopy()
   const attempt = useRef<{ popup: Window; state: string; deadline: number } | null>(null)
   const controller = useRef<AbortController | null>(null)
   const mounted = useRef(true)
@@ -100,7 +101,6 @@ export default function DocumentSigningConfigurationPage() {
     setError(null)
     setTokens(null)
     setRevealed(false)
-    setCopied(null)
     if (!ready) {
       setError('OAuthRedirectUri must point to adobe-sign-callback.html on this frontend origin.')
       return
@@ -129,12 +129,7 @@ export default function DocumentSigningConfigurationPage() {
   }
 
   const copy = async (label: string, value: string) => {
-    try {
-      await navigator.clipboard.writeText(value)
-      setCopied(label)
-    } catch {
-      setError('Clipboard access failed. Reveal the values and copy them manually.')
-    }
+    await copyText(value, label)
   }
 
   return <div className="signing-admin">
@@ -201,7 +196,6 @@ export default function DocumentSigningConfigurationPage() {
         <button onClick={() => setRevealed(value => !value)}>{revealed ? <EyeOff size={14} /> : <Eye size={14} />}{revealed ? 'Hide secrets' : 'Reveal secrets'}</button>
         <button onClick={() => {
           setTokens(null)
-          setCopied(null)
           setRevealed(false)
         }}><Trash2 size={14} />Clear tokens</button>
       </div>
@@ -240,6 +234,5 @@ export default function DocumentSigningConfigurationPage() {
       <p className="signing-admin-note">Leaving this tab clears tokens and credentials. Copied values remain on your clipboard.</p>
       </div>
     </section>}
-    {copied && <p className="signing-copy-notice" role="status">Copied {copied}.</p>}
   </div>
 }

@@ -1,3 +1,4 @@
+import { useToast } from '../components/Toast'
 import { useState } from 'react'
 import {
   CircleCheck,
@@ -21,7 +22,7 @@ export default function DeltaStatePage() {
   const [confirmation, setConfirmation] = useState<{ kind: 'reset' | 'delete'; row: DeltaStateRow } | null>(null)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const toast = useToast()
 
   const confirmAction = async () => {
     if (!confirmation || busy) return
@@ -30,7 +31,7 @@ export default function DeltaStatePage() {
     try {
       if (confirmation.kind === 'reset') await resetDeltaState(confirmation.row.driveId)
       else await deleteDeltaState(confirmation.row.driveId)
-      setNotice(confirmation.kind === 'reset' ? 'Delta state reset. The next sync will scan the full drive.' : 'Delta state record deleted.')
+      toast.success(confirmation.kind === 'reset' ? 'Delta state reset. The next sync will scan the full drive.' : 'Delta state record deleted.')
       setConfirmation(null)
       rows.reload()
     } catch (cause) {
@@ -42,7 +43,7 @@ export default function DeltaStatePage() {
 
   const askToConfirm = (kind: 'reset' | 'delete', row: DeltaStateRow) => {
     setActionError(null)
-    setNotice(null)
+
     setConfirmation({ kind, row })
   }
 
@@ -65,7 +66,7 @@ export default function DeltaStatePage() {
       <LoadingBar active={rows.loading} />
 
       {rows.error ? <ErrorBanner message={rows.error} onRetry={rows.reload} /> : null}
-      {notice ? <div className="banner success" role="status"><CircleCheck size={17} color="var(--good)" />{notice}</div> : null}
+
 
       {rows.data && rows.data.length > 0 ? (
         <div className="stack">

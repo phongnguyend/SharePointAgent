@@ -1,3 +1,4 @@
+import { useToast } from '../components/Toast'
 import { useRef, useState, type DragEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Copy, ExternalLink, File, Folder, FolderPlus, Move, Pencil, RefreshCw, Trash2, Upload, X } from 'lucide-react'
@@ -55,7 +56,7 @@ function FolderView({ folderId, navigate }: { folderId: string; navigate: (id: s
   const [busy, setBusy] = useState(false)
   const busyRef = useRef(false)
   const [uploadStatus, setUploadStatus] = useState('')
-  const [notice, setNotice] = useState('')
+  const toast = useToast()
   const [error, setError] = useState('')
   const [dragging, setDragging] = useState(false)
   const input = useRef<HTMLInputElement>(null)
@@ -69,7 +70,7 @@ function FolderView({ folderId, navigate }: { folderId: string; navigate: (id: s
     busyRef.current = true
     setBusy(true)
     setError('')
-    setNotice('')
+
     let succeeded = 0
     const failures: string[] = []
     try {
@@ -86,7 +87,11 @@ function FolderView({ folderId, navigate }: { folderId: string; navigate: (id: s
           failures.push(`${file.name}: ${message(cause)}`)
         }
       }
-      setNotice(`${succeeded} of ${files.length} files uploaded.`)
+      if (failures.length) {
+        toast.warning(`${succeeded} of ${files.length} files uploaded. Review the errors below.`)
+      } else {
+        toast.success(`${succeeded} of ${files.length} files uploaded.`)
+      }
       setError(failures.join('\n'))
     } finally {
       setUploadStatus('')
@@ -116,7 +121,7 @@ function FolderView({ folderId, navigate }: { folderId: string; navigate: (id: s
       <button disabled={busy || listing.loading} onClick={listing.reload}><RefreshCw size={15} />Refresh</button>
     </div>
     {error && <ErrorBanner message={error} />}
-    {notice && <div className="browse-notice" role="status">{notice}</div>}
+
     {listing.error && <ErrorBanner message={listing.error} onRetry={listing.reload} />}
     {listing.error && <button onClick={() => navigate('root')}>Back to Documents</button>}
     <section className={`panel browse-panel${dragging ? ' browse-dragging' : ''}`}
@@ -176,7 +181,7 @@ function FolderView({ folderId, navigate }: { folderId: string; navigate: (id: s
       close={() => setAction(null)} completed={(text) => {
         setAction(null)
         setError('')
-        setNotice(text)
+        toast.success(text)
         listing.reload()
       }} />}
   </div>

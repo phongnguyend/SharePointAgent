@@ -1,3 +1,4 @@
+import { useToast } from './Toast'
 import { useEffect, useId, useRef, useState, type DragEvent } from 'react'
 import { Copy, FolderPlus, MoreHorizontal, Move, Pencil, Trash2, Upload, X, Folder, ArrowUp, ChevronRight } from 'lucide-react'
 import { listConversationFiles, manageWorkspaceFile, uploadWorkspaceFile, type WorkspaceFileOperation } from '../api/client'
@@ -21,7 +22,7 @@ export function useWorkspaceFileManagement(conversationId: string, path: string,
   const [busy, setBusy] = useState(false)
   const busyRef = useRef(false)
   const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
+  const toast = useToast()
   const [progress, setProgress] = useState('')
   const [dialogError, setDialogError] = useState('')
   const input = useRef<HTMLInputElement>(null)
@@ -76,7 +77,7 @@ export function useWorkspaceFileManagement(conversationId: string, path: string,
       const source = action.operation === 'mkdir' ? join(path, value) : action.entry!.path
       const destination = action.operation === 'rename' ? join(parent(source), value) : join(destinationFolder ?? '.', value)
       await manageWorkspaceFile(conversationId, action.operation, source, destination)
-      setNotice(`${labels[action.operation]} completed.`)
+      toast.success(`${labels[action.operation]} completed.`)
       setError('')
       setAction(null)
       reload()
@@ -95,7 +96,7 @@ export function useWorkspaceFileManagement(conversationId: string, path: string,
     busyRef.current = true
     setBusy(true)
     setError('')
-    setNotice('')
+
     const failures: string[] = []
     let succeeded = 0
     try {
@@ -108,7 +109,11 @@ export function useWorkspaceFileManagement(conversationId: string, path: string,
           failures.push(`${file.name}: ${errorText(cause)}`)
         }
       }
-      setNotice(`${succeeded} of ${files.length} files uploaded.`)
+      if (failures.length) {
+        toast.warning(`${succeeded} of ${files.length} files uploaded. Review the errors below.`)
+      } else {
+        toast.success(`${succeeded} of ${files.length} files uploaded.`)
+      }
       setError(failures.join('\n'))
     } finally {
       setProgress('')
@@ -170,7 +175,7 @@ export function useWorkspaceFileManagement(conversationId: string, path: string,
         }} />
       </div>}
       {error && <ErrorBanner message={error} />}
-      {(progress || notice) && <p className="hint" role="status">{progress || notice}</p>}
+      {progress && <p className="hint" role="status">{progress}</p>}
     </>,
     actions: (entry: FileSystemEntry) => enabled ? <WorkspaceFileActionMenu entry={entry} disabled={busy} onSelect={operation => open(operation, entry)} /> : null,
     dialog: <Modal open={!!action} title={action ? labels[action.operation] : 'Manage file'} icon={<Icon size={17} />}

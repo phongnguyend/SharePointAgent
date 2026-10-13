@@ -1,3 +1,4 @@
+import { useToast } from '../components/Toast'
 import { useState } from 'react'
 import { Users, UserPlus, Pencil, RefreshCw, ShieldCheck, Save, X, LoaderCircle, HardDrive, Cpu } from 'lucide-react'
 import { listUsers, saveUser, saveUserStorage, saveUserTokenLimit } from '../api/client'
@@ -30,7 +31,7 @@ export default function UsersPage() {
   const [tokenLimit, setTokenLimit] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const toast = useToast()
   const edit = (user: AppUser | null) => {
     setEditing(user)
     setForm(user ? { email: user.email, displayName: user.displayName, roles: [...user.roles], isActive: user.isActive, concurrencyStamp: user.concurrencyStamp } : { ...blank, roles: [...blank.roles] })
@@ -43,7 +44,7 @@ export default function UsersPage() {
     try {
       const saved = await saveUser(editing?.id ?? null, form)
       setOpen(false)
-      setNotice(`${saved.displayName} ${editing ? 'updated' : 'created'}.`)
+      toast.success(`${saved.displayName} ${editing ? 'updated' : 'created'}.`)
       page.reload()
       if (saved.id === me.id) window.dispatchEvent(new Event('app-profile-refresh'))
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
@@ -66,7 +67,7 @@ export default function UsersPage() {
         attachmentStorageLimitBytes: limit,
       })
       setStorageUser(null)
-      setNotice(`Storage limit updated for ${saved.displayName}.`)
+      toast.success(`Storage limit updated for ${saved.displayName}.`)
       page.reload()
       if (saved.id === me.id) window.dispatchEvent(new Event('app-profile-refresh'))
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
@@ -82,7 +83,7 @@ export default function UsersPage() {
       if (millions !== null && (!Number.isSafeInteger(millions) || millions < 0 || !Number.isSafeInteger(limit))) throw new Error('Enter a non-negative whole number of millions of tokens.')
       const saved = await saveUserTokenLimit(tokenUser.id, { monthlyTokenLimit: limit, concurrencyStamp: tokenUser.concurrencyStamp })
       setTokenUser(null)
-      setNotice(`Monthly token limit updated for ${saved.displayName}.`)
+      toast.success(`Monthly token limit updated for ${saved.displayName}.`)
       page.reload()
       if (saved.id === me.id) window.dispatchEvent(new Event('app-profile-refresh'))
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
@@ -95,7 +96,7 @@ export default function UsersPage() {
         {canManage && <button onClick={() => edit(null)}><UserPlus size={14} />Create user</button>}</div>
     </div>
     {!canManage && <p className="banner">You have read-only access to user management.</p>}
-    {notice && <p role="status">{notice}</p>}
+
     <div className="card card-body"><Field label="Search users"><input type="search" value={search} placeholder="Name or email" onChange={e => { setSearch(e.target.value); setSkip(0) }} /></Field></div>
     <LoadingBar active={page.loading} />
     {page.error && <ErrorBanner message={page.error} onRetry={page.reload} />}
