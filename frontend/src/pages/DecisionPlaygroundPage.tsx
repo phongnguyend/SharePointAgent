@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { FlaskConical, Play, RotateCcw, Square } from 'lucide-react'
 import { evaluateDecision, type DecisionEvaluation, type DecisionProvider } from '../api/decisionClient'
-import { ErrorBanner } from '../components/ui'
+import { CopyButton, ErrorBanner } from '../components/ui'
+import { JsonCode, JsonEditor } from '../components/JsonCode'
 
 const sample = JSON.stringify({
   state: 'Checkout is unavailable for all customers. This is the third report today.',
@@ -52,39 +53,41 @@ export default function DecisionPlaygroundPage({ provider }: { provider: Decisio
     }
   }
 
-  return <section className="card">
-    <div className="card-head"><h2><FlaskConical size={18} />{name} playground</h2></div>
+  return <section className="card decision-playground">
+    <div className="card-head decision-toolbar">
+      <h2><FlaskConical size={18} />{name} playground</h2>
+      <div className="row">
+        <button type="button" className="primary" disabled={running || !input.trim()} onClick={() => void run()}><Play size={15} />{running ? 'Evaluating…' : 'Run evaluation'}</button>
+        {running && <button type="button" onClick={() => { controller.current?.abort(); setError('Request cancelled. The provider may already have processed it.') }}><Square size={15} />Cancel</button>}
+        <button type="button" disabled={running} onClick={() => { setInput(sample); setResult(null); setError('') }}><RotateCcw size={15} />Reset example</button>
+      </div>
+    </div>
     <div className="card-body stack">
-      <p>Test choice, score, and yes/no (noul) questions using the server-configured model. Each run sends the input to {name} and may incur token charges.</p>
+      <p className="decision-description">Test choice, score, or yes/no (noul) with {name}. Runs may incur charges; usage is recorded under your user in SystemOne Usage.</p>
       <div className="decision-playground-grid">
-        <div className="stack">
-          <label htmlFor={`decision-input-${provider}`}>Request JSON</label>
-          <textarea id={`decision-input-${provider}`} className="decision-json" value={input} maxLength={100000}
-            spellCheck={false} disabled={running} onChange={event => { setInput(event.target.value); setResult(null) }} />
-          <div className="row">
-            <button type="button" className="primary" disabled={running || !input.trim()} onClick={() => void run()}><Play size={15} />{running ? 'Evaluating…' : 'Run evaluation'}</button>
-            {running && <button type="button" onClick={() => { controller.current?.abort(); setError('Request cancelled. The provider may already have processed it.') }}><Square size={15} />Cancel</button>}
-            <button type="button" disabled={running} onClick={() => { setInput(sample); setResult(null); setError('') }}><RotateCcw size={15} />Reset example</button>
-          </div>
-          <small>Usage is recorded under your user in the SystemOne usage report.</small>
+        <div className="decision-panel">
+          <div className="decision-panel-heading"><label htmlFor={`decision-input-${provider}`}>Request JSON</label><CopyButton value={input} /></div>
+          <JsonEditor id={`decision-input-${provider}`} value={input} disabled={running}
+            onChange={value => { setInput(value); setResult(null) }} />
         </div>
-        <div className="stack" aria-live="polite" aria-busy={running}>
-          <h3>Result</h3>
-          {error && <ErrorBanner message={error} />}
-          {!result && !error && <p>{running ? 'Waiting for the model…' : 'Run an evaluation to view decisions and token usage.'}</p>}
-          {result && <>
-            <dl className="detail-grid">
-              <dt>Model</dt><dd>{result.result.model}</dd>
-              <dt>Input tokens</dt><dd>{result.result.usage.input_tokens.toLocaleString()}</dd>
-              <dt>Output tokens</dt><dd>{result.result.usage.output_tokens.toLocaleString()}</dd>
-              <dt>Total tokens</dt><dd>{(result.result.usage.input_tokens + result.result.usage.output_tokens).toLocaleString()}</dd>
-              <dt>Duration</dt><dd>{result.elapsedMs.toLocaleString()} ms</dd>
-              <dt>Trace ID</dt><dd>{result.traceId ?? 'Unavailable'}</dd>
-            </dl>
-            <pre className="decision-json decision-result">{JSON.stringify(result.result.answers, null, 2)}</pre>
-          </>}
+        <div className="decision-panel" aria-busy={running}>
+          <div className="decision-panel-heading"><h3>Response JSON</h3>{result ? <CopyButton value={JSON.stringify(result.result.answers, null, 2)} /> : <span className="muted">{running ? 'Running' : 'Ready'}</span>}</div>
+          {result ? <JsonCode value={JSON.stringify(result.result.answers, null, 2)} /> : <div className="decision-response-empty" role="status">
+            {error ? <ErrorBanner message={error} /> : <p>{running ? 'Waiting for the model…' : 'Run an evaluation to see the response here.'}</p>}
+          </div>}
         </div>
       </div>
+      {result && <section className="decision-summary" aria-label="Evaluation summary">
+        <h3>Evaluation summary</h3>
+        <dl>
+          <div><dt>Model</dt><dd>{result.result.model}</dd></div>
+          <div><dt>Input tokens</dt><dd>{result.result.usage.input_tokens.toLocaleString()}</dd></div>
+          <div><dt>Output tokens</dt><dd>{result.result.usage.output_tokens.toLocaleString()}</dd></div>
+          <div><dt>Total tokens</dt><dd>{(result.result.usage.input_tokens + result.result.usage.output_tokens).toLocaleString()}</dd></div>
+          <div><dt>Duration</dt><dd>{result.elapsedMs.toLocaleString()} ms</dd></div>
+          <div className="decision-trace"><dt>Trace ID</dt><dd>{result.traceId ?? 'Unavailable'}{result.traceId && <CopyButton value={result.traceId} />}</dd></div>
+        </dl>
+      </section>}
     </div>
   </section>
 }
