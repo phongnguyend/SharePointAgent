@@ -216,18 +216,18 @@ export function SignatureRequests({ id, name, readOnly, onClose }: {
       if (!busy) {
         setDeleteId(null)
       }
-    }}>
-      {requests.data?.find(row => row.id === deleteId)?.provider === IN_APP
-        ? <p>Discard this in-app signing draft? Its placed fields and any drawn signatures are deleted. The original PDF is not changed.</p>
-        : <p>Delete this NeedsReview record? This removes the local record only. It does not cancel or delete an agreement in DocuSign or Adobe. Check the provider account before creating a replacement.</p>}
-      <div className="row signature-list-toolbar">
+    }} footer={<div className="row signature-list-toolbar">
         <button disabled={busy} onClick={() => setDeleteId(null)}>Cancel</button>
         <button className="danger" disabled={busy} onClick={() => void run(async () => {
           await deleteSignatureRequest(id, deleteId)
           setDeleteId(null)
           clientRequestId.current = crypto.randomUUID()
         })}><Trash2 size={14} />Delete record</button>
-      </div>
+      </div>}>
+      {requests.data?.find(row => row.id === deleteId)?.provider === IN_APP
+        ? <p>Discard this in-app signing draft? Its placed fields and any drawn signatures are deleted. The original PDF is not changed.</p>
+        : <p>Delete this NeedsReview record? This removes the local record only. It does not cancel or delete an agreement in DocuSign or Adobe. Check the provider account before creating a replacement.</p>}
+
       {error && <ErrorBanner message={error} />}
     </Modal>}
     {editorId && <Suspense fallback={null}>

@@ -2927,7 +2927,16 @@ button.workspace-files-row:hover, button.workspace-files-row:focus-visible { bac
   align-items: center;
   gap: 8px;
   font-size: 15px;
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
+
+.modal-header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
+.modal-head, .modal-foot { flex-shrink: 0; }
+.modal-foot { flex-wrap: wrap; }
+.modal-preview-body { display: flex; flex-direction: column; flex: 1; padding: 0; overflow: hidden; }
+.office-dialog .modal-head h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 
 .modal-head h2 .lucide {
   color: var(--accent);

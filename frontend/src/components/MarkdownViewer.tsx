@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { Download, X } from 'lucide-react'
 import DOMPurify from 'dompurify'
-import { ErrorBanner, MaximizeButton, useViewerMaximized } from './ui'
+import { ErrorBanner, Modal, MaximizeButton, useViewerMaximized } from './ui'
 
 type View = 'plain' | 'rendered'
 
@@ -24,19 +24,11 @@ export function MarkdownViewer({
   const [error, setError] = useState<string | null>(null)
   const [renderError, setRenderError] = useState<string | null>(null)
   const [view, setView] = useState<View>('plain')
-  const dialogRef = useRef<HTMLDialogElement>(null)
-  const closeRef = useRef<HTMLButtonElement>(null)
   const [maximized, toggleMaximized] = useViewerMaximized()
   const plainRef = useRef<HTMLButtonElement>(null)
   const renderedRef = useRef<HTMLButtonElement>(null)
   const tabId = useId()
 
-  useEffect(() => {
-    const dialog = dialogRef.current
-    dialog?.showModal()
-    closeRef.current?.focus()
-    return () => dialog?.close()
-  }, [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -99,20 +91,12 @@ export function MarkdownViewer({
   }
 
   return (
-    <dialog
-      ref={dialogRef}
-      className={maximized ? 'office-dialog markdown-dialog is-maximized' : 'office-dialog markdown-dialog'}
-      aria-label={`${title} for ${name}`}
-      onCancel={(event) => { event.preventDefault(); onClose() }}
-    >
-      <div className="office-toolbar">
-        <strong title={name}>{title}: {name}</strong>
-        <div className="row">
+    <Modal open title={`${title}: ${name}`} className={maximized ? 'office-dialog markdown-dialog is-maximized' : 'office-dialog markdown-dialog'} bodyClassName="modal-preview-body" onClose={onClose}
+      headerActions={<div className="row">
           {downloadUrl ? <a className="button-link" href={downloadUrl} download={downloadName}><Download size={14} />Download</a> : null}
           <MaximizeButton maximized={maximized} onToggle={toggleMaximized} />
-          <button className="ghost" ref={closeRef} onClick={onClose}><X size={15} />Close</button>
-        </div>
-      </div>
+          <button className="ghost" autoFocus onClick={onClose}><X size={15} />Close</button>
+        </div>}>
       <div className="markdown-preview-tabs" role="tablist" aria-label="Markdown view">
         <button
           ref={plainRef}
@@ -154,6 +138,6 @@ export function MarkdownViewer({
         {markdown && view === 'rendered' && renderedHtml === null && !renderError ? <div className="office-message" role="status">Rendering Markdown…</div> : null}
         {markdown && view === 'rendered' && renderedHtml !== null ? <div className="markdown markdown-preview-rendered" dangerouslySetInnerHTML={{ __html: renderedHtml }} /> : null}
       </div>
-    </dialog>
+    </Modal>
   )
 }

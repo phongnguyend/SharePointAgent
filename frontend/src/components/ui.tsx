@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { copyText } from '../lib/clipboard'
 import {
   Check,
@@ -11,73 +11,9 @@ import {
   Minimize2,
   RefreshCw,
   TriangleAlert,
-  X,
 } from 'lucide-react'
 
-/**
- * A modal built on the native <dialog>, so Escape, the focus trap, and the inert backdrop come from
- * the platform rather than being reimplemented. Outside clicks leave the modal open.
- */
-export function Modal({
-  open,
-  title,
-  icon,
-  className,
-  onClose,
-  children,
-  footer,
-  headerActions,
-}: {
-  open: boolean
-  title: string
-  icon?: ReactNode
-  className?: string
-  onClose: () => void
-  children: ReactNode
-  footer?: ReactNode
-  headerActions?: ReactNode
-}) {
-  const ref = useRef<HTMLDialogElement>(null)
-
-  useEffect(() => {
-    const dialog = ref.current
-    if (!dialog) return
-
-    if (open && !dialog.open) {
-      dialog.showModal()
-    } else if (!open && dialog.open) {
-      dialog.close()
-    }
-  }, [open])
-
-  return (
-    <dialog
-      ref={ref}
-      className={className ? `modal ${className}` : 'modal'}
-      onCancel={(event) => {
-        // File-picker cancellation bubbles from the input; only the dialog's own
-        // cancel event (Escape) should close this modal.
-        if (event.target !== event.currentTarget) {
-          return
-        }
-        event.preventDefault()
-        onClose()
-      }}
-    >
-      <div className="modal-head">
-        <h2>
-          {icon}
-          {title}
-        </h2>
-        {headerActions ?? <button className="ghost icon-only" onClick={onClose} aria-label="Close">
-          <X size={15} />
-        </button>}
-      </div>
-      <div className="modal-body">{children}</div>
-      {footer ? <div className="modal-foot">{footer}</div> : null}
-    </dialog>
-  )
-}
+export { Modal } from './Modal'
 
 const PREVIEW_MAXIMIZED_KEY = 'preview-maximized'
 

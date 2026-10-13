@@ -180,7 +180,17 @@ export function SignaturePad({ title, previous, emptyCount, onApply, onClose }: 
     }
   }
 
-  return <Modal open title={title} className="signature-pad-modal" onClose={onClose}>
+  return <Modal open title={title} className="signature-pad-modal" onClose={onClose} footer={<div className="row signature-pad-actions">
+      <button type="button" onClick={clear} disabled={empty && !imported && !importing}><Eraser size={14} />Clear</button>
+      {previous && <button type="button" disabled={importing} onClick={() => onApply(previous, false)}><History size={14} />Use previous</button>}
+      <span className="signature-pad-spacer" />
+      <button type="button" className="ghost" onClick={onClose}>Cancel</button>
+      {emptyCount > 0 && <button type="button" disabled={!canApply} onClick={() => apply(true)}
+        title={`Also apply to ${emptyCount} other unsigned field${emptyCount === 1 ? '' : 's'}`}>
+        <CopyCheck size={14} />Apply to all ({emptyCount + 1})
+      </button>}
+      <button type="button" className="primary" disabled={!canApply} onClick={() => apply(false)}><Check size={14} />Apply</button>
+    </div>}>
     <div className={`signature-pad-input${dragging ? ' is-dragging' : ''}`}
       onPaste={event => {
         const files = Array.from(event.clipboardData.files)
@@ -264,17 +274,7 @@ export function SignaturePad({ title, previous, emptyCount, onApply, onClose }: 
       }} />
     <div className="signature-pad-baseline" aria-hidden="true" />
     </div>
-    <div className="row signature-pad-actions">
-      <button type="button" onClick={clear} disabled={empty && !imported && !importing}><Eraser size={14} />Clear</button>
-      {previous && <button type="button" disabled={importing} onClick={() => onApply(previous, false)}><History size={14} />Use previous</button>}
-      <span className="signature-pad-spacer" />
-      <button type="button" className="ghost" onClick={onClose}>Cancel</button>
-      {emptyCount > 0 && <button type="button" disabled={!canApply} onClick={() => apply(true)}
-        title={`Also apply to ${emptyCount} other unsigned field${emptyCount === 1 ? '' : 's'}`}>
-        <CopyCheck size={14} />Apply to all ({emptyCount + 1})
-      </button>}
-      <button type="button" className="primary" disabled={!canApply} onClick={() => apply(false)}><Check size={14} />Apply</button>
-    </div>
+
     </div>
   </Modal>
 }

@@ -484,16 +484,16 @@ export default function InAppSigningEditor({ attachmentId, requestId, name, onCl
       onLoad={loadTemplate} onClose={() => setShowTemplates(false)} />}
     {preview && <PdfViewer key={preview.key} name={`preview-${name}`} sourceKey={String(preview.key)}
       load={async () => preview.pdf} onClose={() => setPreview(null)} />}
-    {confirmClose && <Modal open title="Unsaved changes" onClose={() => setConfirmClose(false)}>
-      <p>You have changes that are not saved. Save them before closing?</p>
-      <div className="row signature-list-toolbar">
+    {confirmClose && <Modal open title="Unsaved changes" onClose={() => setConfirmClose(false)} footer={<div className="row signature-list-toolbar">
         <button disabled={busy} onClick={() => setConfirmClose(false)}>Keep editing</button>
         <button className="danger" disabled={busy} onClick={onClose}><Trash2 size={14} />Discard changes</button>
         <button className="primary" disabled={busy} onClick={() => void run(async () => {
           await save()
           onClose()
         })}><Save size={14} />Save and close</button>
-      </div>
+      </div>}>
+      <p>You have changes that are not saved. Save them before closing?</p>
+
       {error && <ErrorBanner message={error} />}
     </Modal>}
   </>

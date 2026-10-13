@@ -15,7 +15,19 @@ Import from the feature client when adding code. `client.ts` re-exports the exis
 API so current imports continue to work. Feature clients should import shared helpers from
 `http.ts`, not through `client.ts`.
 
+## Dialog components
+
+All application popups use `src/components/Modal.tsx`, also re-exported from `components/ui`.
+The component renders shared Header, Body, and Footer sections. Pass `title`, `open`,
+and `onClose`; children fill the body, `footer` supplies action buttons, and
+`headerActions` supplies preview controls. A Close footer is provided by default;
+`footer={null}` explicitly hides it. `bodyClassName` supports specialized preview layouts.
+The app styles every dialog; native dialog behavior supplies keyboard focus trapping,
+Escape handling, and focus restoration. Browser `alert`, `confirm`, and `prompt` are
+not used. Existing confirmations and file previews use the same modal component.
+
 ## Pages
+
 
 **Admin → Playgrounds** is a Global Admin-only tab with **Jev** and **Microsoft Decision** sub-tabs
 (`/admin?tab=playgrounds&provider=jev` and `/admin?tab=playgrounds&provider=microsoft-decision`).

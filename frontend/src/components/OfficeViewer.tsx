@@ -3,7 +3,7 @@ import type { RefObject } from 'react'
 import type { Workbook } from 'exceljs'
 import type { PptxViewer } from '@aiden0z/pptx-renderer'
 import { ChevronLeft, ChevronRight, Download, X } from 'lucide-react'
-import { ErrorBanner, MaximizeButton, useViewerMaximized } from './ui'
+import { ErrorBanner, Modal, MaximizeButton, useViewerMaximized } from './ui'
 import { normalizePptxXml } from '../lib/normalizePptx'
 import { cellDisplayText, cellStyle, columnWidthPx, fontStyle, rowHeightPx, themeColors, visibleMerges } from '../lib/excelPreview'
 import type { NumberFormatter } from '../lib/excelPreview'
@@ -28,17 +28,9 @@ export function OfficeViewer({
   const [blob, setBlob] = useState<Blob | null>(null)
   const [url, setUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const dialogRef = useRef<HTMLDialogElement>(null)
-  const closeRef = useRef<HTMLButtonElement>(null)
   const [maximized, toggleMaximized] = useViewerMaximized()
   const kind = officeKind(name)
 
-  useEffect(() => {
-    const dialog = dialogRef.current
-    dialog?.showModal()
-    closeRef.current?.focus()
-    return () => dialog?.close()
-  }, [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -66,28 +58,20 @@ export function OfficeViewer({
   }, [blob])
 
   return (
-      <dialog
-        ref={dialogRef}
-        className={`office-dialog office-dialog--${kind}${maximized ? ' is-maximized' : ''}`}
-        aria-label={`Preview ${name}`}
-        onCancel={(event) => { event.preventDefault(); onClose() }}
-      >
-        <div className="office-toolbar">
-          <strong title={name}>{name}</strong>
-          <div className="row">
+      <Modal open title={`Preview ${name}`} className={`office-dialog office-dialog--${kind}${maximized ? ' is-maximized' : ''}`} bodyClassName="modal-preview-body" onClose={onClose}
+      headerActions={<div className="row">
             {url ? <a className="button-link" href={url} download={name}><Download size={14} />Download</a> : null}
             <MaximizeButton maximized={maximized} onToggle={toggleMaximized} />
-            <button className="ghost" ref={closeRef} onClick={onClose}><X size={15} />Close</button>
-          </div>
-        </div>
-        <div className="office-content">
+            <button className="ghost" autoFocus onClick={onClose}><X size={15} />Close</button>
+          </div>}>
+      <div className="office-content">
           {error ? <ErrorBanner message={error} /> : null}
           {!blob && !error ? <div className="office-message">Downloading file…</div> : null}
           {blob && kind === 'docx' ? <WordViewer blob={blob} /> : null}
           {blob && kind === 'xlsx' ? <ExcelViewer blob={blob} /> : null}
           {blob && kind === 'pptx' ? <PowerPointViewer blob={blob} /> : null}
         </div>
-      </dialog>
+      </Modal>
   )
 }
 
