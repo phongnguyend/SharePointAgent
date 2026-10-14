@@ -96,7 +96,7 @@ public sealed class ChatAgentService(
         try
         {
             return await RunStreamingCoreAsync(
-            context.Conversation.Id, context.Agent.Id, context.History, context.Question, context.Conversation.UserId,
+            context.Conversation.Id, context.Agent, context.History, context.Question, context.Conversation.UserId,
             context.Agent.ModelId, context.Instructions, request.StartedAtUtc ?? DateTimeOffset.UtcNow,
             onText, onStatus, cancellationToken, workspace, context.Workspace);
         }
@@ -125,7 +125,7 @@ public sealed class ChatAgentService(
 
     private async Task<ChatTurn> RunStreamingCoreAsync(
         Guid conversationId,
-        Guid agentId,
+        AgentDefinition definition,
         IReadOnlyList<ChatMessageRecord> history,
         ChatMessageRecord question,
         string? userId,
@@ -240,9 +240,13 @@ public sealed class ChatAgentService(
             tools.ToArray(), workspace, workspaceOptions.Value.ScriptTimeoutSeconds,
             (childModel, usage, token) => RecordRequestUsageAsync(conversationId, question.Id, childModel, startedAt,
                 usage with { Sequence = Interlocked.Increment(ref requestSequence) }, token), ReportStatusAsync, logger);
+        if (definition.Tools is not null)
+        {
+            tools = SubAgentTools.SelectTools(tools, definition.Tools).ToList();
+        }
         await using (var db = await contextFactory.CreateDbContextAsync(cancellationToken))
         {
-            var children = await db.SubAgentDefinitions.AsNoTracking().Where(x => x.ParentAgentId == agentId)
+            var children = await db.SubAgentDefinitions.AsNoTracking().Where(x => x.ParentAgentId == definition.Id)
                 .OrderBy(x => x.Name).ToArrayAsync(cancellationToken);
             foreach (var child in children)
             {
@@ -252,10 +256,14 @@ public sealed class ChatAgentService(
             }
         }
 
+        using var skills = definition.Skills is null
+            ? ChatAgentSkills.CreateProvider(workspace, workspaceOptions.Value.ScriptTimeoutSeconds)
+            : definition.Skills.Length == 0 ? null
+            : ChatAgentSkills.CreateSelectedProvider(definition.Skills, workspace, workspaceOptions.Value.ScriptTimeoutSeconds);
         var agent = chatClient.AsAIAgent(new ChatClientAgentOptions
         {
             Name = "SharePointSearchAgent",
-            AIContextProviders = [ChatAgentSkills.CreateProvider(workspace, workspaceOptions.Value.ScriptTimeoutSeconds)],
+            AIContextProviders = skills is null ? [] : [skills],
             ChatOptions = new ChatOptions
             {
                 ModelId = modelId,

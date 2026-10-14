@@ -69,12 +69,16 @@ public interface IAgentRepository
         string name,
         string modelId,
         string instructions,
+        string[]? tools,
+        string[]? skills,
         CancellationToken cancellationToken);
     Task<AgentDefinition?> UpdateAsync(
         Guid id,
         string name,
         string modelId,
         string instructions,
+        string[]? tools,
+        string[]? skills,
         CancellationToken cancellationToken);
 }
 

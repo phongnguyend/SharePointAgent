@@ -20,7 +20,7 @@ public sealed class AgentRepository(
             .AsNoTracking()
             .OrderBy(a => a.Name)
             .Select(a => new AgentDefinition(
-                a.Id, a.Name, a.ModelId ?? _defaultModelId, a.Instructions, a.CreatedAtUtc, a.UpdatedAtUtc))
+                a.Id, a.Name, a.ModelId ?? _defaultModelId, a.Instructions, a.CreatedAtUtc, a.UpdatedAtUtc, a.Tools, a.Skills))
             .ToListAsync(cancellationToken);
     }
 
@@ -31,7 +31,7 @@ public sealed class AgentRepository(
             .AsNoTracking()
             .Where(a => a.Id == id)
             .Select(a => new AgentDefinition(
-                a.Id, a.Name, a.ModelId ?? _defaultModelId, a.Instructions, a.CreatedAtUtc, a.UpdatedAtUtc))
+                a.Id, a.Name, a.ModelId ?? _defaultModelId, a.Instructions, a.CreatedAtUtc, a.UpdatedAtUtc, a.Tools, a.Skills))
             .FirstOrDefaultAsync(cancellationToken);
     }
 
@@ -42,7 +42,7 @@ public sealed class AgentRepository(
             .AsNoTracking()
             .Where(a => a.Name == name)
             .Select(a => new AgentDefinition(
-                a.Id, a.Name, a.ModelId ?? _defaultModelId, a.Instructions, a.CreatedAtUtc, a.UpdatedAtUtc))
+                a.Id, a.Name, a.ModelId ?? _defaultModelId, a.Instructions, a.CreatedAtUtc, a.UpdatedAtUtc, a.Tools, a.Skills))
             .FirstOrDefaultAsync(cancellationToken);
     }
 
@@ -50,6 +50,8 @@ public sealed class AgentRepository(
         string name,
         string modelId,
         string instructions,
+        string[]? tools,
+        string[]? skills,
         CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
@@ -58,6 +60,8 @@ public sealed class AgentRepository(
             Name = name,
             ModelId = modelId,
             Instructions = instructions,
+            Tools = tools?.Distinct(StringComparer.Ordinal).ToArray(),
+            Skills = skills?.Distinct(StringComparer.Ordinal).ToArray(),
             CreatedAtUtc = now,
             UpdatedAtUtc = now,
         };
@@ -87,6 +91,8 @@ public sealed class AgentRepository(
         string name,
         string modelId,
         string instructions,
+        string[]? tools,
+        string[]? skills,
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -110,6 +116,8 @@ public sealed class AgentRepository(
         entity.Name = name;
         entity.ModelId = modelId;
         entity.Instructions = instructions;
+        entity.Tools = tools?.Distinct(StringComparer.Ordinal).ToArray();
+        entity.Skills = skills?.Distinct(StringComparer.Ordinal).ToArray();
         entity.UpdatedAtUtc = DateTimeOffset.UtcNow;
         try
         {
@@ -129,7 +137,9 @@ public sealed class AgentRepository(
         entity.ModelId ?? _defaultModelId,
         entity.Instructions,
         entity.CreatedAtUtc,
-        entity.UpdatedAtUtc);
+        entity.UpdatedAtUtc,
+        entity.Tools,
+        entity.Skills);
 
     private static bool IsUniqueNameViolation(DbUpdateException exception) =>
         exception.InnerException is SqlException { Number: 2601 or 2627 };

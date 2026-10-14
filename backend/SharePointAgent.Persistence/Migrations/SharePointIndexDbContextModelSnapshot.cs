@@ -200,6 +200,12 @@ namespace SharePointAgent.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.PrimitiveCollection<string>("Skills")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.PrimitiveCollection<string>("Tools")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTimeOffset>("UpdatedAtUtc")
                         .HasPrecision(7)
                         .HasColumnType("datetimeoffset(7)");

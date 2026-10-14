@@ -63,7 +63,8 @@ public static class AgentsEndpoints
             var instructions = string.IsNullOrWhiteSpace(body?.Instructions)
                 ? AgentDefaults.Instructions
                 : body.Instructions.Trim();
-            var error = ValidateAgentDefinition(name, modelId, instructions);
+            var error = ValidateAgentDefinition(name, modelId, instructions)
+                ?? await ValidateCapabilitiesAsync(body?.Tools, body?.Skills, cancellationToken);
             if (error is not null)
             {
                 return Results.BadRequest(new { error });
@@ -71,7 +72,7 @@ public static class AgentsEndpoints
 
             try
             {
-                var created = await store.CreateAsync(name, modelId, instructions, cancellationToken);
+                var created = await store.CreateAsync(name, modelId, instructions, body?.Tools, body?.Skills, cancellationToken);
                 return Results.Created($"/api/agents/{created.Id}", created);
             }
             catch (AgentNameConflictException ex)
@@ -89,7 +90,8 @@ public static class AgentsEndpoints
             var name = body?.Name?.Trim() ?? "";
             var modelId = body?.ModelId?.Trim() ?? "";
             var instructions = body?.Instructions?.Trim() ?? "";
-            var error = ValidateAgentDefinition(name, modelId, instructions);
+            var error = ValidateAgentDefinition(name, modelId, instructions)
+                ?? await ValidateCapabilitiesAsync(body?.Tools, body?.Skills, cancellationToken);
             if (error is not null)
             {
                 return Results.BadRequest(new { error });
@@ -97,7 +99,7 @@ public static class AgentsEndpoints
 
             try
             {
-                var updated = await store.UpdateAsync(id, name, modelId, instructions, cancellationToken);
+                var updated = await store.UpdateAsync(id, name, modelId, instructions, body?.Tools, body?.Skills, cancellationToken);
                 return updated is null ? Results.NotFound() : Results.Ok(updated);
             }
             catch (AgentNameConflictException ex)
@@ -109,6 +111,28 @@ public static class AgentsEndpoints
                 return Results.BadRequest(new { error = ex.Message });
             }
         });
+    }
+
+    internal static async Task<string?> ValidateCapabilitiesAsync(string[]? tools, string[]? skills, CancellationToken cancellationToken)
+    {
+        if (tools is { Length: > 100 } || skills is { Length: > 100 } ||
+            tools?.Any(string.IsNullOrWhiteSpace) == true || skills?.Any(string.IsNullOrWhiteSpace) == true)
+        {
+            return "Tools and skills must contain at most 100 non-empty catalog names.";
+        }
+        if (tools is not null && tools.Except(ChatAgentService.GetTools(true, true, true).Select(x => x.Name), StringComparer.Ordinal).Any())
+        {
+            return "Select tools from the available catalog.";
+        }
+        if (skills is { Length: > 0 })
+        {
+            var catalog = await ChatAgentSkills.GetCatalogAsync(cancellationToken);
+            if (skills.Except(catalog.Select(x => x.Name), StringComparer.Ordinal).Any())
+            {
+                return "Select skills from the available catalog.";
+            }
+        }
+        return null;
     }
 
     private static string? ValidateAgentDefinition(string name, string modelId, string instructions)

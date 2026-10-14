@@ -113,6 +113,8 @@ export interface AgentDefinition {
   name: string
   modelId: string
   instructions: string
+  tools: string[] | null
+  skills: string[] | null
   createdAtUtc: string
   updatedAtUtc: string
 }

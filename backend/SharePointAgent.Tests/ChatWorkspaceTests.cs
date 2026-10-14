@@ -283,7 +283,7 @@ public sealed class ChatWorkspaceTests : IAsyncLifetime
         var workspaces = new ChatWorkspaceRepository(_factory);
         var chats = new ChatRepository(_factory);
         var agents = new AgentRepository(_factory, Options.Create(new OpenAiOptions { ChatDeployment = "model" }));
-        await agents.CreateAsync(AgentDefaults.Name, "model", "Agent instructions.", default);
+        await agents.CreateAsync(AgentDefaults.Name, "model", "Agent instructions.", null, null, default);
         var agent = await agents.GetByNameAsync(AgentDefaults.Name, default);
 
         var workspace = await workspaces.CreateAsync("Quarterly report", "Answer in British English.", default);

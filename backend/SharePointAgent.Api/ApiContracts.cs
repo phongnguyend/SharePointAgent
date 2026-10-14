@@ -46,7 +46,7 @@ public sealed record ChatWorkspaceRequest(string? Name, string? Instructions = n
 
 public sealed record ChatTurnRequest(string? Content, IReadOnlyList<Guid>? AttachmentFileIds);
 
-public sealed record AgentDefinitionRequest(string? Name, string? ModelId, string? Instructions);
+public sealed record AgentDefinitionRequest(string? Name, string? ModelId, string? Instructions, string[]? Tools = null, string[]? Skills = null);
 
 /// <summary>One newline-delimited event sent while a chat turn is running.</summary>
 public sealed record ChatStreamEvent(

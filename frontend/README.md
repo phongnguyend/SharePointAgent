@@ -42,8 +42,21 @@ persistent page state inline; transient operation feedback uses toasts.
 
 ## Pages
 
-**Agents → View → Sub-agents** manages specialists in a tab of the agent details dialog. Global Admins can
-create, edit, and delete them; Global Reader Admins can inspect them. Each specialist has
+**Agents → New/Edit** provides General, Tools, and Skills tabs with selection counts
+and Select all / Unselect all actions. Selections are saved together and take effect
+on the next chat turn. Empty lists disable that capability category. Existing agents
+retain all available tools/skills (including future additions) until their selection
+is changed; explicit selections include only saved names. The View dialog displays
+the assigned capabilities. Sub-agents retain their own independent selections and
+remain available as delegation tools to their parent.
+
+Apply the `AddAgentCapabilities` migration before deploying the updated API and AgentHost.
+Nullable Tools/Skills columns preserve existing agents' behavior; empty JSON arrays mean none.
+
+**Agents → Edit → Sub-agents** lets Global Admins create, edit, and delete specialists.
+**Agents → View → Sub-agents** is read-only for everyone, with only a View action for each specialist.
+Create the parent agent first before adding sub-agents. Sub-agent changes are saved
+immediately; cancelling the parent editor does not undo them. Each specialist has
 a name, invocation description, model deployment ID, instructions, and explicit tool/skill
 selections. Empty selections give it no tools or skills. Selected skills include their
 deployed scripts and resources; optional tools still require the corresponding service
@@ -70,8 +83,8 @@ and AgentHost. It adds a separate table with a parent foreign key and unique nam
 parent; existing top-level agents are unchanged.
 
 The shared `http_get` tool fetches unauthenticated public HTTP/HTTPS URLs on standard
-ports, including query parameters. Top-level agents receive it automatically; select
-it in a sub-agent's Tools tab to enable it there. It returns status, content type, up to
+ports, including query parameters. Select it in an agent's Tools tab to enable it
+(existing agents using all capabilities include it automatically). It returns status, content type, up to
 64 KiB of UTF-8 text/JSON/XML, and a truncation flag, with a 30-second deadline.
 Redirects are not followed, binary responses are not returned, and private/local/cloud
 metadata destinations are blocked at connection time. No application credentials,

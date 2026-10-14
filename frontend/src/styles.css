@@ -4015,4 +4015,13 @@ button.signing-field-remove {
 .sub-agent-option input { flex: 0 0 auto; margin-top: 3px; }
 .sub-agent-option span { min-width: 0; overflow-wrap: anywhere; }
 .sub-agent-option small { display: block; margin-top: 4px; color: var(--text-secondary); line-height: 1.5; }
+.modal.agent-capabilities-modal { height: min(720px, calc(100dvh - 40px)); }
+.agent-editor-modal > .modal-body.agent-capabilities-body { display: flex; overflow: hidden; min-height: 0; }
+.agent-capabilities-body > .agent-capabilities-layout { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.agent-capabilities-layout > :not(.agent-capability-panel) { flex-shrink: 0; }
+.agent-capabilities-body .agent-capability-panel:not([hidden]),
+.agent-capabilities-body .agent-capability-selector { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.agent-capability-selector > :not(.sub-agent-options):not(.agent-capability-list) { flex-shrink: 0; }
+.agent-capabilities-body .sub-agent-options,
+.agent-capabilities-body .agent-capability-list { flex: 1; min-height: 0; max-height: none; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 @media (max-width: 640px) { .sub-agent-fields { grid-template-columns: 1fr; } }

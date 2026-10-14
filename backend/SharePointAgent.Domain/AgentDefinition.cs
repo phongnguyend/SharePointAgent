@@ -7,7 +7,9 @@ public sealed record AgentDefinition(
     string ModelId,
     string Instructions,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset UpdatedAtUtc);
+    DateTimeOffset UpdatedAtUtc,
+    string[]? Tools = null,
+    string[]? Skills = null);
 
 public static class AgentDefaults
 {

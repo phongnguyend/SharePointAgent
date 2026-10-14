@@ -60,11 +60,13 @@ export function createAgent(
   name: string,
   modelId: string,
   instructions?: string,
+  tools: string[] | null = null,
+  skills: string[] | null = null,
 ): Promise<AgentDefinition> {
   return request<AgentDefinition>('/api/agents', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, modelId, instructions: instructions?.trim() || null }),
+    body: JSON.stringify({ name, modelId, instructions: instructions?.trim() || null, tools, skills }),
   })
 }
 
@@ -73,10 +75,12 @@ export function updateAgent(
   name: string,
   modelId: string,
   instructions: string,
+  tools: string[] | null = null,
+  skills: string[] | null = null,
 ): Promise<AgentDefinition> {
   return request<AgentDefinition>(`/api/agents/${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, modelId, instructions }),
+    body: JSON.stringify({ name, modelId, instructions, tools, skills }),
   })
 }

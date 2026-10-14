@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Bot, Check, Pencil, Plus, Trash2, Wrench, BookOpen } from 'lucide-react'
+import { Bot, Check, Eye, Pencil, Plus, Trash2, Wrench, BookOpen } from 'lucide-react'
 import { deleteSubAgent, getAgentCapabilities, listSubAgents, saveSubAgent } from '../api/agentClient'
 import type { SubAgentDefinition, SubAgentInput } from '../api/agentClient'
 import type { AgentDefinition } from '../api/types'
@@ -119,9 +119,9 @@ export default function SubAgentManager({ parent, readOnly, active, footerTarget
             onChange={event => setForm({ ...form, instructions: event.target.value })} /></Field>
           </fieldset>
           </div>
-            {(['tools', 'skills'] as const).map(kind => <div role="tabpanel" key={kind}
+            {(['tools', 'skills'] as const).map(kind => <div className="agent-capability-panel" role="tabpanel" key={kind}
               id={`${tabId}-${kind}-panel`} aria-labelledby={`${tabId}-${kind}`} hidden={tab !== kind}>
-              <fieldset className="sub-agent-form stack" disabled={readOnly || busy} aria-label={kind === 'tools' ? 'Tool selection' : 'Skill selection'}>
+              <fieldset className="sub-agent-form stack agent-capability-selector" disabled={readOnly || busy} aria-label={kind === 'tools' ? 'Tool selection' : 'Skill selection'}>
               <div className="sub-agent-selection-toolbar">
                 <span className="hint">{form[kind].length} selected · {catalog.data?.[kind].length ?? 0} available</span>
                 {!readOnly ? <div className="row">
@@ -157,13 +157,14 @@ export default function SubAgentManager({ parent, readOnly, active, footerTarget
           {items.data?.length === 0 ? <Empty title="No sub-agents" detail="Add a specialist with its own instructions and selected capabilities." /> : null}
           {items.data?.map(item => <article className="card" key={item.id}>
             <div className="card-head"><h2><Bot size={16} />{item.name}</h2><div className="row">
-              <button onClick={() => edit(item)}><Pencil size={14} />{readOnly ? 'View' : 'Edit'}</button>
+              <button onClick={() => edit(item)}>{readOnly ? <Eye size={14} /> : <Pencil size={14} />}{readOnly ? 'View' : 'Edit'}</button>
               {!readOnly ? <button className="danger" aria-label={`Delete ${item.name}`} title="Delete sub-agent" onClick={() => { setError(null); setRemoving(item) }}><Trash2 size={14} /></button> : null}
             </div></div>
             <div className="card-body stack"><p>{item.description}</p><div className="row"><span className="badge">{item.modelId}</span><span className="hint">{item.tools.length} tools · {item.skills.length} skills</span></div></div>
           </article>)}
       </div>
-    <Modal open={editing !== null} title={editing === 'new' ? 'New sub-agent' : `${readOnly ? 'View' : 'Edit'} sub-agent${editing ? `: ${editing.name}` : ''}`} icon={<Bot size={18} />} className="agent-editor-modal"
+    <Modal open={editing !== null} title={editing === 'new' ? 'New sub-agent' : `${readOnly ? 'View' : 'Edit'} sub-agent${editing ? `: ${editing.name}` : ''}`} icon={<Bot size={18} />} className={`agent-editor-modal${tab !== 'general' ? ' agent-capabilities-modal' : ''}`}
+      bodyClassName={tab !== 'general' ? 'agent-capabilities-body' : undefined}
       onClose={() => {
         if (!busy) {
           setEditing(null)
@@ -174,7 +175,7 @@ export default function SubAgentManager({ parent, readOnly, active, footerTarget
         {!readOnly ? <button className="primary" disabled={busy || catalog.loading || !!catalog.error || !form.name.trim() || !form.description.trim() || !form.modelId.trim() || !form.instructions.trim()}
           onClick={() => void save()}>{editing === 'new' ? <Plus size={14} /> : <Check size={14} />}{busy ? 'Saving...' : editing === 'new' ? 'Create sub-agent' : 'Save changes'}</button> : null}
       </>}>
-      <div className="stack">
+      <div className="stack agent-capabilities-layout">
         <p className="hint">Invoked only by {parent.name}. All tabs are saved together.</p>
         <LoadingBar active={catalog.loading} />
         {catalog.error ? <ErrorBanner message={catalog.error} onRetry={catalog.reload} /> : null}
