@@ -69,6 +69,14 @@ Apply the `AddSubAgentDefinitions` database migration before deploying the updat
 and AgentHost. It adds a separate table with a parent foreign key and unique names per
 parent; existing top-level agents are unchanged.
 
+The shared `http_get` tool fetches unauthenticated public HTTP/HTTPS URLs on standard
+ports, including query parameters. Top-level agents receive it automatically; select
+it in a sub-agent's Tools tab to enable it there. It returns status, content type, up to
+64 KiB of UTF-8 text/JSON/XML, and a truncation flag, with a 30-second deadline.
+Redirects are not followed, binary responses are not returned, and private/local/cloud
+metadata destinations are blocked at connection time. No application credentials,
+cookies, or custom headers are sent. Returned content is treated as untrusted data.
+
 
 
 **Admin → Playgrounds** is a Global Admin-only tab with **Jev** and **Microsoft Decision** sub-tabs

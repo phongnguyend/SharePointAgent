@@ -7,6 +7,8 @@ namespace SharePointAgent.Domain;
 /// </summary>
 public static class ChatAgentToolNames
 {
+    public const string HttpGet = "http_get";
+
     public const string SearchSharePointDocuments = "search_sharepoint_documents";
 
     public const string FindRelatedDocuments = "find_related_documents";

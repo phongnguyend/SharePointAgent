@@ -235,6 +235,9 @@ public static class DependencyInjection
             services.AddSingleton<AgentDocumentOutlines>();
         }
         services.AddSingleton<ChatAgentService>();
+        services.AddHttpClient(AgentHttpGet.ClientName, client => client.Timeout = Timeout.InfiniteTimeSpan)
+            .ConfigurePrimaryHttpMessageHandler(AgentHttpGet.CreateHandler);
+        services.AddSingleton<AgentHttpGet>();
         return services;
     }
 
