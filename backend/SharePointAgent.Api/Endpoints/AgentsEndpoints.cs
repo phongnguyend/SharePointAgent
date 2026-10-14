@@ -17,7 +17,9 @@ public static class AgentsEndpoints
             Results.Ok(new
             {
                 tools = ChatAgentService.GetTools(services.GetService<IAgentWorkspaceProvider>() is { } workspaces
-                    && workspaces.AvailableModes.Any(mode => mode != AgentWorkspaceMode.Local)),
+                    && workspaces.AvailableModes.Any(mode => mode != AgentWorkspaceMode.Local),
+                    services.GetService<AgentDocumentOutlines>() is not null,
+                    services.GetService<IGraphRetrievalService>() is { ReturnsResults: true }),
                 skills = await ChatAgentSkills.GetCatalogAsync(cancellationToken)
             }));
 

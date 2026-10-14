@@ -42,6 +42,33 @@ persistent page state inline; transient operation feedback uses toasts.
 
 ## Pages
 
+**Agents → View → Sub-agents** manages specialists in a tab of the agent details dialog. Global Admins can
+create, edit, and delete them; Global Reader Admins can inspect them. Each specialist has
+a name, invocation description, model deployment ID, instructions, and explicit tool/skill
+selections. Empty selections give it no tools or skills. Selected skills include their
+deployed scripts and resources; optional tools still require the corresponding service
+and workspace mode at execution time.
+
+The editor uses General, Tools, and Skills tabs that preserve edits when switching.
+Tools and Skills each provide Select all and Unselect all actions; Save sub-agent saves all tabs together.
+Creating, editing, and viewing sub-agents open a separate dialog with General, Tools,
+and Skills tabs. Create/Save and Cancel actions appear in that dialog's footer; read-only
+viewers see Close. Saving or cancelling returns to the parent agent's Sub-agents list.
+
+The parent sees each specialist as a callable tool and supplies its task and context.
+Sub-agents never appear in the chat agent selector, cannot be invoked through a public
+execution endpoint, and cannot call other agents. They share the parent's conversation
+workspace and tool authorization, including workspace instructions, but receive no chat
+history automatically. Retrieved citations and model token usage are included in the
+parent turn; individual requests retain the specialist model ID in Chat Usage and run
+under the same distributed trace. Each turn permits eight delegations, with a two-minute
+timeout per invocation. Changes apply on the next turn. Deploy the same skills to the
+API and AgentHost when using Foundry.
+
+Apply the `AddSubAgentDefinitions` database migration before deploying the updated API
+and AgentHost. It adds a separate table with a parent foreign key and unique names per
+parent; existing top-level agents are unchanged.
+
 
 
 **Admin → Playgrounds** is a Global Admin-only tab with **Jev** and **Microsoft Decision** sub-tabs

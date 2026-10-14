@@ -29,6 +29,8 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
     /// </summary>
     public const int WorkspaceInstructionsLength = 8000;
 
+    public DbSet<SubAgentDefinitionEntity> SubAgentDefinitions => Set<SubAgentDefinitionEntity>();
+
     public DbSet<AgentDefinitionEntity> AgentDefinitions => Set<AgentDefinitionEntity>();
 
     public DbSet<SignatureRequestEntity> SignatureRequests => Set<SignatureRequestEntity>();
@@ -197,6 +199,20 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
             .HasForeignKey(x => x.CreatedById).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<ChatMessageAttachmentFileEntity>().HasOne<ApplicationUser>().WithMany()
             .HasForeignKey(x => x.CreatedById).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<SubAgentDefinitionEntity>(entity =>
+        {
+            entity.ToTable("SubAgentDefinitions");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedOnAdd();
+            entity.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(1000).IsRequired();
+            entity.Property(x => x.ModelId).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Instructions).IsRequired();
+            entity.HasOne<AgentDefinitionEntity>().WithMany().HasForeignKey(x => x.ParentAgentId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(x => new { x.ParentAgentId, x.Name }).IsUnique();
+        });
+
         modelBuilder.Entity<AgentDefinitionEntity>(entity =>
         {
             entity.ToTable("AgentDefinitions");

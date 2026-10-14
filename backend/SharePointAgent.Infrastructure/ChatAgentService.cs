@@ -71,8 +71,11 @@ public sealed class ChatAgentService(
     /// The standing tools, plus <see cref="ChatAgentToolNames.ExecuteScript"/> when the caller says the agent's
     /// working directory is isolated, which is the only place that tool is offered.
     /// </summary>
-    public static IReadOnlyList<AgentCapability> GetTools(bool includeScriptExecution = false) => ToolDefinitions
+    public static IReadOnlyList<AgentCapability> GetTools(bool includeScriptExecution = false,
+        bool includeDocumentOutline = false, bool includeGraphRetrieval = false) => ToolDefinitions
         .Concat(includeScriptExecution ? [(nameof(AgentTools.ExecuteScriptAsync), ChatAgentToolNames.ExecuteScript)] : [])
+        .Concat(includeDocumentOutline ? [(nameof(AgentTools.GetDocumentOutlineAsync), ChatAgentToolNames.GetDocumentOutline)] : [])
+        .Concat(includeGraphRetrieval ? [(nameof(AgentTools.FindRelatedDocumentsAsync), ChatAgentToolNames.FindRelatedDocuments)] : [])
         .Select(tool => new AgentCapability(tool.Name,
             System.Reflection.CustomAttributeExtensions.GetCustomAttribute<DescriptionAttribute>(typeof(AgentTools).GetMethod(tool.Method)!)?.Description ?? ""))
         .OrderBy(tool => tool.Name, StringComparer.Ordinal)
@@ -91,9 +94,9 @@ public sealed class ChatAgentService(
         try
         {
             return await RunStreamingCoreAsync(
-            context.Conversation.Id, context.History, context.Question, context.Conversation.UserId,
+            context.Conversation.Id, context.Agent.Id, context.History, context.Question, context.Conversation.UserId,
             context.Agent.ModelId, context.Instructions, request.StartedAtUtc ?? DateTimeOffset.UtcNow,
-            onText, onStatus, cancellationToken, workspace);
+            onText, onStatus, cancellationToken, workspace, context.Workspace);
         }
         finally
         {
@@ -120,6 +123,7 @@ public sealed class ChatAgentService(
 
     private async Task<ChatTurn> RunStreamingCoreAsync(
         Guid conversationId,
+        Guid agentId,
         IReadOnlyList<ChatMessageRecord> history,
         ChatMessageRecord question,
         string? userId,
@@ -129,7 +133,8 @@ public sealed class ChatAgentService(
         Func<string, CancellationToken, ValueTask> onText,
         Func<string, CancellationToken, ValueTask> onStatus,
         CancellationToken cancellationToken,
-        IAgentWorkspace workspace)
+        IAgentWorkspace workspace,
+        ChatWorkspace? conversationWorkspace)
     {
         // The tools collect what they retrieved so the citations can be stored with the answer.
         string? lastStatus = null;
@@ -227,6 +232,24 @@ public sealed class ChatAgentService(
                 new AIFunctionFactoryOptions { Name = ChatAgentToolNames.FindRelatedDocuments }));
         }
 
+        // Snapshot the ordinary tools before adding delegation, so children cannot call siblings or parents.
+        var requestSequence = -1;
+        using var subAgents = new SubAgentTools(childModel => openAiClient.GetChatClient(childModel).AsIChatClient(),
+            tools.ToArray(), workspace, workspaceOptions.Value.ScriptTimeoutSeconds,
+            (childModel, usage, token) => RecordRequestUsageAsync(conversationId, question.Id, childModel, startedAt,
+                usage with { Sequence = Interlocked.Increment(ref requestSequence) }, token), ReportStatusAsync, logger);
+        await using (var db = await contextFactory.CreateDbContextAsync(cancellationToken))
+        {
+            var children = await db.SubAgentDefinitions.AsNoTracking().Where(x => x.ParentAgentId == agentId)
+                .OrderBy(x => x.Name).ToArrayAsync(cancellationToken);
+            foreach (var child in children)
+            {
+                child.Instructions = WorkspaceInstructions.Compose(child.Instructions,
+                    conversationWorkspace?.Name, conversationWorkspace?.Instructions);
+                tools.Add(subAgents.CreateTool(child));
+            }
+        }
+
         var agent = chatClient.AsAIAgent(new ChatClientAgentOptions
         {
             Name = "SharePointSearchAgent",
@@ -242,7 +265,8 @@ public sealed class ChatAgentService(
         // of the turn rather than the turn's total, and each row is written as that response completes.
         clientFactory: inner => new TrackedChatClient(
             inner,
-            (usage, token) => RecordRequestUsageAsync(conversationId, question.Id, modelId, startedAt, usage, token),
+            (usage, token) => RecordRequestUsageAsync(conversationId, question.Id, modelId, startedAt,
+                usage with { Sequence = Interlocked.Increment(ref requestSequence) }, token),
             logger))
             .AsBuilder()
             .UseOpenTelemetry(sourceName: Telemetry.SourceName)
@@ -349,7 +373,8 @@ public sealed class ChatAgentService(
         return new ChatTurn(
             text,
             turnTools.Citations,
-            new ChatTokenUsage(inputTokens, outputTokens, totalTokens, embeddingUsage.TotalTokens),
+            new ChatTokenUsage(inputTokens + subAgents.InputTokens, outputTokens + subAgents.OutputTokens,
+                totalTokens + subAgents.TotalTokens, embeddingUsage.TotalTokens),
             modelId);
     }
 

@@ -129,7 +129,8 @@ public sealed record ChatAgentContext(
     AgentDefinition Agent,
     IReadOnlyList<ChatMessageRecord> History,
     ChatMessageRecord Question,
-    string Instructions);
+    string Instructions,
+    ChatWorkspace? Workspace = null);
 
 /// <summary>Loads the same bounded, database-backed context for local and hosted execution.</summary>
 public sealed class ChatAgentContextLoader(
@@ -163,6 +164,6 @@ public sealed class ChatAgentContextLoader(
             ? await workspaces.GetAsync(workspaceId, cancellationToken)
             : null;
         var instructions = WorkspaceInstructions.Compose(agent.Instructions, workspace?.Name, workspace?.Instructions);
-        return new(conversation, agent, history, question, instructions);
+        return new(conversation, agent, history, question, instructions, workspace);
     }
 }

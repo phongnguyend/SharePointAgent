@@ -39,6 +39,17 @@ public static class ChatAgentSkills
             : new AgentSkillsProvider(DirectoryPath, RunScriptAsync);
     }
 
+    internal static AgentSkillsProvider CreateSelectedProvider(IReadOnlyCollection<string> names,
+        IAgentWorkspace workspace, int timeoutSeconds)
+    {
+        AgentFileSkillScriptRunner runner = workspace.IsIsolated
+            ? (skill, script, arguments, services, token) => RunInWorkspaceAsync(workspace, script.FullPath, arguments, timeoutSeconds, token)
+            : RunScriptAsync;
+        var source = new AgentFileSkillsSource(DirectoryPath, runner);
+        return new AgentSkillsProvider(new FilteringAgentSkillsSource(source,
+            (skill, _) => names.Contains(skill.Frontmatter.Name, StringComparer.Ordinal)), ownsSource: true);
+    }
+
     public static async Task<object?> RunInWorkspaceAsync(IAgentWorkspace workspace, string scriptPath,
         JsonElement? arguments, int timeoutSeconds, CancellationToken cancellationToken)
     {

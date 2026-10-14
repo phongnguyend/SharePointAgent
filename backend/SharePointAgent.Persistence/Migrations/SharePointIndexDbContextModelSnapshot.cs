@@ -1169,6 +1169,54 @@ namespace SharePointAgent.Persistence.Migrations
                     b.ToTable("SigningTemplates");
                 });
 
+            modelBuilder.Entity("SharePointAgent.Persistence.SubAgentDefinitionEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Instructions")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ModelId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("ParentAgentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.PrimitiveCollection<string>("Skills")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.PrimitiveCollection<string>("Tools")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParentAgentId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("SubAgentDefinitions", (string)null);
+                });
+
             modelBuilder.Entity("SharePointAgent.Persistence.SystemOneUsageEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1521,6 +1569,15 @@ namespace SharePointAgent.Persistence.Migrations
                     b.HasOne("SharePointAgent.Persistence.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("CreatedById")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SharePointAgent.Persistence.SubAgentDefinitionEntity", b =>
+                {
+                    b.HasOne("SharePointAgent.Persistence.AgentDefinitionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ParentAgentId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

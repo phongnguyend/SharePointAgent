@@ -72,6 +72,8 @@ app.MapSitePermissionEndpoints();
 app.MapSubscriptionsEndpoints();
 app.MapBrowseEndpoints();
 app.MapAgentsEndpoints();
+
+app.MapSubAgentEndpoints();
 app.MapChatWorkspacesEndpoints();
 app.MapChatEndpoints();
 app.MapChatTranscriptionEndpoints();

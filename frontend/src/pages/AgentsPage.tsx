@@ -12,6 +12,7 @@ import type { AgentDefinition } from '../api/types'
 import { CopyButton, Empty, ErrorBanner, Field, LoadingBar, Modal } from '../components/ui'
 import { formatDateTime, formatRelative } from '../lib/format'
 import { useAsync } from '../lib/useAsync'
+import SubAgentManager from '../components/SubAgentManager'
 
 type EditorTarget = AgentDefinition | 'new' | null
 
@@ -83,7 +84,7 @@ export default function AgentsPage() {
             <Bot size={20} />
             Agents
           </h1>
-          <p>Create and manage reusable agent instructions and models.</p>
+          <p>Manage agent instructions, models, and specialist sub-agents.</p>
         </div>
         <div className="row" style={{ gap: 8 }}>
           <button onClick={() => {
@@ -172,23 +173,7 @@ export default function AgentsPage() {
         </div>
       ) : null}
 
-      <Modal
-        open={viewing !== null}
-        title={viewing?.name ?? 'Agent instructions'}
-        icon={<Eye size={17} />}
-        className="agent-view-modal"
-        onClose={() => setViewing(null)}
-        footer={
-          <button onClick={() => setViewing(null)}>
-            <X size={14} />
-            Close
-          </button>
-        }
-      >
-        {viewing ? (
-          <AgentDetails key={viewing.id} agent={viewing} />
-        ) : null}
-      </Modal>
+      {viewing ? <AgentDetails key={viewing.id} agent={viewing} readOnly={readOnly} onClose={() => setViewing(null)} /> : null}
 
       <Modal
         open={editing !== null}
@@ -298,11 +283,24 @@ export default function AgentsPage() {
 }
 import { useAppUser, canManageAdministration } from '../components/AppUserContext'
 
-function AgentDetails({ agent }: { agent: AgentDefinition }) {
-  const [tab, setTab] = useState<'instructions' | 'tools' | 'skills'>('instructions')
+function AgentDetails({ agent, readOnly, onClose }: { agent: AgentDefinition; readOnly: boolean; onClose: () => void }) {
+  const [tab, setTab] = useState<'instructions' | 'tools' | 'skills' | 'sub-agents'>('instructions')
+  const [footerTarget, setFooterTarget] = useState<HTMLDivElement | null>(null)
+  const [subAgentBusy, setSubAgentBusy] = useState(false)
+  const [subAgentCount, setSubAgentCount] = useState<number | null>(null)
   const catalog = useAsync(getAgentCapabilities, [])
-  const tabs = ['instructions', 'tools', 'skills'] as const
-  return <div className="stack" style={{ gap: 12 }}>
+  const tabs = ['instructions', 'tools', 'skills', 'sub-agents'] as const
+  const close = () => {
+    if (!subAgentBusy) {
+      onClose()
+    }
+  }
+  return <Modal open title={agent.name} icon={<Eye size={17} />} className="agent-editor-modal" onClose={close}
+    footer={<>
+      <div ref={setFooterTarget} className="agent-details-actions" />
+      <button disabled={subAgentBusy} onClick={close}><X size={14} />Close</button>
+    </>}>
+    <div className="stack" style={{ gap: 12 }}>
     <span className="badge agent-model-id" title="Model ID">{agent.modelId}</span>
     <div className="row" role="tablist" aria-label="Agent details">
       {tabs.map((name, index) => <button
@@ -310,7 +308,7 @@ function AgentDetails({ agent }: { agent: AgentDefinition }) {
         id={`agent-tab-${name}`}
         role="tab"
         aria-selected={tab === name}
-        aria-controls="agent-details-panel"
+        aria-controls={name === 'sub-agents' ? 'agent-sub-agents-panel' : 'agent-details-panel'}
         tabIndex={tab === name ? 0 : -1}
         className={tab === name ? 'primary' : 'ghost'}
         onClick={() => setTab(name)}
@@ -330,14 +328,15 @@ function AgentDetails({ agent }: { agent: AgentDefinition }) {
           document.getElementById(`agent-tab-${next}`)?.focus()
         }}
       >
-        {name === 'instructions' ? <FileText size={14} /> : name === 'tools' ? <Wrench size={14} /> : <BookOpen size={14} />}
-        {name === 'instructions' ? 'Instructions' : name === 'tools' ? 'Tools' : 'Skills'}
-        {name !== 'instructions' && catalog.data ? ` (${catalog.data[name].length})` : ''}
+        {name === 'instructions' ? <FileText size={14} /> : name === 'tools' ? <Wrench size={14} /> : name === 'skills' ? <BookOpen size={14} /> : <Bot size={14} />}
+        {name === 'instructions' ? 'Instructions' : name === 'tools' ? 'Tools' : name === 'skills' ? 'Skills' : 'Sub-agents'}
+        {(name === 'tools' || name === 'skills') && catalog.data ? ` (${catalog.data[name].length})` : ''}
+        {name === 'sub-agents' && subAgentCount !== null ? ` (${subAgentCount})` : ''}
       </button>)}
     </div>
-    <div id="agent-details-panel" role="tabpanel" aria-labelledby={`agent-tab-${tab}`} tabIndex={0}>
+    {tab !== 'sub-agents' ? <div id="agent-details-panel" role="tabpanel" aria-labelledby={`agent-tab-${tab}`} tabIndex={0}>
       {tab === 'instructions' ? <pre className="agent-instructions">{agent.instructions}</pre> : <div className="stack">
-        <p className="hint">Available to all agents. Per-agent assignment is not configured yet. Skills reflect this API deployment; deploy the same skills to AgentHost when using Foundry.</p>
+        <p className="hint">Top-level agents receive these shared capabilities. Configure selected capabilities for specialists under Sub-agents. Skills reflect this API deployment; deploy the same skills to AgentHost when using Foundry.</p>
         <LoadingBar active={catalog.loading} />
         {catalog.error ? <ErrorBanner message={catalog.error} onRetry={catalog.reload} /> : null}
         {catalog.data && catalog.data[tab].length === 0 ? <Empty title={`No ${tab} available`} /> : null}
@@ -346,6 +345,10 @@ function AgentDetails({ agent }: { agent: AgentDefinition }) {
           <p>{item.description}</p>
         </article>)}
       </div>}
+    </div> : null}
+    <div id="agent-sub-agents-panel" role="tabpanel" aria-labelledby="agent-tab-sub-agents" hidden={tab !== 'sub-agents'}>
+      <SubAgentManager parent={agent} readOnly={readOnly} active={tab === 'sub-agents'} footerTarget={footerTarget} onBusyChange={setSubAgentBusy} onCountChange={setSubAgentCount} />
     </div>
   </div>
+  </Modal>
 }
