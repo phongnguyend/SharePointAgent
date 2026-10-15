@@ -187,6 +187,21 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09
   }
 }
 
+resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2025-01-01' = {
+  name: take(toLower('${namePrefix}-cae-${uniqueSuffix}'), 60)
+  location: location
+  tags: resourceTags
+  properties: {
+    appLogsConfiguration: {
+      destination: 'log-analytics'
+      logAnalyticsConfiguration: {
+        customerId: logAnalyticsWorkspace.properties.customerId
+        sharedKey: logAnalyticsWorkspace.listKeys().primarySharedKey
+      }
+    }
+  }
+}
+
 resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
   name: '${namePrefix}-insights-${take(uniqueSuffix, 6)}'
   location: location
@@ -545,6 +560,7 @@ output openAiEndpoint string = openAiAccount.properties.endpoint
 output embeddingDeploymentName string = embeddingDeployment.name
 output documentIntelligenceEndpoint string = documentIntelligenceAccount.?properties.endpoint ?? ''
 output containerRegistryName string = containerRegistry.name
+output containerAppsEnvironmentName string = containerAppsEnvironment.name
 output staticWebAppName string = staticWebApp.name
 output staticWebAppUrl string = 'https://${staticWebApp.properties.defaultHostname}'
 output containerRegistryLoginServer string = containerRegistry.properties.loginServer

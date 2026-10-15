@@ -1,10 +1,10 @@
 # Azure infrastructure
 
-[main.bicep](main.bicep) defines the shared Azure resources for the `dev` and `test` environments: SQL, Storage, Service Bus, Search, Azure OpenAI, Foundry, the container registry, Static Web Apps, monitoring, the API and Background runtime identities, and role assignments. Components with their own template and workflow deploy on top of it:
+[main.bicep](main.bicep) defines the shared Azure resources for the `dev` and `test` environments: SQL, Storage, Service Bus, Search, Azure OpenAI, Foundry, the container registry, the shared Container Apps environment, Static Web Apps, monitoring, the API and Background runtime identities, and role assignments. Components with their own template and workflow deploy on top of it:
 
 | Folder | Deployment | Contents |
 | --- | --- | --- |
-| [ContainerApps](ContainerApps/main.bicep) | `container-apps-<environment>` | The Container Apps environment and the API, Background, MarkItDown, and PageIndex apps |
+| [ContainerApps](ContainerApps/main.bicep) | `container-apps-<environment>` | The API, Background, MarkItDown, and PageIndex apps in the existing shared environment |
 | [DynamicSessions](DynamicSessions/main.bicep) | `dynamic-sessions-<environment>` | The sandbox host session pool, in the Container Apps environment |
 | [Sandboxes](Sandboxes/main.bicep) | `sandboxes-<environment>` | The sandbox group |
 | [Ollaya](Ollaya/main.bicep) | `ollaya-<environment>` | Ollaya's own GPU environment and app |
@@ -179,7 +179,7 @@ Run the infrastructure workflow to create the Static Web App for each environmen
 
 ### Provision infrastructure
 
-Run **Actions → Deploy infrastructure → Run workflow** first. `infra.yml` provisions `main.bicep`. Then run **Deploy Container Apps infrastructure**: [infra-container-apps.yml](../.github/workflows/infra-container-apps.yml) passes the `infra-<environment>` outputs to [ContainerApps/main.bicep](ContainerApps/main.bicep) as its `infrastructure` parameter and creates the Container Apps environment with the API, Background, MarkItDown, and PageIndex apps on `mcr.microsoft.com/k8se/quickstart:latest`, as deployment `container-apps-<environment>`. Resource names are unchanged from when `main.bicep` created them, so the first run adopts the existing environment and apps. API, MarkItDown, and PageIndex use port 80 and `/` readiness checks until released; Background has no ingress. Provisioning does not build images, run SQL migrations or publish a Foundry agent version.
+Run **Actions → Deploy infrastructure → Run workflow** first. `infra.yml` provisions `main.bicep`, including the shared Container Apps environment and its Log Analytics configuration. Then run **Deploy Container Apps infrastructure**: [infra-container-apps.yml](../.github/workflows/infra-container-apps.yml) passes the `infra-<environment>` outputs to [ContainerApps/main.bicep](ContainerApps/main.bicep) as its `infrastructure` parameter and references that existing environment to create the API, Background, MarkItDown, and PageIndex apps on `mcr.microsoft.com/k8se/quickstart:latest`, as deployment `container-apps-<environment>`. Resource names are unchanged. After this template ownership change, rerun **Deploy infrastructure** first to publish the `containerAppsEnvironmentName` output, then deploy Container Apps. API, MarkItDown, and PageIndex use port 80 and `/` readiness checks until released; Background has no ingress. Provisioning does not build images, run SQL migrations or publish a Foundry agent version.
 
 Component releases read the saved `infra-<environment>` and `container-apps-<environment>` deployment outputs, merged by [deployment-outputs.ps1](../.github/scripts/deployment-outputs.ps1), and update only their deployment targets. They do not compile or redeploy either template; infrastructure changes belong in `infra.yml` and `infra-container-apps.yml`. API uses port 8080 and MarkItDown and PageIndex use port 8000 with `/health` probes. Image tags contain the commit SHA, run ID and attempt.
 
@@ -209,7 +209,7 @@ Selected components run sequentially: Database migrations → MarkItDown → Pag
 | Workflow | Responsibility |
 | --- | --- |
 | [infra.yml](../.github/workflows/infra.yml) | Provision or update shared infrastructure; does not build application images |
-| [infra-container-apps.yml](../.github/workflows/infra-container-apps.yml) | Deploy only `infra/ContainerApps/main.bicep`: the Container Apps environment and the API, Background, MarkItDown, and PageIndex apps, with application images and settings when the image variables are set |
+| [infra-container-apps.yml](../.github/workflows/infra-container-apps.yml) | Deploy only `infra/ContainerApps/main.bicep`: the API, Background, MarkItDown, and PageIndex apps in the existing shared environment, with application images and settings when the image variables are set |
 | [release.yml](../.github/workflows/release.yml) | Release any selected combination of services in one workflow run |
 | [release-db-migration.yml](../.github/workflows/release-db-migration.yml) | Restore packages, generate and apply idempotent SQL migrations |
 | [release-api.yml](../.github/workflows/release-api.yml) | Build and deploy only API, configure its runtime settings and Foundry access, and check health |

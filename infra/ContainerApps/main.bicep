@@ -1,7 +1,7 @@
 targetScope = 'resourceGroup'
 
-// The Container Apps environment and the API, Background, MarkItDown, and PageIndex apps. It runs after
-// infra/main.bicep, which owns the registry, monitoring, data services, and the API and Background
+// The API, Background, MarkItDown, and PageIndex apps. It runs after
+// infra/main.bicep, which owns the Container Apps environment, registry, monitoring, data services, and the API and Background
 // identities with their role assignments. Names match the resources infra/main.bicep created before
 // this template existed, so redeploying adopts them.
 
@@ -15,7 +15,7 @@ param workloadName string = 'sharepointagent'
 @maxLength(5)
 param environmentName string
 
-@description('Region for the environment and apps (infra/main.bicep parameter location). An environment cannot move.')
+@description('Region for the apps. Must match the existing environment region (infra/main.bicep parameter location).')
 param location string = resourceGroup().location
 
 param tags object = {}
@@ -112,23 +112,8 @@ resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-07-01' e
   name: infrastructure.containerRegistryName
 }
 
-resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = {
-  name: infrastructure.logAnalyticsWorkspaceName
-}
-
-resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2025-01-01' = {
-  name: take(toLower('${namePrefix}-cae-${uniqueSuffix}'), 60)
-  location: location
-  tags: resourceTags
-  properties: {
-    appLogsConfiguration: {
-      destination: 'log-analytics'
-      logAnalyticsConfiguration: {
-        customerId: logAnalyticsWorkspace.properties.customerId
-        sharedKey: logAnalyticsWorkspace.listKeys().primarySharedKey
-      }
-    }
-  }
+resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2025-01-01' existing = {
+  name: infrastructure.containerAppsEnvironmentName
 }
 
 resource markItDownIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
