@@ -79,7 +79,7 @@ if ($Component -eq 'Api') {
   $workspaceValues = @{
     AgentWorkspace__DynamicSessions__PoolManagementEndpoint = (Get-DynamicSessionsPoolEndpoint)
     AgentWorkspace__Sandboxes__SandboxGroup = (Get-SandboxGroupName)
-    AgentWorkspace__Sandboxes__DiskImageId = [string]$env:SANDBOX_DISK_IMAGE_ID
+    AgentWorkspace__Sandboxes__DiskImageId = (Get-SandboxDiskImageId)
   }
   foreach ($setting in $workspaceValues.GetEnumerator()) {
     if (-not [string]::IsNullOrWhiteSpace($setting.Value)) {

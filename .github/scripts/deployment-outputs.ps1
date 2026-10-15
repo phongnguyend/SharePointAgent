@@ -42,3 +42,13 @@ function Get-DynamicSessionsPoolEndpoint {
 function Get-SandboxGroupName {
   return Get-OptionalDeploymentOutput 'sandboxes' 'sandboxGroupName'
 }
+function Get-SandboxDiskImageId {
+  if (-not [string]::IsNullOrWhiteSpace($env:SANDBOX_DISK_IMAGE_ID)) {
+    return $env:SANDBOX_DISK_IMAGE_ID.Trim()
+  }
+  $release = Get-OptionalDeploymentOutputs 'sandbox-image' $env:RESOURCE_GROUP $env:DEPLOY_ENVIRONMENT
+  if ($release -and $release.sandboxGroupName.value -eq (Get-SandboxGroupName)) {
+    return [string]$release.sandboxDiskImageId.value
+  }
+  return ''
+}

@@ -7,21 +7,24 @@ if (-not $outputs.containerRegistryName.value) {
   throw 'Run Deploy infrastructure before releasing Sandboxes.'
 }
 
-# Sandboxes boot from a disk image made from this image; nothing long-running is updated here. The
-# image is smoke-tested in a local container before it is pushed.
+. "$PSScriptRoot/deployment-outputs.ps1"
+. "$PSScriptRoot/sandbox-disk-image.ps1"
+$sandboxGroupName = Get-SandboxGroupName
+$pullIdentityId = Get-OptionalDeploymentOutput 'sandboxes' 'sandboxesPullIdentityId'
+if (-not $sandboxGroupName -or -not $pullIdentityId) {
+  throw 'Run Deploy Sandboxes Infrastructure before releasing Sandboxes.'
+}
+$region = az resource show --resource-group $env:RESOURCE_GROUP --name $sandboxGroupName `
+  --resource-type Microsoft.App/sandboxGroups --query location -o tsv
+
 $image = Publish-SandboxHostImage $outputs
 if ($image -isnot [string] -or [string]::IsNullOrWhiteSpace($image)) {
   throw 'Image publishing must return exactly one non-empty image reference string.'
 }
+$diskId = Publish-SandboxDiskImage -Image $image -Group $sandboxGroupName -Region $region -PullIdentityId $pullIdentityId
 
-"## Sandboxes image published" >> $env:GITHUB_STEP_SUMMARY
+"## Sandboxes disk image ready" >> $env:GITHUB_STEP_SUMMARY
 "- Image: $image" >> $env:GITHUB_STEP_SUMMARY
-. "$PSScriptRoot/deployment-outputs.ps1"
-$sandboxGroupName = Get-SandboxGroupName
-if ($sandboxGroupName) {
-  $pullIdentityId = Get-OptionalDeploymentOutput 'sandboxes' 'sandboxesPullIdentityId'
-  "- Sandbox group: $sandboxGroupName" >> $env:GITHUB_STEP_SUMMARY
-  "Register the image as a disk image in the sandbox group (portal: Disk images, Create, Base Image URL = the image above, Registry Authentication = managed identity $pullIdentityId). New sandboxes then boot from it. Set SANDBOX_DISK_IMAGE_ID to its resource ID and run Release API." >> $env:GITHUB_STEP_SUMMARY
-} else {
-  "No sandbox group is deployed. Run Deploy Sandboxes Infrastructure to create one." >> $env:GITHUB_STEP_SUMMARY
-}
+"- Sandbox group: $sandboxGroupName" >> $env:GITHUB_STEP_SUMMARY
+"- Disk image ID: $diskId" >> $env:GITHUB_STEP_SUMMARY
+"Run Release API to use this disk image for new sandboxes. The ID is read automatically from sandbox-image-$env:DEPLOY_ENVIRONMENT. Remove SANDBOX_DISK_IMAGE_ID if it pins an older image; an explicit override takes precedence. Existing sandboxes and older disk images are retained." >> $env:GITHUB_STEP_SUMMARY
