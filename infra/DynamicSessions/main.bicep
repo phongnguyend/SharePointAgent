@@ -59,7 +59,8 @@ var resourceTags = union(tags, {
   managedBy: 'Bicep'
 })
 var helloImage = 'mcr.microsoft.com/k8se/quickstart:latest'
-var poolName = '${compactPrefix}sessions${take(uniqueSuffix, 6)}'
+// Session pool names allow at most 32 characters.
+var poolName = take('${compactPrefix}sessions${uniqueSuffix}', 32)
 var port = startsWith(sandboxHostImage, helloImage) ? 80 : 8080
 var healthPath = startsWith(sandboxHostImage, helloImage) ? '/' : '/health'
 var acrPullRole = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
