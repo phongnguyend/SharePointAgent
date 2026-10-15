@@ -40,6 +40,9 @@ public sealed class SubAgentTests
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
         builder.Services.AddSingleton<IDbContextFactory<SharePointIndexDbContext>>(factory);
+        builder.Services.AddSingleton<IAgentSkillFileStorage, FakeAgentSkillFileStorage>();
+        builder.Services.AddSingleton<AgentSkillFileCache>();
+        builder.Services.AddSingleton<AgentSkillStore>();
         await using var app = builder.Build();
         app.MapSubAgentEndpoints();
         await app.StartAsync();
@@ -136,6 +139,36 @@ public sealed class SubAgentTests
         {
             Assert.DoesNotContain(skill.Name, probe.Instructions + probe.Text);
         }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RunnerOwnsSkillLeasesEvenWhenToolConstructionFails(bool fail)
+    {
+        var releases = 0;
+        var leases = new AgentSkillLeaseSet();
+        leases.Add(new AgentSkillFileLease(ChatAgentSkills.DirectoryPath, "dns-lookup", () => releases++));
+        using var runner = new SubAgentTools(_ => fail ? throw new InvalidOperationException("Model unavailable") : new ProbeClient(),
+            [], Substitute.For<IAgentWorkspace>(), 60,
+            (_, _, _) => ValueTask.CompletedTask, (_, _) => ValueTask.CompletedTask, NullLogger.Instance);
+        var definition = new SubAgentDefinitionEntity
+        {
+            Name = "DNS", ModelId = "test", Instructions = "Use the assigned skill", Skills = ["dns-lookup"]
+        };
+        if (fail)
+        {
+            Assert.Throws<InvalidOperationException>(() => runner.CreateTool(definition, leases));
+        }
+        else
+        {
+            runner.CreateTool(definition, leases);
+        }
+        Assert.Equal(0, releases);
+        runner.Dispose();
+        Assert.Equal(1, releases);
+        runner.Dispose();
+        Assert.Equal(1, releases);
     }
 
     private sealed class Factory(DbContextOptions<SharePointIndexDbContext> options) : IDbContextFactory<SharePointIndexDbContext>

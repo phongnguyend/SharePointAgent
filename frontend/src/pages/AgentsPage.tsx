@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+import AgentSkillManagementButton from '../components/AgentSkillManagementButton'
 import { useToast } from '../components/Toast'
 import { useState } from 'react'
 import { Bot, Check, Cloud, Eye, Pencil, Plus, RefreshCw, RotateCcw, Server, X, Wrench, BookOpen, FileText } from 'lucide-react'
@@ -21,7 +23,6 @@ export default function AgentsPage() {
   const readOnly = !canManageAdministration(useAppUser())
   const agents = useAsync((signal) => listAgents(signal), [])
   const defaults = useAsync((signal) => getDefaultAgentInstructions(signal), [])
-  const capabilities = useAsync(getAgentCapabilities, [])
   const [editorTab, setEditorTab] = useState<'general' | 'tools' | 'skills' | 'sub-agents'>('general')
   const [editorFooterTarget, setEditorFooterTarget] = useState<HTMLDivElement | null>(null)
   const [editorSubAgentBusy, setEditorSubAgentBusy] = useState(false)
@@ -30,6 +31,8 @@ export default function AgentsPage() {
   const [selectedSkills, setSelectedSkills] = useState<string[] | null>(null)
   const [viewing, setViewing] = useState<AgentDefinition | null>(null)
   const [editing, setEditing] = useState<EditorTarget>(null)
+  const editingId = editing && editing !== 'new' ? editing.id : undefined
+  const capabilities = useAsync(signal => getAgentCapabilities(signal, editingId), [editingId])
   const [name, setName] = useState('')
   const [modelId, setModelId] = useState('')
   const [instructions, setInstructions] = useState('')
@@ -103,6 +106,7 @@ export default function AgentsPage() {
           <p>Manage agent instructions, models, and specialist sub-agents.</p>
         </div>
         <div className="row" style={{ gap: 8 }}>
+          <Link className="button-link" to="/agents/skills"><BookOpen size={14} />Global skills</Link>
           <button onClick={() => {
             agents.reload()
             defaults.reload()
@@ -328,6 +332,13 @@ export default function AgentsPage() {
           </div>
           </div>
           {(['tools', 'skills'] as const).map(kind => <div className="agent-capability-panel" key={kind} id={`main-agent-edit-panel-${kind}`} role="tabpanel" aria-labelledby={`main-agent-edit-${kind}`} hidden={editorTab !== kind}>
+            {kind === 'skills' ? <AgentSkillManagementButton scope={{ agentId: editingId }} disabled={busy} onChanged={removed => {
+              capabilities.reload()
+              agents.reload()
+              if (removed) {
+                setSelectedSkills(current => current?.filter(name => name !== removed) ?? null)
+              }
+            }} /> : null}
             <CapabilitySelector kind={kind} items={capabilities.data?.[kind] ?? []} selected={kind === 'tools' ? selectedTools : selectedSkills}
               disabled={busy || capabilities.loading || !!capabilities.error} onChange={kind === 'tools' ? setSelectedTools : setSelectedSkills} />
           </div>)}
@@ -350,7 +361,7 @@ function AgentDetails({ agent, onClose }: { agent: AgentDefinition; onClose: () 
   const [footerTarget, setFooterTarget] = useState<HTMLDivElement | null>(null)
   const [subAgentBusy, setSubAgentBusy] = useState(false)
   const [subAgentCount, setSubAgentCount] = useState<number | null>(null)
-  const catalog = useAsync(getAgentCapabilities, [])
+  const catalog = useAsync(signal => getAgentCapabilities(signal, agent.id), [agent.id])
   const assigned = {
     tools: agent.tools?.map(name => catalog.data?.tools.find(item => item.name === name) ?? { name, description: 'Not available in this deployment.' }) ?? catalog.data?.tools ?? [],
     skills: agent.skills?.map(name => catalog.data?.skills.find(item => item.name === name) ?? { name, description: 'Not available in this deployment.' }) ?? catalog.data?.skills ?? [],
@@ -403,9 +414,10 @@ function AgentDetails({ agent, onClose }: { agent: AgentDefinition; onClose: () 
     </div>
     {tab !== 'sub-agents' ? <div className={tab === 'tools' || tab === 'skills' ? 'agent-capability-panel' : undefined} id="agent-details-panel" role="tabpanel" aria-labelledby={`agent-tab-${tab}`} tabIndex={0}>
       {tab === 'instructions' ? <pre className="agent-instructions">{agent.instructions}</pre> : <div className="stack agent-capability-selector">
-        <p className="hint">{agent[tab] == null ? 'This agent uses all available capabilities, including future additions.' : 'These are the capabilities selected for this agent. Edit the agent to change them.'} Skills reflect this API deployment; deploy the same skills to AgentHost when using Foundry.</p>
+        <p className="hint">{agent[tab] == null ? 'This agent uses all available capabilities, including future additions.' : 'These are the capabilities selected for this agent. Edit the agent to change them.'} Skills use the shared database catalog and file storage. The API synchronizes bundled default skills at startup.</p>
         <LoadingBar active={catalog.loading} />
         {catalog.error ? <ErrorBanner message={catalog.error} onRetry={catalog.reload} /> : null}
+        {tab === 'skills' ? <AgentSkillManagementButton scope={{ agentId: agent.id }} readOnly /> : null}
         <div className="agent-capability-list stack" tabIndex={0} aria-label={`Assigned ${tab}`}>
         {catalog.data && assigned[tab].length === 0 ? <Empty title={`No ${tab} selected`} /> : null}
         {assigned[tab].map(item => <article className="card agent-capability" key={item.name}>

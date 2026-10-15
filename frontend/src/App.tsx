@@ -1,3 +1,4 @@
+import AgentSkillsPage from './pages/AgentSkillsPage'
 import { useEffect, useState } from 'react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import {
@@ -125,6 +126,7 @@ export default function App() {
           <Route path="/search" element={<SearchPage />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/feedback" element={canReadAdmin ? <FeedbackPage /> : <Navigate to={home} replace />} />
+          <Route path="/agents/skills" element={canReadAdmin ? <AgentSkillsPage /> : <Navigate to={home} replace />} />
           <Route path="/agents" element={canReadAdmin ? <AgentsPage /> : <Navigate to={home} replace />} />
           <Route path="/users" element={canReadAdmin ? <UsersPage /> : <Navigate to={home} replace />} />
           <Route path="/token-usage" element={canReadAdmin ? <TokenUsagePage /> : <Navigate to={home} replace />} />

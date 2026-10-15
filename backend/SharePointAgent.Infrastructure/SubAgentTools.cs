@@ -18,6 +18,7 @@ internal sealed class SubAgentTools(
     ILogger logger) : IDisposable
 {
     private readonly List<AgentSkillsProvider> _skillProviders = [];
+    private readonly List<AgentSkillLeaseSet> _skillLeases = [];
     private int _calls;
     private long _inputTokens;
     private long _outputTokens;
@@ -32,10 +33,15 @@ internal sealed class SubAgentTools(
     internal static IList<AITool> SelectTools(IEnumerable<AITool> available, IReadOnlyCollection<string> selected) =>
         available.Where(tool => selected.Contains(tool.Name, StringComparer.Ordinal)).ToList();
 
-    public AIFunction CreateTool(SubAgentDefinitionEntity definition)
+    // Ownership transfers on entry, including when constructing the tool fails.
+    public AIFunction CreateTool(SubAgentDefinitionEntity definition, AgentSkillLeaseSet? skillLeases = null)
     {
+        if (skillLeases is not null)
+        {
+            _skillLeases.Add(skillLeases);
+        }
         var skills = definition.Skills.Length == 0 ? null
-            : ChatAgentSkills.CreateSelectedProvider(definition.Skills, workspace, scriptTimeoutSeconds);
+            : ChatAgentSkills.CreateSelectedProvider(definition.Skills, workspace, scriptTimeoutSeconds, skillLeases?.Paths);
         if (skills is not null)
         {
             _skillProviders.Add(skills);
@@ -115,10 +121,21 @@ internal sealed class SubAgentTools(
 
     public void Dispose()
     {
-        foreach (var provider in _skillProviders)
+        try
         {
-            provider.Dispose();
+            foreach (var provider in _skillProviders)
+            {
+                provider.Dispose();
+            }
         }
-        _skillProviders.Clear();
+        finally
+        {
+            _skillProviders.Clear();
+            foreach (var leases in _skillLeases)
+            {
+                leases.Dispose();
+            }
+            _skillLeases.Clear();
+        }
     }
 }

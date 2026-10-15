@@ -1,3 +1,4 @@
+import AgentSkillManagementButton from './AgentSkillManagementButton'
 import { useEffect, useId, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Bot, Check, Eye, Pencil, Plus, Trash2, Wrench, BookOpen } from 'lucide-react'
@@ -20,8 +21,9 @@ export default function SubAgentManager({ parent, readOnly, active, footerTarget
   onCountChange: (count: number) => void
 }) {
   const items = useAsync(signal => listSubAgents(parent.id, signal), [parent.id])
-  const catalog = useAsync(getAgentCapabilities, [])
   const [editing, setEditing] = useState<SubAgentDefinition | 'new' | null>(null)
+  const editingId = editing && editing !== 'new' ? editing.id : undefined
+  const catalog = useAsync(signal => getAgentCapabilities(signal, editingId ? parent.id : undefined, editingId), [parent.id, editingId])
   const [removing, setRemoving] = useState<SubAgentDefinition | null>(null)
   const [form, setForm] = useState<SubAgentInput>({ name: '', description: '', modelId: parent.modelId, instructions: '', tools: [], skills: [] })
   const [busy, setBusy] = useState(false)
@@ -121,6 +123,13 @@ export default function SubAgentManager({ parent, readOnly, active, footerTarget
           </div>
             {(['tools', 'skills'] as const).map(kind => <div className="agent-capability-panel" role="tabpanel" key={kind}
               id={`${tabId}-${kind}-panel`} aria-labelledby={`${tabId}-${kind}`} hidden={tab !== kind}>
+              {kind === 'skills' ? <AgentSkillManagementButton scope={editingId ? { agentId: parent.id, subAgentId: editingId } : {}} readOnly={readOnly} disabled={busy} onChanged={removed => {
+                catalog.reload()
+                items.reload()
+                if (removed) {
+                  setForm(current => ({ ...current, skills: current.skills.filter(name => name !== removed) }))
+                }
+              }} /> : null}
               <fieldset className="sub-agent-form stack agent-capability-selector" disabled={readOnly || busy} aria-label={kind === 'tools' ? 'Tool selection' : 'Skill selection'}>
               <div className="sub-agent-selection-toolbar">
                 <span className="hint">{form[kind].length} selected · {catalog.data?.[kind].length ?? 0} available</span>

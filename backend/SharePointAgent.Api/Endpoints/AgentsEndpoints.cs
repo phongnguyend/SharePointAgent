@@ -13,15 +13,23 @@ public static class AgentsEndpoints
         // can be chosen, because only a conversation in such a mode is offered the tool.
         app.MapGet("/api/agents/capabilities", async (
             IServiceProvider services,
+            AgentSkillStore skillStore,
+            Guid? agentId, Guid? subAgentId,
             CancellationToken cancellationToken) =>
-            Results.Ok(new
+        {
+            if (!await skillStore.ScopeExistsAsync(agentId, subAgentId, cancellationToken))
+            {
+                return Results.NotFound();
+            }
+            return Results.Ok(new
             {
                 tools = ChatAgentService.GetTools(services.GetService<IAgentWorkspaceProvider>() is { } workspaces
                     && workspaces.AvailableModes.Any(mode => mode != AgentWorkspaceMode.Local),
                     services.GetService<AgentDocumentOutlines>() is not null,
                     services.GetService<IGraphRetrievalService>() is { ReturnsResults: true }),
-                skills = await ChatAgentSkills.GetCatalogAsync(cancellationToken)
-            }));
+                skills = await skillStore.ListAsync(AgentSkillStore.Scope(agentId, subAgentId), cancellationToken)
+            });
+        });
 
         // Persisted agent definitions. The default instruction text is exposed by the chat service so the
         // editor and server-side creation fallback always use the same private template.
@@ -53,6 +61,7 @@ public static class AgentsEndpoints
         app.MapPost("/api/agents", async (
             AgentDefinitionRequest? body,
             IAgentRepository store,
+            AgentSkillStore skillStore,
             IOptions<OpenAiOptions> openAiOptions,
             CancellationToken cancellationToken) =>
         {
@@ -64,7 +73,7 @@ public static class AgentsEndpoints
                 ? AgentDefaults.Instructions
                 : body.Instructions.Trim();
             var error = ValidateAgentDefinition(name, modelId, instructions)
-                ?? await ValidateCapabilitiesAsync(body?.Tools, body?.Skills, cancellationToken);
+                ?? await ValidateCapabilitiesAsync(body?.Tools, body?.Skills, skillStore, "global", cancellationToken);
             if (error is not null)
             {
                 return Results.BadRequest(new { error });
@@ -85,13 +94,14 @@ public static class AgentsEndpoints
             Guid id,
             AgentDefinitionRequest? body,
             IAgentRepository store,
+            AgentSkillStore skillStore,
             CancellationToken cancellationToken) =>
         {
             var name = body?.Name?.Trim() ?? "";
             var modelId = body?.ModelId?.Trim() ?? "";
             var instructions = body?.Instructions?.Trim() ?? "";
             var error = ValidateAgentDefinition(name, modelId, instructions)
-                ?? await ValidateCapabilitiesAsync(body?.Tools, body?.Skills, cancellationToken);
+                ?? await ValidateCapabilitiesAsync(body?.Tools, body?.Skills, skillStore, AgentSkillStore.Scope(id, null), cancellationToken);
             if (error is not null)
             {
                 return Results.BadRequest(new { error });
@@ -113,7 +123,7 @@ public static class AgentsEndpoints
         });
     }
 
-    internal static async Task<string?> ValidateCapabilitiesAsync(string[]? tools, string[]? skills, CancellationToken cancellationToken)
+    internal static async Task<string?> ValidateCapabilitiesAsync(string[]? tools, string[]? skills, AgentSkillStore skillStore, string scope, CancellationToken cancellationToken)
     {
         if (tools is { Length: > 100 } || skills is { Length: > 100 } ||
             tools?.Any(string.IsNullOrWhiteSpace) == true || skills?.Any(string.IsNullOrWhiteSpace) == true)
@@ -126,7 +136,7 @@ public static class AgentsEndpoints
         }
         if (skills is { Length: > 0 })
         {
-            var catalog = await ChatAgentSkills.GetCatalogAsync(cancellationToken);
+            var catalog = await skillStore.ListAsync(scope, cancellationToken);
             if (skills.Except(catalog.Select(x => x.Name), StringComparer.Ordinal).Any())
             {
                 return "Select skills from the available catalog.";

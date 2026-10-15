@@ -44,6 +44,7 @@ public sealed class ChatAgentService(
     IOptions<DocumentIntelligenceOptions> documentIntelligenceOptions,
     IOptions<AgentWorkspaceOptions> workspaceOptions,
     AgentHttpGet httpGet,
+    AgentSkillStore skillStore,
     IGraphRetrievalService? graphRetrieval = null,
     AgentDocumentOutlines? documentOutlines = null) : IChatAgentExecutor
 {
@@ -252,14 +253,14 @@ public sealed class ChatAgentService(
             {
                 child.Instructions = WorkspaceInstructions.Compose(child.Instructions,
                     conversationWorkspace?.Name, conversationWorkspace?.Instructions);
-                tools.Add(subAgents.CreateTool(child));
+                var childSkills = await skillStore.PrepareAsync(AgentSkillStore.Scope(definition.Id, child.Id), child.Skills, cancellationToken);
+                tools.Add(subAgents.CreateTool(child, childSkills));
             }
         }
 
-        using var skills = definition.Skills is null
-            ? ChatAgentSkills.CreateProvider(workspace, workspaceOptions.Value.ScriptTimeoutSeconds)
-            : definition.Skills.Length == 0 ? null
-            : ChatAgentSkills.CreateSelectedProvider(definition.Skills, workspace, workspaceOptions.Value.ScriptTimeoutSeconds);
+        using var mainSkillFiles = await skillStore.PrepareAsync(AgentSkillStore.Scope(definition.Id, null), definition.Skills, cancellationToken);
+        using var skills = mainSkillFiles.Names.Length == 0 ? null
+            : ChatAgentSkills.CreateSelectedProvider(mainSkillFiles.Names, workspace, workspaceOptions.Value.ScriptTimeoutSeconds, mainSkillFiles.Paths);
         var agent = chatClient.AsAIAgent(new ChatClientAgentOptions
         {
             Name = "SharePointSearchAgent",

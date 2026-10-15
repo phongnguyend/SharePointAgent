@@ -33,6 +33,10 @@ public sealed class AgentCapabilityTests
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
         builder.Services.AddSingleton<IAgentRepository>(repository);
+        builder.Services.AddSingleton<IDbContextFactory<SharePointIndexDbContext>>(factory);
+        builder.Services.AddSingleton<IAgentSkillFileStorage, FakeAgentSkillFileStorage>();
+        builder.Services.AddSingleton<AgentSkillFileCache>();
+        builder.Services.AddSingleton<AgentSkillStore>();
         builder.Services.AddSingleton<IOptions<OpenAiOptions>>(options);
         builder.Services.AddOptions<ChatAgentHostingOptions>();
         await using var app = builder.Build();

@@ -14,6 +14,7 @@ builder.Services.AddSearchQueryServices(builder.Configuration);
 builder.Services.AddIndexStateServices(builder.Configuration);
 builder.Services.AddChatServices(builder.Configuration);
 builder.Services.AddAttachmentFileServices(builder.Configuration);
+builder.Services.AddHostedService<AgentSkillDefaultsInitializer>();
 builder.Services.AddDocumentSigningServices(builder.Configuration);
 builder.Services.AddIndexedFileReindexServices(builder.Configuration);
 builder.Services.AddOllayaClient(builder.Configuration);
@@ -74,6 +75,9 @@ app.MapBrowseEndpoints();
 app.MapAgentsEndpoints();
 
 app.MapSubAgentEndpoints();
+
+app.MapAgentSkillEndpoints();
+
 app.MapChatWorkspacesEndpoints();
 app.MapChatEndpoints();
 app.MapChatTranscriptionEndpoints();

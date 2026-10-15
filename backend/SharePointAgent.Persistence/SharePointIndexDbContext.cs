@@ -29,6 +29,10 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
     /// </summary>
     public const int WorkspaceInstructionsLength = 8000;
 
+    public DbSet<AgentSkillDefinitionEntity> AgentSkillDefinitions => Set<AgentSkillDefinitionEntity>();
+
+    public DbSet<AgentSkillFileEntity> AgentSkillFiles => Set<AgentSkillFileEntity>();
+
     public DbSet<SubAgentDefinitionEntity> SubAgentDefinitions => Set<SubAgentDefinitionEntity>();
 
     public DbSet<AgentDefinitionEntity> AgentDefinitions => Set<AgentDefinitionEntity>();
@@ -199,6 +203,30 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
             .HasForeignKey(x => x.CreatedById).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<ChatMessageAttachmentFileEntity>().HasOne<ApplicationUser>().WithMany()
             .HasForeignKey(x => x.CreatedById).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<AgentSkillDefinitionEntity>(entity =>
+        {
+            entity.ToTable("AgentSkillDefinitions");
+            entity.Property(x => x.ContentHash).HasMaxLength(64);
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedOnAdd();
+            entity.Property(x => x.Name).HasMaxLength(100);
+            entity.Property(x => x.Description).HasMaxLength(4000);
+            entity.Property(x => x.Scope).HasMaxLength(50);
+            entity.HasIndex(x => x.Name).IsUnique();
+            entity.HasIndex(x => x.Scope);
+        });
+
+        modelBuilder.Entity<AgentSkillFileEntity>(entity =>
+        {
+            entity.ToTable("AgentSkillFiles");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedOnAdd();
+            entity.Property(x => x.Path).HasMaxLength(240);
+            entity.Property(x => x.StorageKey).HasMaxLength(200);
+            entity.HasOne(x => x.Definition).WithMany(x => x.Files).HasForeignKey(x => x.AgentSkillDefinitionId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(x => new { x.AgentSkillDefinitionId, x.Path }).IsUnique();
+        });
+
         modelBuilder.Entity<SubAgentDefinitionEntity>(entity =>
         {
             entity.ToTable("SubAgentDefinitions");

@@ -42,6 +42,69 @@ persistent page state inline; transient operation feedback uses toasts.
 
 ## Pages
 
+**Agents → Global skills** opens the skill library. Global Admins can upload a ZIP
+and delete uploaded global skills; Global Reader Admins can inspect them. Skills
+deployed in the `skills` folder are default global skills and cannot be deleted or
+overwritten through the application.
+
+In an agent or sub-agent's **Edit → Skills → Manage skill files**, upload skills
+available only to that specific agent. Save a new agent/sub-agent first. Parent
+skills are not inherited by sub-agents. Global skills remain available for selection
+in every scope. Uploading does not enable a skill for agents with explicit selections:
+select it and save the agent. Uploads/deletions are immediate and are not undone by
+cancelling the agent editor. Deletion also removes saved assignments.
+
+Use the eye action to browse the extracted file paths and inspect `SKILL.md`, scripts,
+and resources. Text files up to 512 KB are previewed as source with syntax highlighting
+for Markdown, PowerShell, Python, shell scripts, JavaScript/TypeScript, JSON, YAML,
+HTML/XML, CSS, C#, and SQL. Other text formats use plain text; binary files are
+listed without execution. Markdown files offer a Preview/Source toggle; rendered
+previews support tables and lists and skip embedded HTML. Copy copies the source text.
+Download saves loaded text directly as UTF-8, without another API request. Binary
+files and files too large to preview download their original bytes through the API;
+restart/redeploy the API after adding the `/api/agents/skills/{id}/download` endpoint.
+View dialogs expose inspection only.
+
+A ZIP must contain exactly one `SKILL.md`, either at its root or within a single
+skill folder, plus any scripts/resources under that folder. The YAML frontmatter
+requires `name` (a single-line lowercase name with digits/single hyphens, up to 64
+characters) and `description`. Names must be unique across default and uploaded
+skills. ZIPs are limited to 10 MB, 20 MB extracted, and 200 entries; unsafe paths,
+symlinks, duplicate paths, and multiple skill manifests are rejected.
+
+Apply the `AddAgentSkillDefinitions` database migration before deploying the API and
+AgentHost. `AgentSkillDefinitions` stores skill metadata and `AgentSkillFiles` stores
+relative paths, sizes, and provider-independent `StorageKey` values. File contents use
+the existing `Uploads` storage account/container under the `agent-skills/` prefix.
+ZIPs are unpacked and validated once at upload, rather than retained in the database.
+Browsing reads database metadata; previewing fetches only the selected file from storage.
+
+The API synchronizes its bundled `skills` folder at startup, after database migrations,
+creating/updating protected default definitions and files. Unchanged defaults are skipped
+using a content hash. Defaults absent from a later deployment remain in the catalog.
+AgentHost reads this same database/storage catalog; deploy/start the API before AgentHost.
+Each host caches downloaded skill folders by skill ID and content hash. Every turn
+checks the database for the current selected versions and downloads only cache misses
+or changed skills. Concurrent turns share the same versioned cache folders directly;
+there are no per-turn file copies. Reference-counted leases keep versions available
+until every turn using them finishes. Superseded versions are removed after their last
+lease is released. The process-local cache targets 256 MB with least-recently-used
+eviction of unused folders; active versions can temporarily exceed that limit.
+Eviction or a host restart requires downloading those files again. Scripts are reviewed
+and whitelisted and must treat shared skill files as read-only; the cache does not enforce
+filesystem isolation. Temporary files and outputs belong in the agent workspace.
+Cache entries refresh after `AgentSkills:Cache:MaxAgeDays` (default 7, range 1–3650),
+even if their content hash has not changed. Access does not extend the creation date.
+The host cache root contains `cache-directory.json` with `CreatedAtUtc`, `ProcessId`,
+and `MaxAgeDays`. Each version/generation directory has a UTC timestamp in its name
+and `cache-entry.json` with skill identity, content hash, `CreatedAtUtc`, and
+`ExpiresAtUtc`. Metadata lives outside the skill folder exposed to the agent.
+Expired generations stay pinned until active turns finish. These metadata files support
+a future cleanup job; this change does not implement crash-orphan cleanup or reuse
+directories from previous processes. A future cleaner must check for active use before
+deleting directories, rather than relying on creation dates alone.
+Uploaded scripts use the existing workspace/skill runner and its execution policy.
+
 **Agents → New/Edit** provides General, Tools, and Skills tabs with selection counts
 and Select all / Unselect all actions. Selections are saved together and take effect
 on the next chat turn. Empty lists disable that capability category. Existing agents
@@ -75,8 +138,8 @@ workspace and tool authorization, including workspace instructions, but receive 
 history automatically. Retrieved citations and model token usage are included in the
 parent turn; individual requests retain the specialist model ID in Chat Usage and run
 under the same distributed trace. Each turn permits eight delegations, with a two-minute
-timeout per invocation. Changes apply on the next turn. Deploy the same skills to the
-API and AgentHost when using Foundry.
+timeout per invocation. Changes apply on the next turn. The API and AgentHost use the
+same skill catalog and file storage when using Foundry.
 
 Apply the `AddSubAgentDefinitions` database migration before deploying the updated API
 and AgentHost. It adds a separate table with a parent foreign key and unique names per

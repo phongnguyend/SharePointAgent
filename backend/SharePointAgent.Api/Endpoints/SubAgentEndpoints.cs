@@ -24,17 +24,17 @@ public static class SubAgentEndpoints
         });
 
         app.MapPost("/api/agents/{parentId:guid}/sub-agents", async (
-            Guid parentId, SubAgentRequest body, IDbContextFactory<SharePointIndexDbContext> factory,
+            Guid parentId, SubAgentRequest body, IDbContextFactory<SharePointIndexDbContext> factory, AgentSkillStore skillStore,
             CancellationToken cancellationToken) =>
-            await SaveAsync(parentId, null, body, factory, cancellationToken));
+            await SaveAsync(parentId, null, body, factory, skillStore, cancellationToken));
 
         app.MapPut("/api/agents/{parentId:guid}/sub-agents/{id:guid}", async (
-            Guid parentId, Guid id, SubAgentRequest body, IDbContextFactory<SharePointIndexDbContext> factory,
+            Guid parentId, Guid id, SubAgentRequest body, IDbContextFactory<SharePointIndexDbContext> factory, AgentSkillStore skillStore,
             CancellationToken cancellationToken) =>
-            await SaveAsync(parentId, id, body, factory, cancellationToken));
+            await SaveAsync(parentId, id, body, factory, skillStore, cancellationToken));
 
         app.MapDelete("/api/agents/{parentId:guid}/sub-agents/{id:guid}", async (
-            Guid parentId, Guid id, IDbContextFactory<SharePointIndexDbContext> factory, CancellationToken cancellationToken) =>
+            Guid parentId, Guid id, IDbContextFactory<SharePointIndexDbContext> factory, AgentSkillStore skillStore, CancellationToken cancellationToken) =>
         {
             await using var db = await factory.CreateDbContextAsync(cancellationToken);
             var entity = await db.SubAgentDefinitions.SingleOrDefaultAsync(x => x.Id == id && x.ParentAgentId == parentId, cancellationToken);
@@ -42,14 +42,19 @@ public static class SubAgentEndpoints
             {
                 return Results.NotFound();
             }
+            var scope = AgentSkillStore.Scope(parentId, id);
+            var skills = await db.AgentSkillDefinitions.Include(x => x.Files).Where(x => x.Scope == scope).ToArrayAsync(cancellationToken);
+            var blobs = skills.SelectMany(x => x.Files).Select(x => x.StorageKey).ToArray();
+            db.AgentSkillDefinitions.RemoveRange(skills);
             db.SubAgentDefinitions.Remove(entity);
             await db.SaveChangesAsync(cancellationToken);
+            await skillStore.CleanupFilesAsync(blobs);
             return Results.NoContent();
         });
     }
 
     internal static async Task<IResult> SaveAsync(Guid parentId, Guid? id, SubAgentRequest body,
-        IDbContextFactory<SharePointIndexDbContext> factory, CancellationToken cancellationToken)
+        IDbContextFactory<SharePointIndexDbContext> factory, AgentSkillStore skillStore, CancellationToken cancellationToken)
     {
         var error = Validate(body);
         if (error is not null)
@@ -57,7 +62,7 @@ public static class SubAgentEndpoints
             return Results.BadRequest(new { error });
         }
         var tools = ChatAgentService.GetTools(true, true, true).Select(x => x.Name);
-        var skills = await ChatAgentSkills.GetCatalogAsync(cancellationToken);
+        var skills = await skillStore.ListAsync(id is null ? "global" : AgentSkillStore.Scope(parentId, id), cancellationToken);
         if (body.Tools.Except(tools, StringComparer.Ordinal).Any() ||
             body.Skills.Except(skills.Select(x => x.Name), StringComparer.Ordinal).Any())
         {

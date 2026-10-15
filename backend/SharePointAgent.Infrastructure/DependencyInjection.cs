@@ -392,6 +392,11 @@ public static class DependencyInjection
             .Validate(o => string.IsNullOrWhiteSpace(o.Endpoint) || o.UsedManagedIdentity || !string.IsNullOrWhiteSpace(o.ApiKey), "DocumentIntelligence:ApiKey is required when an endpoint is configured and UsedManagedIdentity is false.").ValidateOnStart();
         services.AddHttpClient<DocumentIntelligenceClient>();
         services.AddSingleton<ChatMessageAttachmentFileService>();
+        services.AddSingleton<IAgentSkillFileStorage, AgentSkillFileStorage>();
+        services.AddOptions<AgentSkillCacheOptions>().Bind(configuration.GetSection(AgentSkillCacheOptions.SectionName))
+            .ValidateDataAnnotations().ValidateOnStart();
+        services.AddSingleton<AgentSkillFileCache>();
+        services.AddSingleton<AgentSkillStore>();
         return services;
     }
 

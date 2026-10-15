@@ -40,8 +40,15 @@ export function listAgents(signal?: AbortSignal): Promise<AgentDefinition[]> {
   return request<AgentDefinition[]>('/api/agents', { signal })
 }
 
-export function getAgentCapabilities(signal?: AbortSignal): Promise<import('./types').AgentCapabilities> {
-  return request('/api/agents/capabilities', { signal })
+export function getAgentCapabilities(signal?: AbortSignal, agentId?: string, subAgentId?: string): Promise<import('./types').AgentCapabilities> {
+  const params = new URLSearchParams()
+  if (agentId) {
+    params.set('agentId', agentId)
+  }
+  if (subAgentId) {
+    params.set('subAgentId', subAgentId)
+  }
+  return request(`/api/agents/capabilities?${params}`, { signal })
 }
 
 export function getAgent(id: string, signal?: AbortSignal): Promise<AgentDefinition> {
