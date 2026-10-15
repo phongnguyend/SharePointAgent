@@ -52,7 +52,7 @@ public sealed class AgentSkillStore(IDbContextFactory<SharePointIndexDbContext> 
             {
                 try
                 {
-                    await SaveAsync(skill.Frontmatter.Name, skill.Frontmatter.Description, "global", true, files, cancellationToken);
+                    await SaveAsync(skill.Frontmatter.Name, skill.Frontmatter.Description, "global", true, files, null, cancellationToken);
                     break;
                 }
                 catch (Exception ex) when (attempt < 2 && IsConcurrentWrite(ex))
@@ -67,7 +67,10 @@ public sealed class AgentSkillStore(IDbContextFactory<SharePointIndexDbContext> 
     private static bool IsConcurrentWrite(Exception ex) => ex is Microsoft.Data.SqlClient.SqlException { Number: 1205 or 2601 or 2627 }
         || ex is DbUpdateException { InnerException: Microsoft.Data.SqlClient.SqlException { Number: 1205 or 2601 or 2627 } };
 
-    public async Task<AgentSkillInfo> UploadAsync(string scope, byte[] archive, CancellationToken cancellationToken)
+    public Task<AgentSkillInfo> UploadAsync(string scope, byte[] archive, CancellationToken cancellationToken) =>
+        UploadAsync(scope, archive, null, cancellationToken);
+
+    public async Task<AgentSkillInfo> UploadAsync(string scope, byte[] archive, Guid? replacementId, CancellationToken cancellationToken)
     {
         var files = ReadArchive(archive);
         using var bundle = new AgentSkillDirectory();
@@ -90,7 +93,7 @@ public sealed class AgentSkillStore(IDbContextFactory<SharePointIndexDbContext> 
         var skill = catalog[0];
         try
         {
-            return await SaveAsync(skill.Name, skill.Description, scope, false, files, cancellationToken);
+            return await SaveAsync(skill.Name, skill.Description, scope, false, files, replacementId, cancellationToken);
         }
         catch (DbUpdateException ex) when (ex.InnerException is Microsoft.Data.SqlClient.SqlException { Number: 2601 or 2627 })
         {
@@ -99,7 +102,7 @@ public sealed class AgentSkillStore(IDbContextFactory<SharePointIndexDbContext> 
     }
 
     private async Task<AgentSkillInfo> SaveAsync(string name, string description, string scope, bool isDefault,
-        Dictionary<string, byte[]> files, CancellationToken cancellationToken)
+        Dictionary<string, byte[]> files, Guid? replacementId, CancellationToken cancellationToken)
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         foreach (var (path, bytes) in files.OrderBy(x => x.Key, StringComparer.Ordinal))
@@ -110,8 +113,20 @@ public sealed class AgentSkillStore(IDbContextFactory<SharePointIndexDbContext> 
         var contentHash = Convert.ToHexString(hash.GetHashAndReset());
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken);
-        var entity = await db.AgentSkillDefinitions.Include(x => x.Files).SingleOrDefaultAsync(x => x.Name == name, cancellationToken);
-        if (entity is not null && (!isDefault || !entity.IsDefault))
+        var entity = await db.AgentSkillDefinitions.Include(x => x.Files).SingleOrDefaultAsync(
+            x => replacementId != null ? x.Id == replacementId && x.Scope == scope : x.Name == name, cancellationToken);
+        if (replacementId is not null)
+        {
+            if (entity is null || entity.IsDefault)
+            {
+                throw new InvalidDataException("Only uploaded skills in this scope can be replaced.");
+            }
+            if (!string.Equals(entity.Name, name, StringComparison.Ordinal))
+            {
+                throw new InvalidDataException($"The replacement SKILL.md name must remain '{entity.Name}'. Renaming a skill is not allowed.");
+            }
+        }
+        else if (entity is not null && (!isDefault || !entity.IsDefault))
         {
             throw new InvalidDataException("A skill with this name already exists. Use a unique name in SKILL.md.");
         }
@@ -200,6 +215,29 @@ public sealed class AgentSkillStore(IDbContextFactory<SharePointIndexDbContext> 
                 logger.LogError(ex, "Could not clean up agent skill storage object {StorageKey}; it is no longer referenced by the catalog", storageKey);
             }
         }
+    }
+
+    public async Task<(string Name, byte[] Content)?> DownloadArchiveAsync(string scope, Guid id, CancellationToken cancellationToken)
+    {
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+        var skill = await db.AgentSkillDefinitions.AsNoTracking().Include(x => x.Files)
+            .SingleOrDefaultAsync(x => x.Id == id && (x.Scope == scope || x.Scope == "global"), cancellationToken);
+        if (skill is null)
+        {
+            return null;
+        }
+        using var output = new MemoryStream();
+        using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var file in skill.Files.OrderBy(x => x.Path, StringComparer.Ordinal))
+            {
+                var bytes = await storage.ReadAsync(file.StorageKey, cancellationToken);
+                var entry = archive.CreateEntry(file.Path, CompressionLevel.Fastest);
+                await using var stream = entry.Open();
+                await stream.WriteAsync(bytes, cancellationToken);
+            }
+        }
+        return ($"{skill.Name}.zip", output.ToArray());
     }
 
     public async Task<IReadOnlyList<AgentSkillFileInfo>?> ListFilesAsync(string scope, Guid id, CancellationToken cancellationToken)

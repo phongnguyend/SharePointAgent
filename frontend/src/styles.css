@@ -4047,6 +4047,11 @@ button.signing-field-remove {
 .agent-skill-preview-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .agent-skill-preview-header > strong { overflow-wrap: anywhere; min-width: 0; }
 .agent-skill-preview-header > .row { flex-shrink: 0; }
+.agent-skill-dropzone { display: flex; align-items: center; gap: 12px; padding: 14px; border: 2px dashed var(--border); border-radius: var(--radius-sm); background: var(--surface-1); flex-wrap: wrap; }
+.agent-skill-dropzone > span { flex: 1; min-width: 180px; }
+.agent-skill-dropzone small { display: block; color: var(--text-secondary); margin-top: 3px; }
+.agent-skill-dropzone.is-dragging { border-color: var(--accent); background: var(--accent-soft); }
+.agent-skill-dropzone[aria-busy='true'] { opacity: 0.65; }
 .agent-skill-markdown { flex: 1; min-height: 0; overflow: auto; padding: 12px; border: 1px solid var(--border); border-radius: 6px; overflow-wrap: anywhere; }
 .agent-skill-browser pre { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: 6px; white-space: pre; }
 @media (max-width: 640px) {

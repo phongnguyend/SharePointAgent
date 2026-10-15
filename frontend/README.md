@@ -55,7 +55,22 @@ select it and save the agent. Uploads/deletions are immediate and are not undone
 cancelling the agent editor. Deletion also removes saved assignments.
 
 Use the eye action to browse the extracted file paths and inspect `SKILL.md`, scripts,
-and resources. Text files up to 512 KB are previewed as source with syntax highlighting
+and resources. Upload using the file picker or drag one ZIP onto the upload area
+(maximum 10 MB). Both methods use the same validation and are disabled while busy.
+Read-only views do not show the upload area.
+
+Use the Update skill icon on an uploaded skill to open a separate popup. Choose or
+drop its replacement ZIP, then select Replace skill to apply it. Cancel leaves the
+skill unchanged; the new-skill upload area always creates a new skill.
+The `name` in `SKILL.md` must exactly match the existing name; renaming is rejected
+by the server. Replacement preserves the skill ID, creation date, and agent assignments,
+and replaces all files atomically. New turns load the updated content; running turns
+retain their cached version. Bundled defaults cannot be replaced through the UI.
+
+The Download ZIP action on each skill card exports all files with their
+relative paths preserved, including read-only default skills. Deploy/restart the API
+to enable the `/api/agents/skills/{id}/archive` endpoint. Use the inspector for individual files
+and previews. Text files up to 512 KB are previewed as source with syntax highlighting
 for Markdown, PowerShell, Python, shell scripts, JavaScript/TypeScript, JSON, YAML,
 HTML/XML, CSS, C#, and SQL. Other text formats use plain text; binary files are
 listed without execution. Markdown files offer a Preview/Source toggle; rendered

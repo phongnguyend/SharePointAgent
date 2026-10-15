@@ -114,6 +114,16 @@ public sealed class AgentSkillTests
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"{path}?agentId={other.Id}&subAgentId={child.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"{path}/{local.Id}/file?agentId={parent.Id}&path=scripts/test.py")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"{path}/{local.Id}/file?agentId={parent.Id}&path=../outside")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"{path}/{local.Id}/archive?agentId={other.Id}")).StatusCode);
+        using (var download = await client.GetAsync($"{path}/{local.Id}/archive?agentId={parent.Id}"))
+        {
+            Assert.Equal(HttpStatusCode.OK, download.StatusCode);
+            Assert.Equal("application/zip", download.Content.Headers.ContentType!.MediaType);
+            var extracted = AgentSkillStore.ReadArchive(await download.Content.ReadAsByteArrayAsync());
+            Assert.Equal(2, extracted.Count);
+            Assert.Equal(Manifest("parent-only"), Encoding.UTF8.GetString(extracted["SKILL.md"]));
+            Assert.Equal("print('hello')", Encoding.UTF8.GetString(extracted["scripts/test.py"]));
+        }
         using (var snapshot = await store.PrepareAsync(parentScope, [local.Name, global.Name, nested.Name], default))
         {
             var discovered = (await Task.WhenAll(snapshot.Paths.Select(path => ChatAgentSkills.GetCatalogAsync(path, default)))).SelectMany(x => x);
@@ -131,6 +141,35 @@ public sealed class AgentSkillTests
         parent.Skills = [local.Name, global.Name];
         child.Skills = [global.Name];
         await db.SaveChangesAsync();
+        var uploadedCreatedAt = uploadedDefinition.CreatedAtUtc;
+        var replacement = Zip(("SKILL.md", Manifest(global.Name)), ("scripts/new.py", "print('new')"));
+        using (var oldFiles = await store.PrepareAsync("global", [global.Name], default))
+        {
+            using var form = new MultipartFormDataContent();
+            form.Add(new ByteArrayContent(replacement), "file", "replacement.zip");
+            using var response = await client.PutAsync($"{path}/{global.Id}", form);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(global.Id, (await response.Content.ReadFromJsonAsync<AgentSkillInfo>())!.Id);
+            using var newFiles = await store.PrepareAsync("global", [global.Name], default);
+            Assert.NotEqual(oldFiles.Paths[0], newFiles.Paths[0]);
+            Assert.True(File.Exists(Path.Combine(oldFiles.Paths[0], "scripts", "test.py")));
+            Assert.Equal("print('new')", await File.ReadAllTextAsync(Path.Combine(newFiles.Paths[0], "scripts", "new.py")));
+        }
+        await db.Entry(uploadedDefinition).ReloadAsync();
+        Assert.Equal(uploadedCreatedAt, uploadedDefinition.CreatedAtUtc);
+        await db.Entry(parent).ReloadAsync();
+        await db.Entry(child).ReloadAsync();
+        Assert.Contains(global.Name, parent.Skills!);
+        Assert.Contains(global.Name, child.Skills);
+        await Assert.ThrowsAsync<InvalidDataException>(() => store.UploadAsync("global", Zip(("SKILL.md", Manifest("renamed"))), Guid.Parse(global.Id), default));
+        await Assert.ThrowsAsync<InvalidDataException>(() => store.UploadAsync(parentScope, replacement, Guid.Parse(global.Id), default));
+        await Assert.ThrowsAsync<InvalidDataException>(() => store.UploadAsync("global", Zip(("SKILL.md", Manifest(defaults[0].Name))), Guid.Parse(defaults[0].Id), default));
+        storage.FailOnUpload = storage.UploadCount + 2;
+        await Assert.ThrowsAsync<IOException>(() => store.UploadAsync("global", Zip(("SKILL.md", Manifest(global.Name)), ("fail.py", "pass")), Guid.Parse(global.Id), default));
+        storage.FailOnUpload = null;
+        var retained = await store.GetFileAsync("global", Guid.Parse(global.Id), "scripts/new.py", default);
+        Assert.NotNull(retained);
+        Assert.Equal("print('new')", Encoding.UTF8.GetString(await store.ReadFileAsync(retained!, default)));
         Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"{path}/{global.Id}?agentId={parent.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"{path}/{global.Id}")).StatusCode);
         await db.Entry(parent).ReloadAsync();
@@ -150,6 +189,8 @@ public sealed class AgentSkillTests
     [InlineData(AppRoles.User, "GET", false)]
     [InlineData(AppRoles.GlobalReaderAdmin, "GET", true)]
     [InlineData(AppRoles.GlobalReaderAdmin, "POST", false)]
+    [InlineData(AppRoles.GlobalReaderAdmin, "PUT", false)]
+    [InlineData(AppRoles.GlobalAdmin, "PUT", true)]
     [InlineData(AppRoles.GlobalAdmin, "POST", true)]
     public void RequiresAdministrativeAccess(string role, string method, bool allowed)
     {

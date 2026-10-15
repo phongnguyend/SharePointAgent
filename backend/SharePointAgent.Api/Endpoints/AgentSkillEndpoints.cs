@@ -53,6 +53,25 @@ public static class AgentSkillEndpoints
             return Results.Created($"/api/agents/skills/{result.Id}", result);
         }).WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(11 * 1024 * 1024));
 
+        group.MapPut("/{id:guid}", async (Guid id, Guid? agentId, Guid? subAgentId, HttpRequest request,
+            AgentSkillStore store, CancellationToken cancellationToken) =>
+        {
+            if (!request.HasFormContentType)
+            {
+                return Results.BadRequest(new { error = "Upload a ZIP using multipart form field 'file'." });
+            }
+            var form = await request.ReadFormAsync(cancellationToken);
+            var file = form.Files.GetFile("file");
+            if (file is null || form.Files.Count != 1 || file.Length > AgentSkillStore.MaxArchiveBytes ||
+                !file.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            {
+                return Results.BadRequest(new { error = "Select one ZIP file no larger than 10 MB." });
+            }
+            using var content = new MemoryStream();
+            await file.CopyToAsync(content, cancellationToken);
+            return Results.Ok(await store.UploadAsync(AgentSkillStore.Scope(agentId, subAgentId), content.ToArray(), id, cancellationToken));
+        }).WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(11 * 1024 * 1024));
+
         group.MapDelete("/{id:guid}", async (Guid id, Guid? agentId, Guid? subAgentId,
             AgentSkillStore store, CancellationToken cancellationToken) =>
             await store.DeleteAsync(AgentSkillStore.Scope(agentId, subAgentId), id, cancellationToken)
@@ -63,6 +82,13 @@ public static class AgentSkillEndpoints
         {
             var files = await store.ListFilesAsync(AgentSkillStore.Scope(agentId, subAgentId), id, cancellationToken);
             return files is null ? Results.NotFound() : Results.Ok(files);
+        });
+
+        group.MapGet("/{id:guid}/archive", async (Guid id, Guid? agentId, Guid? subAgentId,
+            AgentSkillStore store, CancellationToken cancellationToken) =>
+        {
+            var archive = await store.DownloadArchiveAsync(AgentSkillStore.Scope(agentId, subAgentId), id, cancellationToken);
+            return archive is null ? Results.NotFound() : Results.File(archive.Value.Content, "application/zip", archive.Value.Name);
         });
 
         group.MapGet("/{id:guid}/download", async (Guid id, string path, Guid? agentId, Guid? subAgentId,
