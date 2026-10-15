@@ -125,7 +125,7 @@ The calling identity needs the **Azure ContainerApps Session Executor** role on 
 
 The steps below follow the `azure-containerapps-sandbox` SDK (still beta, `0.1.0b4`). Check them against the current sandbox documentation before automating them. The calling identity needs **Container Apps SandboxGroup Data Owner** on the group.
 
-1. Run **Deploy Sandboxes infrastructure**, then **Release Sandboxes**. The release smoke-tests and pushes the image, registers a disk image with managed-identity registry authentication, waits for Ready, and saves the ID. Run **Release API** to pick up that ID automatically for new sandboxes. An explicit `SANDBOX_DISK_IMAGE_ID` overrides the saved release. See [isolated code execution](../../infra/README.md#isolated-code-execution).
+1. Run **Deploy Sandboxes infrastructure**, then **Release Sandboxes**. The release smoke-tests and pushes the image, registers a disk image with a short-lived ACR token from the release identity, waits for Ready, and saves the ID. Run **Release API** to pick up that ID automatically for new sandboxes. An explicit `SANDBOX_DISK_IMAGE_ID` overrides the saved release. See [isolated code execution](../../infra/README.md#isolated-code-execution).
 2. Create a sandbox from that disk image. Generate a random API key per sandbox and keep it with the binding, such as the workspace or conversation the sandbox serves.
 3. Start the server, unless the platform already runs the image entrypoint:
 

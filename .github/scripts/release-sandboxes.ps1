@@ -10,8 +10,7 @@ if (-not $outputs.containerRegistryName.value) {
 . "$PSScriptRoot/deployment-outputs.ps1"
 . "$PSScriptRoot/sandbox-disk-image.ps1"
 $sandboxGroupName = Get-SandboxGroupName
-$pullIdentityId = Get-OptionalDeploymentOutput 'sandboxes' 'sandboxesPullIdentityId'
-if (-not $sandboxGroupName -or -not $pullIdentityId) {
+if (-not $sandboxGroupName) {
   throw 'Run Deploy Sandboxes Infrastructure before releasing Sandboxes.'
 }
 $region = az resource show --resource-group $env:RESOURCE_GROUP --name $sandboxGroupName `
@@ -21,7 +20,7 @@ $image = Publish-SandboxHostImage $outputs
 if ($image -isnot [string] -or [string]::IsNullOrWhiteSpace($image)) {
   throw 'Image publishing must return exactly one non-empty image reference string.'
 }
-$diskId = Publish-SandboxDiskImage -Image $image -Group $sandboxGroupName -Region $region -PullIdentityId $pullIdentityId
+$diskId = Publish-SandboxDiskImage -Image $image -Group $sandboxGroupName -Region $region -RegistryName $outputs.containerRegistryName.value
 
 "## Sandboxes disk image ready" >> $env:GITHUB_STEP_SUMMARY
 "- Image: $image" >> $env:GITHUB_STEP_SUMMARY

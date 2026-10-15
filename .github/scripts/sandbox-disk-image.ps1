@@ -1,17 +1,23 @@
-# The disk-image API requires the pull identity's client ID for registry authentication.
-function Publish-SandboxDiskImage([string]$Image, [string]$Group, [string]$Region, [string]$PullIdentityId) {
+# Authenticate the disk-image build with a short-lived ACR token from the release identity.
+function Publish-SandboxDiskImage([string]$Image, [string]$Group, [string]$Region, [string]$RegistryName) {
   if ([string]::IsNullOrWhiteSpace($Image) -or [string]::IsNullOrWhiteSpace($Group) -or
-      [string]::IsNullOrWhiteSpace($PullIdentityId) -or $Region -notmatch '^[a-z0-9]+$') {
-    throw 'Image, sandbox group, region, and pull identity are required to register a disk image.'
+      [string]::IsNullOrWhiteSpace($RegistryName) -or $Region -notmatch '^[a-z0-9]+$') {
+    throw 'Image, sandbox group, region, and registry name are required to register a disk image.'
   }
   $subscriptionId = az account show --query id -o tsv
   if ($LASTEXITCODE -ne 0) {
     throw 'Could not determine the Azure subscription.'
   }
-  $pullIdentityClientId = az identity show --ids $PullIdentityId --query clientId -o tsv
-  $parsedClientId = [Guid]::Empty
-  if ($LASTEXITCODE -ne 0 -or -not [Guid]::TryParse([string]$pullIdentityClientId, [ref]$parsedClientId) -or $parsedClientId -eq [Guid]::Empty) {
-    throw 'Could not resolve the sandbox pull identity client ID.'
+  $registryLogin = az acr login --name $RegistryName --expose-token --output json | ConvertFrom-Json
+  if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($registryLogin.accessToken)) {
+    throw 'Could not obtain an ACR token for disk image registration.'
+  }
+  if ($env:GITHUB_ACTIONS -eq 'true') {
+    Write-Host "::add-mask::$($registryLogin.accessToken)"
+  }
+  if ([string]::IsNullOrWhiteSpace($registryLogin.loginServer) -or
+      -not $Image.StartsWith("$($registryLogin.loginServer)/", [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'The disk image must belong to the authenticated container registry.'
   }
   $endpoint = "https://management.$Region.azuredevcompute.io"
   $groupPath = "/subscriptions/$subscriptionId/resourceGroups/$([Uri]::EscapeDataString($env:RESOURCE_GROUP))/sandboxGroups/$([Uri]::EscapeDataString($Group))"
@@ -23,7 +29,10 @@ function Publish-SandboxDiskImage([string]$Image, [string]$Group, [string]$Regio
     @{
       image = @{ base = $Image }
       labels = @{ name = "sandboxhost-$env:IMAGE_TAG" }
-      managedIdentityClientId = $parsedClientId.ToString()
+      registryCredentials = @{
+        username = '00000000-0000-0000-0000-000000000000'
+        token = $registryLogin.accessToken
+      }
     } | ConvertTo-Json -Depth 5 | Set-Content $requestPath -Encoding utf8
     $disk = az rest --method put --url "$collectionUrl`?api-version=$apiVersion" --resource https://dynamicsessions.io --body "@$requestPath" -o json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($disk.id)) {
