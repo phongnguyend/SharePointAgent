@@ -39,7 +39,7 @@ Configure the deployment principal's federated credential with issuer `https://t
 
 ### Infrastructure parameters
 
-Parameter files are `infra/parameters.<environment>.json`. Each supplied environment file sets `sqlLocation` to `southeastasia`. The template defaults SQL and other resources to the environment's `location` unless overridden. Configure `sqlLocation`, `foundryLocation` or `contentSafetyLocation` in the parameter files where needed. Confirm regional model/Foundry availability and quota. The chat model, version and capacity are configurable.
+Parameter files are `infra/parameters.<environment>.json`. Each supplied environment file sets `sqlLocation` and `cosmosLocation` to `southeastasia`. The template defaults these and other resources to the environment's `location` unless overridden. Configure `sqlLocation`, `cosmosLocation`, `foundryLocation` or `contentSafetyLocation` in the parameter files where needed. `cosmosLocation` controls both the Cosmos DB account location and its primary data region; regional access and capacity still depend on the subscription. Confirm regional model/Foundry availability and quota. The chat model, version and capacity are configurable.
 
 ### GitHub environment settings
 

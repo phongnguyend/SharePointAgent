@@ -38,6 +38,10 @@ param sqlEntraAdministratorPrincipalType string = 'Application'
 
 param sqlEntraAdminName string = 'sharepoint-agent-deployment'
 param sqlLocation string = location
+
+@description('Cosmos DB region. Override independently when access or capacity is restricted in the shared resource region.')
+param cosmosLocation string = location
+
 param sqlDatabaseName string = 'sharepointagent'
 @description('SQL database DTU SKU. Basic is the minimal default; use an S-series SKU for Standard.')
 param sqlDatabaseSku string = 'Basic'
@@ -134,7 +138,7 @@ var contentSafetyAccountName = take(toLower('${namePrefix}-safety-${uniqueSuffix
 var containerRegistryName = '${compactPrefix}cr${uniqueSuffix}'
 var logAnalyticsWorkspaceName = take(toLower('${namePrefix}-logs-${uniqueSuffix}'), 63)
 // Keep the workload/environment visible and retain a suffix within Storage's 24-character limit.
-var graphCosmosAccountName = take(toLower('${namePrefix}-graph-${uniqueSuffix}'), 44)
+var graphCosmosAccountName = take(toLower('${namePrefix}-graph-${cosmosLocation}-${uniqueSuffix}'), 44)
 var storageAccountName = '${compactPrefix}${take(uniqueSuffix, 4)}'
 
 resource staticWebApp 'Microsoft.Web/staticSites@2024-11-01' = {
@@ -230,12 +234,12 @@ resource graphSnapshotContainer 'Microsoft.Storage/storageAccounts/blobServices/
 // identity, and only this template can change the containers.
 resource graphCosmos 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
   name: graphCosmosAccountName
-  location: location
+  location: cosmosLocation
   tags: resourceTags
   kind: 'GlobalDocumentDB'
   properties: {
     databaseAccountOfferType: 'Standard'
-    locations: [{ locationName: location, failoverPriority: 0, isZoneRedundant: false }]
+    locations: [{ locationName: cosmosLocation, failoverPriority: 0, isZoneRedundant: false }]
     consistencyPolicy: { defaultConsistencyLevel: 'Session' }
     capabilities: graphRagCosmosServerless ? [{ name: 'EnableServerless' }] : []
     disableLocalAuth: true

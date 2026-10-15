@@ -47,6 +47,9 @@
     "location": {
       "value": "eastus"
     },
+    "cosmosLocation": {
+      "value": "southeastasia"
+    },
     "searchSku": {
       "value": "basic"
     },
