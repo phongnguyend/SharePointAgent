@@ -290,12 +290,10 @@ resource api 'Microsoft.App/containerApps@2025-01-01' = {
           { name: 'SqlServer__ConnectionString', value: 'Server=tcp:${hosting.sqlServerFqdn},1433;Database=${hosting.sqlDatabaseName};Authentication=Active Directory Managed Identity;User Id=${hosting.apiClientId};Encrypt=True;TrustServerCertificate=False;' }
           { name: 'ChatAgent__Mode', value: 'Foundry' }
           { name: 'AgentWorkspace__Mode', value: agentWorkspaceMode }
-          { name: 'AgentWorkspace__DynamicSessions__ManagedIdentityClientId', value: hosting.apiClientId }
           { name: 'AgentWorkspace__Snapshots__UsedManagedIdentity', value: 'true' }
           { name: 'AgentWorkspace__Snapshots__ServiceUri', value: infrastructure.uploadStorageServiceUri }
           { name: 'AgentWorkspace__Sandboxes__SubscriptionId', value: subscription().subscriptionId }
           { name: 'AgentWorkspace__Sandboxes__ResourceGroup', value: resourceGroup().name }
-          { name: 'AgentWorkspace__Sandboxes__ManagedIdentityClientId', value: hosting.apiClientId }
           { name: 'ChatAgent__Foundry__Endpoint', value: foundryEndpoint }
           { name: 'ChatAgent__Foundry__ManagedIdentityClientId', value: hosting.apiClientId }
           { name: 'Uploads__UsedManagedIdentity', value: 'true' }

@@ -171,9 +171,6 @@ public sealed class DynamicSessionsWorkspaceOptions
     /// <summary>The pool's management endpoint (the <c>dynamicSessionsPoolEndpoint</c> output of the template).</summary>
     public string? PoolManagementEndpoint { get; set; }
 
-    /// <summary>The managed identity holding the Session Executor role; empty uses AZURE_CLIENT_ID or the system identity.</summary>
-    public string? ManagedIdentityClientId { get; set; }
-
     public bool IsConfigured => Uri.TryCreate(PoolManagementEndpoint, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps;
 }
 
@@ -199,9 +196,6 @@ public sealed class SandboxesWorkspaceOptions
 
     /// <summary>The ID of the SandboxHost disk image registered in the group.</summary>
     public string? DiskImageId { get; set; }
-
-    /// <summary>The managed identity holding SandboxGroup Data Owner; empty uses AZURE_CLIENT_ID or the system identity.</summary>
-    public string? ManagedIdentityClientId { get; set; }
 
     [Required] public string Cpu { get; set; } = "1000m";
 

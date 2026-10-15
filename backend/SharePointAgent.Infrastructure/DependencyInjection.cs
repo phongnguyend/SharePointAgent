@@ -287,13 +287,9 @@ public static class DependencyInjection
         services.AddSingleton<Workspaces.ISandboxProvisioner>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<AgentWorkspaceOptions>>();
-            var clientId = options.Value.Sandboxes.ManagedIdentityClientId;
             return new Workspaces.AcaSandboxProvisioner(
                 sp.GetRequiredService<IHttpClientFactory>(),
-                new DefaultAzureCredential(new DefaultAzureCredentialOptions
-                {
-                    ManagedIdentityClientId = string.IsNullOrWhiteSpace(clientId) ? Environment.GetEnvironmentVariable("AZURE_CLIENT_ID") : clientId
-                }),
+                new DefaultAzureCredential(),
                 // A shared development sandbox needs no bindings, and may run without workspace storage.
                 options.Value.Snapshots.IsConfigured ? sp.GetRequiredService<Workspaces.ISandboxRegistry>() : new Workspaces.NoSandboxRegistry(),
                 options,
@@ -303,12 +299,8 @@ public static class DependencyInjection
         {
             var options = sp.GetRequiredService<IOptions<AgentWorkspaceOptions>>();
             var settings = options.Value;
-            var clientId = settings.DynamicSessions.ManagedIdentityClientId;
             TokenCredential? credential = settings.DynamicSessions.IsConfigured
-                ? new DefaultAzureCredential(new DefaultAzureCredentialOptions
-                {
-                    ManagedIdentityClientId = string.IsNullOrWhiteSpace(clientId) ? Environment.GetEnvironmentVariable("AZURE_CLIENT_ID") : clientId
-                })
+                ? new DefaultAzureCredential()
                 : null;
 
             // Each service is passed only when its mode is configured, so the provider offers exactly those modes.

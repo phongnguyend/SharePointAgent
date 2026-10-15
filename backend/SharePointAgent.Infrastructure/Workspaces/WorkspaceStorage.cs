@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Azure;
+using Azure.Identity;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Options;
@@ -188,7 +189,7 @@ public sealed class BlobWorkspaceStorage : IWorkspaceSnapshotStore, ISandboxRegi
     }
 
     private static BlobContainerClient CreateContainer(WorkspaceSnapshotOptions options) => options.UsedManagedIdentity
-        ? new BlobServiceClient(new Uri(options.ServiceUri!), DependencyInjection.CreateManagedIdentityCredential()).GetBlobContainerClient(options.ContainerName)
+        ? new BlobServiceClient(new Uri(options.ServiceUri!), new DefaultAzureCredential()).GetBlobContainerClient(options.ContainerName)
         : new BlobContainerClient(options.ConnectionString!, options.ContainerName);
 
     private sealed record SandboxBindingDocument(string? SandboxId, string? Endpoint, string? ApiKey);
