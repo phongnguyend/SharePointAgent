@@ -194,7 +194,7 @@ cookies, or custom headers are sent. Returned content is treated as untrusted da
 
 
 **Admin → Playgrounds** is a Global Admin-only tab with **Jev**, **Microsoft Decision**,
-**Image Description**, **Image Text Extraction**, **MarkItDown**, and **PageIndex** sub-tabs
+**Image Description**, **Image Text Extraction**, **MarkItDown**, **PageIndex**, **PDF**, **DOCX**, **XLSX**, and **PPTX** sub-tabs
 (`/admin?tab=playgrounds&provider=jev` and `/admin?tab=playgrounds&provider=microsoft-decision`).
 Switching between providers preserves each one's input, results, and pending evaluation.
 Leaving Playgrounds or reloading the page resets this in-memory state. Previous playground URLs redirect to the new sub-tabs. Edit the
@@ -225,6 +225,23 @@ are `POST /api/admin/markitdown-playground/convert` and
 `POST /api/admin/pageindex-playground/index`; they use server-side `MarkItDown` and
 `PageIndex` configuration and require Global Admin. No SharePoint indexing or attachment
 records are created by these playgrounds. Restart/deploy the API to enable these routes.
+
+The **PDF**, **DOCX**, **XLSX**, and **PPTX** tabs run the corresponding `DocumentParsers`
+library in the API host. Drag/drop or select one matching file up to 25 MB and click
+Convert. Each tab preserves its file, options, and results when switching. Results offer
+highlighted Markdown, preview, copy/download, parser warnings, elapsed time, and trace ID.
+Skip images omits image details but retains placeholder comments. With Skip images off,
+enable Enrich images (off by default) to run
+image description with the API host's configured vision model and image OCR with
+DocumentIntelligence before rendering Markdown. Description usage is recorded for the
+admin user. Provider failures appear as parser warnings while other content is retained.
+PDF uses PdfPig native text/layout; full-page OCR fallback remains disabled here.
+The Global Admin-only routes are `POST /api/admin/{format}-playground/convert`, where
+`format` is `pdf`, `docx`, `xlsx`, or `pptx`. Multipart fields are `file` and optional
+`skip_images` (default `true`) and `enrich_images` (default `false`).
+Skip images takes precedence: enrichment never runs when images are skipped.
+Native parsing needs no external credentials; image
+analysis requires the API host's OpenAi and DocumentIntelligence configuration.
 
 **Chat** shows a microphone button in the composer when the API reports dictation as enabled and the browser supports recording. `DictationButton` records with `MediaRecorder` (WebM/Opus, or MP4 on Safari), shows a timer with stop and cancel, stops at the server's time limit, and appends the returned transcript to the draft for review; it never sends the message itself.
 

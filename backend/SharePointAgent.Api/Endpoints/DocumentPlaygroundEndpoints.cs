@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using DocumentParsers;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using SharePointAgent.Application;
@@ -13,6 +14,38 @@ public static class DocumentPlaygroundEndpoints
 
     public static void MapDocumentPlaygroundEndpoints(this WebApplication app)
     {
+        MapParser(app, "pdf", async (context, stream, skipImages, enrichImages, token) =>
+        {
+            var parser = new PdfDocumentParser();
+            var result = await parser.ParseAsync(stream, token);
+            await EnrichImagesAsync(context, result.Elements.OfType<ImageElement>(), result.Warnings, skipImages || !enrichImages, token);
+            return new { markdown = parser.ConvertToMarkdown(result, token, skipImages), warnings = result.Warnings };
+        });
+
+        MapParser(app, "docx", async (context, stream, skipImages, enrichImages, token) =>
+        {
+            var parser = new DocxDocumentParser();
+            var result = await parser.ParseAsync(stream, token);
+            await EnrichImagesAsync(context, result.BodyElements.OfType<ImageElement>(), result.Warnings, skipImages || !enrichImages, token);
+            return new { markdown = parser.ConvertToMarkdown(result, token, skipImages), warnings = result.Warnings };
+        });
+
+        MapParser(app, "xlsx", async (context, stream, skipImages, enrichImages, token) =>
+        {
+            var parser = new XlsxDocumentParser();
+            var result = await parser.ParseAsync(stream, token);
+            await EnrichImagesAsync(context, result.Worksheets.SelectMany(sheet => sheet.Images), result.Warnings, skipImages || !enrichImages, token);
+            return new { markdown = parser.ConvertToMarkdown(result, token, skipImages), warnings = result.Warnings };
+        });
+
+        MapParser(app, "pptx", async (context, stream, skipImages, enrichImages, token) =>
+        {
+            var parser = new PptxDocumentParser();
+            var result = await parser.ParseAsync(stream, token);
+            await EnrichImagesAsync(context, result.Slides.SelectMany(slide => slide.Elements).OfType<ImageElement>(), result.Warnings, skipImages || !enrichImages, token);
+            return new { markdown = parser.ConvertToMarkdown(result, token, skipImages), warnings = result.Warnings };
+        });
+
         app.MapPost("/api/admin/markitdown-playground/convert", (HttpContext context, CancellationToken cancellationToken) =>
             ProcessAsync(context, "MarkItDown", async (_, file, bytes) =>
             {
@@ -40,6 +73,83 @@ public static class DocumentPlaygroundEndpoints
                     .IndexAsync(Path.GetFileName(file.FileName), bytes, file.ContentType, cancellationToken, includeText, includeSummaries);
             }, cancellationToken))
             .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(MaxFileBytes + 1024 * 1024));
+    }
+
+    private static void MapParser(WebApplication app, string format,
+        Func<HttpContext, Stream, bool, bool, CancellationToken, Task<object>> parse)
+    {
+        app.MapPost($"/api/admin/{format}-playground/convert", (HttpContext context, CancellationToken cancellationToken) =>
+            ProcessAsync(context, format.ToUpperInvariant(), async (form, file, bytes) =>
+            {
+                if (!string.Equals(Path.GetExtension(file.FileName), $".{format}", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new ArgumentException($"Select a .{format} document.");
+                }
+                var skipImages = ReadFlag(form, "skip_images", true);
+                var enrichImages = ReadFlag(form, "enrich_images", false);
+                using var stream = new MemoryStream(bytes, writable: false);
+                try
+                {
+                    return await parse(context, stream, skipImages, enrichImages, cancellationToken);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("DocumentPlayground")
+                        .LogWarning(ex, "{Format} parser rejected a document", format);
+                    throw new ArgumentException("The document could not be parsed. It may be invalid, encrypted, unsupported, or exceed parser limits.");
+                }
+            }, cancellationToken))
+            .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(MaxFileBytes + 1024 * 1024));
+    }
+
+    private static async Task EnrichImagesAsync(HttpContext context, IEnumerable<ImageElement> images,
+        List<DocumentParseWarning> warnings, bool skipImages, CancellationToken cancellationToken)
+    {
+        if (skipImages)
+        {
+            return;
+        }
+        foreach (var image in images)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await AnalyzeAsync("Description", async () =>
+            {
+                var extension = image.ContentType.ToLowerInvariant() switch
+                {
+                    "image/png" => ".png",
+                    "image/jpeg" => ".jpg",
+                    "image/webp" => ".webp",
+                    "image/gif" => ".gif",
+                    _ => throw new NotSupportedException("Unsupported image format for description.")
+                };
+                var result = await context.RequestServices.GetRequiredService<ImageExtractor>()
+                    .DescribeAsync("document-image" + extension, image.Data, context.AppUser().Id, cancellationToken);
+                image.Description = result.Description;
+            });
+            await AnalyzeAsync("OCR", async () =>
+            {
+                image.ExtractedText = await context.RequestServices.GetRequiredService<DocumentIntelligenceClient>()
+                    .ExtractAsync(image.Data, cancellationToken);
+            });
+        }
+
+        async Task AnalyzeAsync(string operation, Func<Task> analyze)
+        {
+            try
+            {
+                await analyze();
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("DocumentPlayground")
+                    .LogWarning(ex, "Document image {Operation} failed", operation);
+                warnings.Add(new(operation + "Failed", $"Image {operation} failed; other extracted content remains available."));
+            }
+        }
     }
 
     private static bool ReadFlag(IFormCollection form, string name, bool fallback)

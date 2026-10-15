@@ -11,6 +11,10 @@
     <!-- Only the composition root. Every endpoint takes an Application contract, so the API compiles
          without a line of Entity Framework Core or a reference to the persistence layer. -->
     <ProjectReference Include="..\SharePointAgent.Infrastructure\SharePointAgent.Infrastructure.csproj" />
+    <ProjectReference Include="../DocumentParsers/DocumentParsers.Pdf/DocumentParsers.Pdf.csproj" />
+    <ProjectReference Include="../DocumentParsers/DocumentParsers.Docx/DocumentParsers.Docx.csproj" />
+    <ProjectReference Include="../DocumentParsers/DocumentParsers.Xlsx/DocumentParsers.Xlsx.csproj" />
+    <ProjectReference Include="../DocumentParsers/DocumentParsers.Pptx/DocumentParsers.Pptx.csproj" />
   </ItemGroup>
 
   <ItemGroup>

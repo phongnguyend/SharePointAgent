@@ -1,5 +1,17 @@
 import { request } from './http'
 
+export type DocumentParserFormat = 'pdf' | 'docx' | 'xlsx' | 'pptx'
+export type DocumentPlaygroundProvider = 'markitdown' | 'pageindex' | DocumentParserFormat
+export type ParserWarning = { code: string; message: string }
+
+export function parsePlaygroundDocument(format: DocumentParserFormat, file: File, skipImages: boolean, enrichImages: boolean, signal: AbortSignal) {
+  const body = new FormData()
+  body.append('file', file)
+  body.append('skip_images', String(skipImages))
+  body.append('enrich_images', String(enrichImages))
+  return request<DocumentEvaluation<{ markdown: string; warnings: ParserWarning[] }>>(`/api/admin/${format}-playground/convert`, { method: 'POST', body, signal, cache: 'no-store' })
+}
+
 export interface DocumentEvaluation<T> {
   result: T
   elapsedMs: number
