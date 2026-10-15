@@ -13,21 +13,38 @@ function Get-SandboxUrl($BaseUrl, $Path, $Identifier) {
   return "$url$separator" + "identifier=$([Uri]::EscapeDataString($Identifier))"
 }
 
+# A proxy can return JSON with a non-JSON content type, leaving Invoke-RestMethod's result as text.
+function ConvertFrom-SandboxResponse($Response) {
+  if ($Response -is [string]) {
+    try {
+      return ($Response | ConvertFrom-Json -ErrorAction Stop)
+    } catch {
+      $preview = $Response.Substring(0, [Math]::Min(512, $Response.Length))
+      throw "Sandbox host returned non-JSON content: $preview"
+    }
+  }
+  return $Response
+}
+
 function Wait-SandboxHealth($BaseUrl, $Headers, $Identifier, $Attempts = 30) {
+  $lastFailure = 'No health response was received.'
   for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
     try {
-      $health = Invoke-RestMethod (Get-SandboxUrl $BaseUrl '/health' $Identifier) -Headers $Headers -TimeoutSec 30
+      $response = Invoke-RestMethod (Get-SandboxUrl $BaseUrl '/health' $Identifier) -Headers $Headers -TimeoutSec 30
+      $health = ConvertFrom-SandboxResponse $response
       if ($health.status -eq 'ok') {
         return
       }
+      $preview = ConvertTo-Json -InputObject $health -Depth 5 -Compress
+      $lastFailure = "Expected health status 'ok'. Response: $($preview.Substring(0, [Math]::Min(512, $preview.Length)))"
     } catch {
-      if ($attempt -eq $Attempts) {
-        throw
-      }
+      $lastFailure = $_.Exception.Message
     }
-    Start-Sleep -Seconds 5
+    if ($attempt -lt $Attempts) {
+      Start-Sleep -Seconds 5
+    }
   }
-  throw "The sandbox host at $BaseUrl did not report healthy."
+  throw "The sandbox host at $BaseUrl did not report healthy after $Attempts attempts. $lastFailure"
 }
 
 # Runs one script per language and a file round trip, failing on anything but the expected output.
@@ -42,6 +59,7 @@ function Test-SandboxHost($BaseUrl, $Headers, $Identifier, $HealthAttempts = 30)
   foreach ($case in $cases) {
     $result = Invoke-RestMethod -Method Post (Get-SandboxUrl $BaseUrl '/executions' $Identifier) -Headers $Headers `
       -ContentType 'application/json' -Body ($case | ConvertTo-Json -Compress) -TimeoutSec 120
+    $result = ConvertFrom-SandboxResponse $result
     if ($result.exitCode -ne 0 -or $result.stdout.Trim() -ne '42') {
       throw "$($case.language) smoke test failed: exit $($result.exitCode), stdout '$($result.stdout)', stderr '$($result.stderr)'."
     }
@@ -50,6 +68,7 @@ function Test-SandboxHost($BaseUrl, $Headers, $Identifier, $HealthAttempts = 30)
   $body = @{ path = 'release-smoke/check.txt'; content = 'release smoke test' } | ConvertTo-Json -Compress
   Invoke-RestMethod -Method Put (Get-SandboxUrl $BaseUrl '/files/text' $Identifier) -Headers $Headers -ContentType 'application/json' -Body $body -TimeoutSec 60 | Out-Null
   $read = Invoke-RestMethod (Get-SandboxUrl $BaseUrl '/files/text?path=release-smoke/check.txt' $Identifier) -Headers $Headers -TimeoutSec 60
+  $read = ConvertFrom-SandboxResponse $read
   if ($read.content -ne 'release smoke test') {
     throw 'File round trip returned different content.'
   }
