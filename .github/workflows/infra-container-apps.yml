@@ -81,8 +81,8 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $true
           $outputs = az deployment group show --resource-group $env:RESOURCE_GROUP --name "infra-$env:DEPLOY_ENVIRONMENT" `
             --query properties.outputs -o json | ConvertFrom-Json
-          if (-not $outputs.containerRegistryName.value) {
-            throw 'Run Deploy infrastructure before deploying Container Apps.'
+          if (-not $outputs.containerRegistryName.value -or -not $outputs.containerAppsEnvironmentName.value) {
+            throw 'Run Deploy infrastructure before deploying Container Apps to provision the shared environment and publish its name.'
           }
           $infrastructure = @{}
           foreach ($output in $outputs.PSObject.Properties) {
