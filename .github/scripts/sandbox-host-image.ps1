@@ -82,8 +82,8 @@ function Publish-SandboxHostImage($Outputs) {
   } finally {
     docker rm --force $container | Out-Null
   }
-  az acr login --name $Outputs.containerRegistryName.value --output none
-  docker tag $local $remote
+  az acr login --name $Outputs.containerRegistryName.value --output none | Out-Host
+  docker tag $local $remote | Out-Host
   docker push $remote | Out-Host
   return $remote
 }

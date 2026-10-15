@@ -10,6 +10,9 @@ if (-not $outputs.containerRegistryName.value) {
 # Sandboxes boot from a disk image made from this image; nothing long-running is updated here. The
 # image is smoke-tested in a local container before it is pushed.
 $image = Publish-SandboxHostImage $outputs
+if ($image -isnot [string] -or [string]::IsNullOrWhiteSpace($image)) {
+  throw 'Image publishing must return exactly one non-empty image reference string.'
+}
 
 "## Sandboxes image published" >> $env:GITHUB_STEP_SUMMARY
 "- Image: $image" >> $env:GITHUB_STEP_SUMMARY

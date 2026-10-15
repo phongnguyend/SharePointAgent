@@ -15,6 +15,9 @@ if (-not $poolName) {
 }
 
 $image = Publish-SandboxHostImage $outputs
+if ($image -isnot [string] -or [string]::IsNullOrWhiteSpace($image)) {
+  throw 'Image publishing must return exactly one non-empty image reference string.'
+}
 
 # Merge Patch replaces arrays whole, so the pool's own container definition is edited and sent back
 # with its registry credentials, keeping settings the infrastructure owns.
