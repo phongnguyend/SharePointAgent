@@ -67,6 +67,29 @@ by the server. Replacement preserves the skill ID, creation date, and agent assi
 and replaces all files atomically. New turns load the updated content; running turns
 retain their cached version. Bundled defaults cannot be replaced through the UI.
 
+Each skill card shows its retained version count beside the skill name,
+which refreshes after replacement or version deletion. Version history lists numbered versions with their creation time and active
+status. Browse or download any retained version. Administrators can delete inactive
+versions of uploaded skills in their owning scope, with confirmation; the active version
+and bundled defaults are protected. Each changed replacement retains the previous files;
+identical uploads do not create another version. Existing skills become version 1 when
+the `AddAgentSkillVersions` database migration runs. Previously replaced files that were
+already deleted cannot be recovered. Agents always select the active version; running
+turns retain their cached files even if that older version is deleted from storage.
+
+Use **Make active** in version history to roll back or promote any retained version
+of an uploaded skill. Confirm the switch in the popup. The selected version's description
+and content become active for new turns, without changing the skill name, assignments,
+or version count. Running turns keep their loaded files. Only administrators in the
+owning scope can switch versions; bundled defaults remain read-only. Switching is
+reversible while the other version is retained. Apply `AddAgentSkillLastVersion` so
+future uploads keep increasing version numbers after rollback and history deletion.
+
+The backend uses `ActiveVersion` and returns `isActive` in version history. Activation
+uses `PUT /api/agents/skills/{id}/versions/{version}/active`. Apply
+`RenameAgentSkillCurrentVersionToActiveVersion` to rename the existing database column
+without changing the selected version, and deploy the API and frontend together.
+
 The Download ZIP action on each skill card exports all files with their
 relative paths preserved, including read-only default skills. Deploy/restart the API
 to enable the `/api/agents/skills/{id}/archive` endpoint. Use the inspector for individual files
@@ -99,7 +122,7 @@ creating/updating protected default definitions and files. Unchanged defaults ar
 using a content hash. Defaults absent from a later deployment remain in the catalog.
 AgentHost reads this same database/storage catalog; deploy/start the API before AgentHost.
 Each host caches downloaded skill folders by skill ID and content hash. Every turn
-checks the database for the current selected versions and downloads only cache misses
+checks the database for the active selected versions and downloads only cache misses
 or changed skills. Concurrent turns share the same versioned cache folders directly;
 there are no per-turn file copies. Reference-counted leases keep versions available
 until every turn using them finishes. Superseded versions are removed after their last

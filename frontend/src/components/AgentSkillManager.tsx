@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { BookOpen, Copy, Download, Eye, File, FilePenLine, Folder, Trash2, Upload } from 'lucide-react'
+import { BookOpen, Copy, Download, Eye, File, FilePenLine, Folder, History, Trash2, Upload } from 'lucide-react'
 import { agentSkillScopeKey, deleteAgentSkill, downloadAgentSkill, downloadAgentSkillFile, listAgentSkillFiles, listAgentSkills, readAgentSkillFile, replaceAgentSkill, uploadAgentSkill } from '../api/agentSkillClient'
 import type { AgentSkill, AgentSkillScope } from '../api/agentSkillClient'
 import { useAsync } from '../lib/useAsync'
 import { useCopy } from '../lib/useCopy'
 import { useToast } from './Toast'
 import SourceCode from './SourceCode'
+import AgentSkillHistory from './AgentSkillHistory'
 import { Empty, ErrorBanner, LoadingBar, Modal } from './ui'
 
 export default function AgentSkillManager({ scope = {}, readOnly = false, onChanged, onBusyChange }: {
@@ -15,6 +16,8 @@ export default function AgentSkillManager({ scope = {}, readOnly = false, onChan
 }) {
   const skills = useAsync(signal => listAgentSkills(scope, signal), [scope.agentId, scope.subAgentId])
   const [inspecting, setInspecting] = useState<AgentSkill | null>(null)
+  const [inspectingVersion, setInspectingVersion] = useState<number | undefined>()
+  const [history, setHistory] = useState<AgentSkill | null>(null)
   const [removing, setRemoving] = useState<AgentSkill | null>(null)
   const [replacing, setReplacing] = useState<AgentSkill | null>(null)
   const [busy, setBusy] = useState(false)
@@ -151,9 +154,15 @@ export default function AgentSkillManager({ scope = {}, readOnly = false, onChan
     <div className="agent-skill-list stack">
       {skills.data?.length === 0 ? <Empty title="No skills" /> : null}
       {skills.data?.map(skill => <article className="card" key={skill.id}>
-        <div className="card-head"><h2><BookOpen size={15} />{skill.name}</h2><div className="row">
+        <div className="card-head"><h2><BookOpen size={15} />{skill.name}<span className="badge">{skill.versionCount} {skill.versionCount === 1 ? 'version' : 'versions'}</span></h2><div className="row">
           <span className="badge">{skill.isDefault ? 'Default' : skill.scope === 'global' ? 'Global' : 'Agent-specific'}</span>
-          <button title="Browse skill files" aria-label={`Inspect ${skill.name}`} onClick={() => setInspecting(skill)}><Eye size={14} /></button>
+          <button title="Browse skill files" aria-label={`Inspect ${skill.name}`} onClick={() => {
+            setInspectingVersion(undefined)
+            setInspecting(skill)
+          }}><Eye size={14} /></button>
+          <button title="Version history" aria-label={`Version history for ${skill.name}: ${skill.versionCount} versions`} onClick={() => setHistory(skill)}>
+            <History size={14} />
+          </button>
           {!readOnly && !skill.isDefault && skill.scope === agentSkillScopeKey(scope) ? <button title="Update skill" aria-label={`Update ${skill.name}`} disabled={busy}
             onClick={() => {
               setReplacing(skill)
@@ -166,7 +175,12 @@ export default function AgentSkillManager({ scope = {}, readOnly = false, onChan
         <div className="card-body"><p>{skill.description}</p></div>
       </article>)}
     </div>
-    {inspecting ? <AgentSkillInspector skill={inspecting} scope={scope} onClose={() => setInspecting(null)} /> : null}
+    {history ? <AgentSkillHistory skill={history} scope={scope} readOnly={readOnly} onClose={() => setHistory(null)} onBusyChange={setBusy} onChanged={skills.reload}
+      onInspect={version => {
+        setInspectingVersion(version)
+        setInspecting(history)
+      }} /> : null}
+    {inspecting ? <AgentSkillInspector key={`${inspecting.id}:${inspectingVersion ?? 'current'}`} skill={inspecting} scope={{ ...scope, version: inspectingVersion }} onClose={() => setInspecting(null)} /> : null}
     {replacing ? <ReplaceSkillDialog skill={replacing} scope={scope} onClose={() => setReplacing(null)}
       onBusyChange={setBusy} onChanged={() => changed()} /> : null}
     <Modal open={!!removing} title="Delete skill" icon={<Trash2 size={17} />} onClose={() => {
@@ -268,14 +282,14 @@ function ReplaceSkillDialog({ skill, scope, onClose, onChanged, onBusyChange }: 
 }
 
 function AgentSkillInspector({ skill, scope, onClose }: { skill: AgentSkill; scope: AgentSkillScope; onClose: () => void }) {
-  const files = useAsync(signal => listAgentSkillFiles(scope, skill.id, signal), [skill.id, scope.agentId, scope.subAgentId])
+  const files = useAsync(signal => listAgentSkillFiles(scope, skill.id, signal), [skill.id, scope.agentId, scope.subAgentId, scope.version])
   const [path, setPath] = useState('SKILL.md')
   const [downloading, setDownloading] = useState(false)
   const [renderMarkdown, setRenderMarkdown] = useState(false)
   const isMarkdown = /\.(md|markdown)$/i.test(path)
   const copy = useCopy()
   const toast = useToast()
-  const preview = useAsync(signal => readAgentSkillFile(scope, skill.id, path, signal), [skill.id, scope.agentId, scope.subAgentId, path])
+  const preview = useAsync(signal => readAgentSkillFile(scope, skill.id, path, signal), [skill.id, scope.agentId, scope.subAgentId, scope.version, path])
   const download = async () => {
     setDownloading(true)
     try {
@@ -300,7 +314,7 @@ function AgentSkillInspector({ skill, scope, onClose }: { skill: AgentSkill; sco
       setDownloading(false)
     }
   }
-  return <Modal open title={skill.name} icon={<BookOpen size={17} />} className="agent-skill-inspector" onClose={onClose} footer={<button onClick={onClose}>Close</button>}>
+  return <Modal open title={`${skill.name}${scope.version ? ` · Version ${scope.version}` : ''}`} icon={<BookOpen size={17} />} className="agent-skill-inspector" onClose={onClose} footer={<button onClick={onClose}>Close</button>}>
     <LoadingBar active={files.loading || preview.loading} />
     {files.error ? <ErrorBanner message={files.error} onRetry={files.reload} /> : null}
     <div className="agent-skill-browser">

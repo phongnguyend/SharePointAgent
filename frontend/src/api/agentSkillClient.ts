@@ -1,16 +1,24 @@
 import { downloadBlob, query, request } from './http'
 
-export interface AgentSkillScope { agentId?: string; subAgentId?: string }
+export interface AgentSkillScope { agentId?: string; subAgentId?: string; version?: number }
+export interface AgentSkillVersion { version: number; description: string; createdAtUtc: string; isActive: boolean }
 export interface AgentSkill {
   id: string
   name: string
   description: string
   scope: string
   isDefault: boolean
+  versionCount: number
 }
 export const agentSkillScopeKey = (scope: AgentSkillScope) => scope.subAgentId
   ? `sub:${scope.subAgentId.replaceAll('-', '')}` : scope.agentId ? `agent:${scope.agentId.replaceAll('-', '')}` : 'global'
 const base = '/api/agents/skills'
+export const listAgentSkillVersions = (scope: AgentSkillScope, id: string, signal?: AbortSignal) =>
+  request<AgentSkillVersion[]>(`${base}/${encodeURIComponent(id)}/versions${query({ ...scope })}`, { signal })
+export const deleteAgentSkillVersion = (scope: AgentSkillScope, id: string, version: number) =>
+  request<void>(`${base}/${encodeURIComponent(id)}/versions/${version}${query({ ...scope })}`, { method: 'DELETE' })
+export const setActiveAgentSkillVersion = (scope: AgentSkillScope, id: string, version: number) =>
+  request<void>(`${base}/${encodeURIComponent(id)}/versions/${version}/active${query({ ...scope })}`, { method: 'PUT' })
 export const downloadAgentSkill = (scope: AgentSkillScope, id: string) =>
   downloadBlob(`${base}/${encodeURIComponent(id)}/archive${query({ ...scope })}`)
 export const downloadAgentSkillFile = (scope: AgentSkillScope, id: string, path: string, signal?: AbortSignal) =>

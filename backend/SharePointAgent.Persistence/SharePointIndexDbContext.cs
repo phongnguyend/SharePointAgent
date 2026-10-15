@@ -33,6 +33,8 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
 
     public DbSet<AgentSkillFileEntity> AgentSkillFiles => Set<AgentSkillFileEntity>();
 
+    public DbSet<AgentSkillVersionEntity> AgentSkillVersions => Set<AgentSkillVersionEntity>();
+
     public DbSet<SubAgentDefinitionEntity> SubAgentDefinitions => Set<SubAgentDefinitionEntity>();
 
     public DbSet<AgentDefinitionEntity> AgentDefinitions => Set<AgentDefinitionEntity>();
@@ -224,7 +226,18 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
             entity.Property(x => x.Path).HasMaxLength(240);
             entity.Property(x => x.StorageKey).HasMaxLength(200);
             entity.HasOne(x => x.Definition).WithMany(x => x.Files).HasForeignKey(x => x.AgentSkillDefinitionId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasIndex(x => new { x.AgentSkillDefinitionId, x.Path }).IsUnique();
+            entity.HasIndex(x => new { x.AgentSkillDefinitionId, x.Version, x.Path }).IsUnique();
+        });
+
+        modelBuilder.Entity<AgentSkillVersionEntity>(entity =>
+        {
+            entity.ToTable("AgentSkillVersions");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedOnAdd();
+            entity.Property(x => x.Description).HasMaxLength(4000);
+            entity.Property(x => x.ContentHash).HasMaxLength(64);
+            entity.HasOne(x => x.Definition).WithMany().HasForeignKey(x => x.AgentSkillDefinitionId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(x => new { x.AgentSkillDefinitionId, x.Version }).IsUnique();
         });
 
         modelBuilder.Entity<SubAgentDefinitionEntity>(entity =>

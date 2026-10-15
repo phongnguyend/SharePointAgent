@@ -77,24 +77,41 @@ public static class AgentSkillEndpoints
             await store.DeleteAsync(AgentSkillStore.Scope(agentId, subAgentId), id, cancellationToken)
                 ? Results.NoContent() : Results.NotFound());
 
-        group.MapGet("/{id:guid}/files", async (Guid id, Guid? agentId, Guid? subAgentId,
+        group.MapGet("/{id:guid}/versions", async (Guid id, Guid? agentId, Guid? subAgentId,
             AgentSkillStore store, CancellationToken cancellationToken) =>
         {
-            var files = await store.ListFilesAsync(AgentSkillStore.Scope(agentId, subAgentId), id, cancellationToken);
+            var versions = await store.ListVersionsAsync(AgentSkillStore.Scope(agentId, subAgentId), id, cancellationToken);
+            return versions is null ? Results.NotFound() : Results.Ok(versions);
+        });
+
+        group.MapPut("/{id:guid}/versions/{version:int}/active", async (Guid id, int version, Guid? agentId, Guid? subAgentId,
+            AgentSkillStore store, CancellationToken cancellationToken) =>
+            await store.SetActiveVersionAsync(AgentSkillStore.Scope(agentId, subAgentId), id, version, cancellationToken)
+                ? Results.NoContent() : Results.NotFound());
+
+        group.MapDelete("/{id:guid}/versions/{version:int}", async (Guid id, int version, Guid? agentId, Guid? subAgentId,
+            AgentSkillStore store, CancellationToken cancellationToken) =>
+            await store.DeleteVersionAsync(AgentSkillStore.Scope(agentId, subAgentId), id, version, cancellationToken)
+                ? Results.NoContent() : Results.NotFound());
+
+        group.MapGet("/{id:guid}/files", async (Guid id, Guid? agentId, Guid? subAgentId, int? version,
+            AgentSkillStore store, CancellationToken cancellationToken) =>
+        {
+            var files = await store.ListFilesAsync(AgentSkillStore.Scope(agentId, subAgentId), id, version, cancellationToken);
             return files is null ? Results.NotFound() : Results.Ok(files);
         });
 
-        group.MapGet("/{id:guid}/archive", async (Guid id, Guid? agentId, Guid? subAgentId,
+        group.MapGet("/{id:guid}/archive", async (Guid id, Guid? agentId, Guid? subAgentId, int? version,
             AgentSkillStore store, CancellationToken cancellationToken) =>
         {
-            var archive = await store.DownloadArchiveAsync(AgentSkillStore.Scope(agentId, subAgentId), id, cancellationToken);
+            var archive = await store.DownloadArchiveAsync(AgentSkillStore.Scope(agentId, subAgentId), id, version, cancellationToken);
             return archive is null ? Results.NotFound() : Results.File(archive.Value.Content, "application/zip", archive.Value.Name);
         });
 
-        group.MapGet("/{id:guid}/download", async (Guid id, string path, Guid? agentId, Guid? subAgentId,
+        group.MapGet("/{id:guid}/download", async (Guid id, string path, Guid? agentId, Guid? subAgentId, int? version,
             AgentSkillStore store, CancellationToken cancellationToken) =>
         {
-            var file = await store.GetFileAsync(AgentSkillStore.Scope(agentId, subAgentId), id, path, cancellationToken);
+            var file = await store.GetFileAsync(AgentSkillStore.Scope(agentId, subAgentId), id, path, version, cancellationToken);
             if (file is null)
             {
                 return Results.NotFound();
@@ -103,10 +120,10 @@ public static class AgentSkillEndpoints
             return Results.File(bytes, "application/octet-stream", Path.GetFileName(file.Path));
         });
 
-        group.MapGet("/{id:guid}/file", async (Guid id, string path, Guid? agentId, Guid? subAgentId,
+        group.MapGet("/{id:guid}/file", async (Guid id, string path, Guid? agentId, Guid? subAgentId, int? version,
             AgentSkillStore store, CancellationToken cancellationToken) =>
         {
-            var file = await store.GetFileAsync(AgentSkillStore.Scope(agentId, subAgentId), id, path, cancellationToken);
+            var file = await store.GetFileAsync(AgentSkillStore.Scope(agentId, subAgentId), id, path, version, cancellationToken);
             if (file is null)
             {
                 return Results.NotFound();

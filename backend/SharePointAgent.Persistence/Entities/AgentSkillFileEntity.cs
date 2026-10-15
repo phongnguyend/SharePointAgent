@@ -10,6 +10,8 @@ public sealed class AgentSkillFileEntity
 
     public string Path { get; set; } = "";
 
+    public int Version { get; set; } = 1;
+
     public long SizeBytes { get; set; }
 
     public string StorageKey { get; set; } = "";

@@ -95,6 +95,7 @@ public sealed class AgentSkillTests
             return (await response.Content.ReadFromJsonAsync<AgentSkillInfo>())!;
         }
         var global = await Upload("", "uploaded-global");
+        Assert.Equal(1, global.VersionCount);
         var uploadedDefinition = await db.AgentSkillDefinitions.SingleAsync(x => x.Id == Guid.Parse(global.Id));
         Assert.NotEqual(default, uploadedDefinition.CreatedAtUtc);
         Assert.Equal(uploadedDefinition.CreatedAtUtc, uploadedDefinition.UpdatedAtUtc);
@@ -170,6 +171,59 @@ public sealed class AgentSkillTests
         var retained = await store.GetFileAsync("global", Guid.Parse(global.Id), "scripts/new.py", default);
         Assert.NotNull(retained);
         Assert.Equal("print('new')", Encoding.UTF8.GetString(await store.ReadFileAsync(retained!, default)));
+        var history = await store.ListVersionsAsync("global", Guid.Parse(global.Id), default);
+        Assert.NotNull(history);
+        Assert.Equal(new[] { 2, 1 }, history.Select(x => x.Version));
+        Assert.True(history[0].IsActive);
+        Assert.Equal(2, (await store.ListAsync("global", default)).Single(x => Guid.Parse(x.Id) == Guid.Parse(global.Id)).VersionCount);
+        Assert.False(history[1].IsActive);
+        await store.UploadAsync("global", replacement, Guid.Parse(global.Id), default);
+        Assert.Equal(2, (await store.ListVersionsAsync("global", Guid.Parse(global.Id), default))!.Count);
+        using (var archived = await client.GetAsync($"{path}/{global.Id}/archive?version=1"))
+        {
+            Assert.Equal(HttpStatusCode.OK, archived.StatusCode);
+            var oldContent = AgentSkillStore.ReadArchive(await archived.Content.ReadAsByteArrayAsync());
+            Assert.Equal("print('hello')", Encoding.UTF8.GetString(oldContent["scripts/test.py"]));
+        }
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"{path}/{global.Id}/file?version=1&path=scripts/test.py")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"{path}/{global.Id}/file?path=scripts/test.py")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"{path}/{local.Id}/versions?agentId={other.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.DeleteAsync($"{path}/{global.Id}/versions/2")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"{path}/{global.Id}/versions/1?agentId={parent.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"{path}/{defaults[0].Id}/versions/1")).StatusCode);
+        var oldFile = await store.GetFileAsync("global", Guid.Parse(global.Id), "scripts/test.py", 1, default);
+        Assert.NotNull(oldFile);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PutAsync($"{path}/{global.Id}/versions/1/active?agentId={parent.Id}", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PutAsync($"{path}/{defaults[0].Id}/versions/1/active", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PutAsync($"{path}/{global.Id}/versions/999/active", null)).StatusCode);
+        using (var running = await store.PrepareAsync("global", [global.Name], default))
+        {
+            Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsync($"{path}/{global.Id}/versions/1/active", null)).StatusCode);
+            Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsync($"{path}/{global.Id}/versions/1/active", null)).StatusCode);
+            Assert.Equal(2, (await store.ListVersionsAsync("global", Guid.Parse(global.Id), default))!.Count);
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.DeleteAsync($"{path}/{global.Id}/versions/1")).StatusCode);
+            using var rolledBack = await store.PrepareAsync("global", [global.Name], default);
+            Assert.Equal("print('hello')", await File.ReadAllTextAsync(Path.Combine(rolledBack.Paths[0], "scripts", "test.py")));
+            Assert.Equal("print('new')", await File.ReadAllTextAsync(Path.Combine(running.Paths[0], "scripts", "new.py")));
+        }
+        for (var expectedVersion = 3; expectedVersion <= 4; expectedVersion++)
+        {
+            await store.UploadAsync("global", Zip(("SKILL.md", Manifest(global.Name)), ("next.py", "new revision")), Guid.Parse(global.Id), default);
+            var latest = (await store.ListVersionsAsync("global", Guid.Parse(global.Id), default))!.Single(x => x.IsActive);
+            Assert.Equal(expectedVersion, latest.Version);
+            Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsync($"{path}/{global.Id}/versions/2/active", null)).StatusCode);
+            Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"{path}/{global.Id}/versions/{expectedVersion}")).StatusCode);
+        }
+        await db.Entry(parent).ReloadAsync();
+        await db.Entry(child).ReloadAsync();
+        Assert.Contains(global.Name, parent.Skills!);
+        Assert.Contains(global.Name, child.Skills);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"{path}/{global.Id}/versions/1")).StatusCode);
+        Assert.False(storage.Files.ContainsKey(oldFile!.StorageKey));
+        Assert.Single((await store.ListVersionsAsync("global", Guid.Parse(global.Id), default))!);
+        Assert.Equal(1, (await store.ListAsync("global", default)).Single(x => Guid.Parse(x.Id) == Guid.Parse(global.Id)).VersionCount);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"{path}/{global.Id}/archive?version=1")).StatusCode);
+        Assert.NotNull(await store.GetFileAsync("global", Guid.Parse(global.Id), "scripts/new.py", default));
         Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"{path}/{global.Id}?agentId={parent.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"{path}/{global.Id}")).StatusCode);
         await db.Entry(parent).ReloadAsync();

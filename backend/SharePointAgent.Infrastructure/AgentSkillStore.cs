@@ -8,9 +8,11 @@ using SharePointAgent.Persistence;
 
 namespace SharePointAgent.Infrastructure;
 
-public sealed record AgentSkillInfo(string Id, string Name, string Description, string Scope, bool IsDefault);
+public sealed record AgentSkillInfo(string Id, string Name, string Description, string Scope, bool IsDefault, int VersionCount);
 
 public sealed record AgentSkillFileInfo(string Path, long Size);
+
+public sealed record AgentSkillVersionInfo(int Version, string Description, DateTimeOffset CreatedAtUtc, bool IsActive);
 
 /// <summary>Database catalog and file metadata; file contents live in blob storage.</summary>
 public sealed class AgentSkillStore(IDbContextFactory<SharePointIndexDbContext> factory,
@@ -37,7 +39,8 @@ public sealed class AgentSkillStore(IDbContextFactory<SharePointIndexDbContext> 
     {
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
         return await db.AgentSkillDefinitions.AsNoTracking().Where(x => x.Scope == "global" || x.Scope == scope)
-            .OrderBy(x => x.Name).Select(x => new AgentSkillInfo(x.Id.ToString(), x.Name, x.Description, x.Scope, x.IsDefault))
+            .OrderBy(x => x.Name).Select(x => new AgentSkillInfo(x.Id.ToString(), x.Name, x.Description, x.Scope, x.IsDefault,
+                db.AgentSkillVersions.Count(version => version.AgentSkillDefinitionId == x.Id)))
             .ToArrayAsync(cancellationToken);
     }
 
@@ -132,9 +135,9 @@ public sealed class AgentSkillStore(IDbContextFactory<SharePointIndexDbContext> 
         }
         if (entity is not null && entity.ContentHash == contentHash)
         {
-            return new(entity.Id.ToString(), entity.Name, entity.Description, entity.Scope, entity.IsDefault);
+            return new(entity.Id.ToString(), entity.Name, entity.Description, entity.Scope, entity.IsDefault,
+                await db.AgentSkillVersions.CountAsync(x => x.AgentSkillDefinitionId == entity.Id, cancellationToken));
         }
-        var obsoleteKeys = entity?.Files.Select(x => x.StorageKey).ToArray() ?? [];
         var now = DateTimeOffset.UtcNow;
         if (entity is null)
         {
@@ -143,22 +146,28 @@ public sealed class AgentSkillStore(IDbContextFactory<SharePointIndexDbContext> 
         }
         else
         {
-            db.AgentSkillFiles.RemoveRange(entity.Files);
-            entity.Files.Clear();
-            await db.SaveChangesAsync(cancellationToken);
+            entity.ActiveVersion = ++entity.LastVersion;
         }
         entity.Description = description;
         entity.ContentHash = contentHash;
         entity.UpdatedAtUtc = now;
+        db.AgentSkillVersions.Add(new AgentSkillVersionEntity
+        {
+            Definition = entity,
+            Version = entity.ActiveVersion,
+            Description = description,
+            ContentHash = contentHash,
+            CreatedAtUtc = now
+        });
         foreach (var (path, bytes) in files)
         {
-            entity.Files.Add(new AgentSkillFileEntity { Path = path, SizeBytes = bytes.LongLength });
+            entity.Files.Add(new AgentSkillFileEntity { Path = path, SizeBytes = bytes.LongLength, Version = entity.ActiveVersion });
         }
         var uploaded = new List<string>();
         try
         {
             await db.SaveChangesAsync(cancellationToken);
-            foreach (var file in entity.Files)
+            foreach (var file in entity.Files.Where(x => x.Version == entity.ActiveVersion))
             {
                 file.StorageKey = $"agent-skills/{entity.Id:N}/{file.Id:N}";
                 uploaded.Add(file.StorageKey);
@@ -173,8 +182,8 @@ public sealed class AgentSkillStore(IDbContextFactory<SharePointIndexDbContext> 
             await CleanupFilesAsync(uploaded);
             throw;
         }
-        await CleanupFilesAsync(obsoleteKeys);
-        return new(entity.Id.ToString(), entity.Name, entity.Description, entity.Scope, entity.IsDefault);
+        return new(entity.Id.ToString(), entity.Name, entity.Description, entity.Scope, entity.IsDefault,
+            await db.AgentSkillVersions.CountAsync(x => x.AgentSkillDefinitionId == entity.Id, cancellationToken));
     }
 
     public async Task<bool> DeleteAsync(string scope, Guid id, CancellationToken cancellationToken)
@@ -217,19 +226,87 @@ public sealed class AgentSkillStore(IDbContextFactory<SharePointIndexDbContext> 
         }
     }
 
-    public async Task<(string Name, byte[] Content)?> DownloadArchiveAsync(string scope, Guid id, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<AgentSkillVersionInfo>?> ListVersionsAsync(string scope, Guid id, CancellationToken cancellationToken)
+    {
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+        var skill = await db.AgentSkillDefinitions.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && (x.Scope == scope || x.Scope == "global"), cancellationToken);
+        if (skill is null)
+        {
+            return null;
+        }
+        return await db.AgentSkillVersions.Where(x => x.AgentSkillDefinitionId == id).OrderByDescending(x => x.Version)
+            .Select(x => new AgentSkillVersionInfo(x.Version, x.Description, x.CreatedAtUtc, x.Version == skill.ActiveVersion)).ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<bool> SetActiveVersionAsync(string scope, Guid id, int version, CancellationToken cancellationToken)
+    {
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken);
+        var skill = await db.AgentSkillDefinitions.SingleOrDefaultAsync(x => x.Id == id && x.Scope == scope && !x.IsDefault, cancellationToken);
+        if (skill is null)
+        {
+            return false;
+        }
+        var target = await db.AgentSkillVersions.SingleOrDefaultAsync(x => x.AgentSkillDefinitionId == id && x.Version == version, cancellationToken);
+        if (target is null)
+        {
+            return false;
+        }
+        if (skill.ActiveVersion != version)
+        {
+            skill.ActiveVersion = version;
+            skill.Description = target.Description;
+            skill.ContentHash = target.ContentHash;
+            skill.UpdatedAtUtc = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> DeleteVersionAsync(string scope, Guid id, int version, CancellationToken cancellationToken)
+    {
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken);
+        var skill = await db.AgentSkillDefinitions.SingleOrDefaultAsync(x => x.Id == id && x.Scope == scope && !x.IsDefault, cancellationToken);
+        if (skill is null)
+        {
+            return false;
+        }
+        if (version == skill.ActiveVersion)
+        {
+            throw new InvalidDataException("The active skill version cannot be deleted.");
+        }
+        var entry = await db.AgentSkillVersions.SingleOrDefaultAsync(x => x.AgentSkillDefinitionId == id && x.Version == version, cancellationToken);
+        if (entry is null)
+        {
+            return false;
+        }
+        var files = await db.AgentSkillFiles.Where(x => x.AgentSkillDefinitionId == id && x.Version == version).ToArrayAsync(cancellationToken);
+        db.AgentSkillFiles.RemoveRange(files);
+        db.AgentSkillVersions.Remove(entry);
+        await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        await CleanupFilesAsync(files.Select(x => x.StorageKey));
+        return true;
+    }
+
+    public Task<(string Name, byte[] Content)?> DownloadArchiveAsync(string scope, Guid id, CancellationToken cancellationToken) =>
+        DownloadArchiveAsync(scope, id, null, cancellationToken);
+
+    public async Task<(string Name, byte[] Content)?> DownloadArchiveAsync(string scope, Guid id, int? version, CancellationToken cancellationToken)
     {
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
         var skill = await db.AgentSkillDefinitions.AsNoTracking().Include(x => x.Files)
             .SingleOrDefaultAsync(x => x.Id == id && (x.Scope == scope || x.Scope == "global"), cancellationToken);
-        if (skill is null)
+        if (skill is null || !await db.AgentSkillVersions.AnyAsync(x => x.AgentSkillDefinitionId == id && x.Version == (version ?? skill.ActiveVersion), cancellationToken))
         {
             return null;
         }
         using var output = new MemoryStream();
         using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
         {
-            foreach (var file in skill.Files.OrderBy(x => x.Path, StringComparer.Ordinal))
+            foreach (var file in skill.Files.Where(x => x.Version == (version ?? skill.ActiveVersion)).OrderBy(x => x.Path, StringComparer.Ordinal))
             {
                 var bytes = await storage.ReadAsync(file.StorageKey, cancellationToken);
                 var entry = archive.CreateEntry(file.Path, CompressionLevel.Fastest);
@@ -237,24 +314,34 @@ public sealed class AgentSkillStore(IDbContextFactory<SharePointIndexDbContext> 
                 await stream.WriteAsync(bytes, cancellationToken);
             }
         }
-        return ($"{skill.Name}.zip", output.ToArray());
+        return (version is null ? $"{skill.Name}.zip" : $"{skill.Name}-v{version}.zip", output.ToArray());
     }
 
-    public async Task<IReadOnlyList<AgentSkillFileInfo>?> ListFilesAsync(string scope, Guid id, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<AgentSkillFileInfo>?> ListFilesAsync(string scope, Guid id, CancellationToken cancellationToken) =>
+        ListFilesAsync(scope, id, null, cancellationToken);
+
+    public async Task<IReadOnlyList<AgentSkillFileInfo>?> ListFilesAsync(string scope, Guid id, int? version, CancellationToken cancellationToken)
     {
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
         if (!await db.AgentSkillDefinitions.AnyAsync(x => x.Id == id && (x.Scope == scope || x.Scope == "global"), cancellationToken))
         {
             return null;
         }
-        return await db.AgentSkillFiles.AsNoTracking().Where(x => x.AgentSkillDefinitionId == id)
+        if (version is not null && !await db.AgentSkillVersions.AnyAsync(x => x.AgentSkillDefinitionId == id && x.Version == version, cancellationToken))
+        {
+            return null;
+        }
+        return await db.AgentSkillFiles.AsNoTracking().Where(x => x.AgentSkillDefinitionId == id && x.Version == (version ?? x.Definition.ActiveVersion))
             .OrderBy(x => x.Path).Select(x => new AgentSkillFileInfo(x.Path, x.SizeBytes)).ToArrayAsync(cancellationToken);
     }
 
-    public async Task<AgentSkillFileEntity?> GetFileAsync(string scope, Guid id, string path, CancellationToken cancellationToken)
+    public Task<AgentSkillFileEntity?> GetFileAsync(string scope, Guid id, string path, CancellationToken cancellationToken) =>
+        GetFileAsync(scope, id, path, null, cancellationToken);
+
+    public async Task<AgentSkillFileEntity?> GetFileAsync(string scope, Guid id, string path, int? version, CancellationToken cancellationToken)
     {
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
-        return await db.AgentSkillFiles.AsNoTracking().SingleOrDefaultAsync(x => x.AgentSkillDefinitionId == id && x.Path == path &&
+        return await db.AgentSkillFiles.AsNoTracking().SingleOrDefaultAsync(x => x.AgentSkillDefinitionId == id && x.Path == path && x.Version == (version ?? x.Definition.ActiveVersion) &&
             (x.Definition.Scope == scope || x.Definition.Scope == "global"), cancellationToken);
     }
 
@@ -270,7 +357,12 @@ public sealed class AgentSkillStore(IDbContextFactory<SharePointIndexDbContext> 
                 return bundle;
             }
             await using var db = await factory.CreateDbContextAsync(cancellationToken);
-            var query = db.AgentSkillDefinitions.AsNoTracking().Include(x => x.Files).Where(x => x.Scope == "global" || x.Scope == scope);
+            // Hold definition/file read locks until the cache is ready, so replacement and
+            // version deletion cannot remove storage objects during materialization.
+            await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken);
+            var query = db.AgentSkillDefinitions.AsNoTracking()
+                .Include(x => x.Files.Where(file => file.Version == file.Definition.ActiveVersion))
+                .Where(x => x.Scope == "global" || x.Scope == scope);
             if (selected is not null)
             {
                 query = query.Where(x => selected.Contains(x.Name));
@@ -279,6 +371,7 @@ public sealed class AgentSkillStore(IDbContextFactory<SharePointIndexDbContext> 
             {
                 bundle.Add(await fileCache.AcquireAsync(skill, cancellationToken));
             }
+            await transaction.CommitAsync(cancellationToken);
             return bundle;
         }
         catch

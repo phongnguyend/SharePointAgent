@@ -14,6 +14,10 @@ public sealed class AgentSkillDefinitionEntity
 
     public string ContentHash { get; set; } = "";
 
+    public int ActiveVersion { get; set; } = 1;
+
+    public int LastVersion { get; set; } = 1;
+
     public DateTimeOffset CreatedAtUtc { get; set; }
 
     public DateTimeOffset UpdatedAtUtc { get; set; }
