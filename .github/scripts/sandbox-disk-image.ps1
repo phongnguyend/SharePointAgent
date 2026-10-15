@@ -1,4 +1,4 @@
-# Data-plane contract: azure-containerapps-sandbox 0.1.0b4, ImageOperationsMixin.create_disk_image.
+# The disk-image API requires the pull identity's client ID for registry authentication.
 function Publish-SandboxDiskImage([string]$Image, [string]$Group, [string]$Region, [string]$PullIdentityId) {
   if ([string]::IsNullOrWhiteSpace($Image) -or [string]::IsNullOrWhiteSpace($Group) -or
       [string]::IsNullOrWhiteSpace($PullIdentityId) -or $Region -notmatch '^[a-z0-9]+$') {
@@ -7,6 +7,11 @@ function Publish-SandboxDiskImage([string]$Image, [string]$Group, [string]$Regio
   $subscriptionId = az account show --query id -o tsv
   if ($LASTEXITCODE -ne 0) {
     throw 'Could not determine the Azure subscription.'
+  }
+  $pullIdentityClientId = az identity show --ids $PullIdentityId --query clientId -o tsv
+  $parsedClientId = [Guid]::Empty
+  if ($LASTEXITCODE -ne 0 -or -not [Guid]::TryParse([string]$pullIdentityClientId, [ref]$parsedClientId) -or $parsedClientId -eq [Guid]::Empty) {
+    throw 'Could not resolve the sandbox pull identity client ID.'
   }
   $endpoint = "https://management.$Region.azuredevcompute.io"
   $groupPath = "/subscriptions/$subscriptionId/resourceGroups/$([Uri]::EscapeDataString($env:RESOURCE_GROUP))/sandboxGroups/$([Uri]::EscapeDataString($Group))"
@@ -18,7 +23,7 @@ function Publish-SandboxDiskImage([string]$Image, [string]$Group, [string]$Regio
     @{
       image = @{ base = $Image }
       labels = @{ name = "sandboxhost-$env:IMAGE_TAG" }
-      managedIdentityResourceId = $PullIdentityId
+      managedIdentityClientId = $parsedClientId.ToString()
     } | ConvertTo-Json -Depth 5 | Set-Content $requestPath -Encoding utf8
     $disk = az rest --method put --url "$collectionUrl`?api-version=$apiVersion" --resource https://dynamicsessions.io --body "@$requestPath" -o json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($disk.id)) {
