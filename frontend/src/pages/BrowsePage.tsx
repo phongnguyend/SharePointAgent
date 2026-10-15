@@ -1,5 +1,5 @@
 import { useToast } from '../components/Toast'
-import { useRef, useState, type DragEvent } from 'react'
+import { useId, useRef, useState, type DragEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Copy, ExternalLink, File, Folder, FolderPlus, Move, Pencil, RefreshCw, Trash2, Upload, X } from 'lucide-react'
 import { browseSharePoint, changeSharePointItem, createSharePointFolder, uploadSharePointFile, type BrowseItem, type BrowseListing } from '../api/client'
@@ -16,6 +16,7 @@ const actionIcons = { new: FolderPlus, rename: Pencil, delete: Trash2, copy: Cop
 const message = (error: unknown) => error instanceof Error ? error.message : String(error)
 
 export default function BrowsePage() {
+  const tabId = useId()
   const [params, setParams] = useSearchParams()
   const folderId = params.get('folder') || 'root'
   const recycleBin = params.get('view') === 'recycle-bin'
@@ -29,11 +30,21 @@ export default function BrowsePage() {
     setParams(next)
   }
   return <div className="browse-page">
-    <nav className="browse-tools" aria-label="Browse views">
-      <button className={recycleBin ? '' : 'primary'} aria-pressed={!recycleBin} onClick={() => switchView(false)}><Folder size={16} />Documents</button>
-      <button className={recycleBin ? 'primary' : ''} aria-pressed={recycleBin} onClick={() => switchView(true)}><Trash2 size={16} />Recycle bin</button>
-    </nav>
-    {recycleBin ? <RecycleBinView /> : <FolderView key={folderId} folderId={folderId} navigate={(id) => setParams(id === 'root' ? {} : { folder: id })} />}
+    <div className="page-tabs" role="tablist" aria-label="Browse views" onKeyDown={event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+        return
+      }
+      event.preventDefault()
+      const next = event.key === 'Home' ? false : event.key === 'End' ? true : !recycleBin
+      switchView(next)
+      event.currentTarget.querySelector<HTMLButtonElement>(`[data-view="${next ? 'recycle' : 'documents'}"]`)?.focus()
+    }}>
+      <button type="button" role="tab" data-view="documents" id={`${tabId}-documents`} aria-controls={`${tabId}-panel`} aria-selected={!recycleBin} tabIndex={recycleBin ? -1 : 0} onClick={() => switchView(false)}><Folder size={16} aria-hidden="true" />Documents</button>
+      <button type="button" role="tab" data-view="recycle" id={`${tabId}-recycle`} aria-controls={`${tabId}-panel`} aria-selected={recycleBin} tabIndex={recycleBin ? 0 : -1} onClick={() => switchView(true)}><Trash2 size={16} aria-hidden="true" />Recycle bin</button>
+    </div>
+    <div role="tabpanel" id={`${tabId}-panel`} aria-labelledby={`${tabId}-${recycleBin ? 'recycle' : 'documents'}`} tabIndex={0}>
+      {recycleBin ? <RecycleBinView /> : <FolderView key={folderId} folderId={folderId} navigate={(id) => setParams(id === 'root' ? {} : { folder: id })} />}
+    </div>
   </div>
 }
 

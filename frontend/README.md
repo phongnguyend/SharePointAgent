@@ -193,7 +193,8 @@ cookies, or custom headers are sent. Returned content is treated as untrusted da
 
 
 
-**Admin → Playgrounds** is a Global Admin-only tab with **Jev** and **Microsoft Decision** sub-tabs
+**Admin → Playgrounds** is a Global Admin-only tab with **Jev**, **Microsoft Decision**,
+**Image Description**, **Image Text Extraction**, **MarkItDown**, and **PageIndex** sub-tabs
 (`/admin?tab=playgrounds&provider=jev` and `/admin?tab=playgrounds&provider=microsoft-decision`).
 Switching between providers preserves each one's input, results, and pending evaluation.
 Leaving Playgrounds or reloading the page resets this in-memory state. Previous playground URLs redirect to the new sub-tabs. Edit the
@@ -201,6 +202,29 @@ sample request JSON and run choice, score, or noul questions. Results show typed
 model, token counts, elapsed time, and trace ID. Credentials and deployment selection
 come from the API host configuration. Both providers record usage attributed to the current admin in **Token usage → SystemOne Usage**. Cancelling stops waiting but cannot undo
 an evaluation already processed by the provider.
+
+The image tabs accept one image up to 10 MB by drag/drop or file selection. Click
+**Describe** to use the API host's `OpenAi:ChatDeployment` vision model, or **Extract**
+to run OCR using `DocumentIntelligence`. Description supports PNG, JPEG, WebP, and GIF;
+OCR supports PNG, JPEG, BMP, and TIFF. Each tab preserves its file and result when
+switching tabs. Results include copy, model, elapsed time, and trace ID; description
+also shows reported token usage and records it under the admin user in Image Description
+usage. Images are processed directly without creating attachment records. The routes
+are separate multipart POST endpoints: `/api/admin/image-playground/describe` and
+`/api/admin/image-playground/extract`, both accepting field `file`.
+
+**MarkItDown** accepts a document by drag/drop or file selection (up to 25 MB). Click
+Convert to view highlighted Markdown source or a rendered preview, copy it, or download
+the `.md` result. Supported formats depend on the configured MarkItDown service.
+**PageIndex** accepts PDF or UTF-8 Markdown up to 25 MB. Choose Include text (on by
+default) and Include summaries (off by default), then click Index. The result shows
+highlighted tree JSON with copy/download actions, model/token totals when reported,
+duration, and trace ID. PageIndex usage is returned only, not persisted to token reports.
+Both tabs retain their file/options/results when switching playground tabs. API routes
+are `POST /api/admin/markitdown-playground/convert` and
+`POST /api/admin/pageindex-playground/index`; they use server-side `MarkItDown` and
+`PageIndex` configuration and require Global Admin. No SharePoint indexing or attachment
+records are created by these playgrounds. Restart/deploy the API to enable these routes.
 
 **Chat** shows a microphone button in the composer when the API reports dictation as enabled and the browser supports recording. `DictationButton` records with `MediaRecorder` (WebM/Opus, or MP4 on Safari), shows a timer with stop and cancel, stops at the server's time limit, and appends the returned transcript to the draft for review; it never sends the message itself.
 

@@ -39,7 +39,7 @@ export default function AdminPage() {
   const select = (key: string) => setParams({ tab: key })
 
   return <div className="stack">
-    <div className="attachment-tabs" role="tablist" aria-label="Administration" onKeyDown={event => {
+    <div className="page-tabs" role="tablist" aria-label="Administration" onKeyDown={event => {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
         return
       }

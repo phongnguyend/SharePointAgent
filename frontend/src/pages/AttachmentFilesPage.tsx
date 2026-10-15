@@ -163,8 +163,10 @@ export default function AttachmentFilesPage() {
   return (
     <div className="stack attachment-files-page">
       <div className="page-head attachment-page-header">
-      {canReadSystemStorage && <div className="attachment-tabs" role="tablist" aria-label="Attachment files views" onKeyDown={event => {
-        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+      {canReadSystemStorage && <div className="page-tabs" role="tablist" aria-label="Attachment files views" onKeyDown={event => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+          return
+        }
         event.preventDefault()
         const next = event.key === 'Home' ? 'files' : event.key === 'End' ? 'usage' : tab === 'files' ? 'usage' : 'files'
         setTab(next)

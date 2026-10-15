@@ -59,6 +59,10 @@ app.MapSystemOneUsage();
 
 app.MapDecisionPlaygroundEndpoints();
 
+app.MapImagePlaygroundEndpoints();
+
+app.MapDocumentPlaygroundEndpoints();
+
 app.MapTranscriptionUsage();
 app.MapSystemEndpoints();
 app.MapSharePointWebhookEndpoints();

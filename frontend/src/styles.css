@@ -787,6 +787,52 @@ input[readonly] {
   gap: 12px;
 }
 
+.page-tabs {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.page-tabs > [role='tab'] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  padding: 12px 16px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.page-tabs > [role='tab']:hover {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+
+.page-tabs > [role='tab'][aria-selected='true'] {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.page-tabs > [role='tab']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+}
+
+.page-tabs-secondary > [role='tab'] {
+  padding: 9px 12px;
+  border-bottom-width: 2px;
+  font-size: 13px;
+}
+
 .attachment-tabs {
   display: flex;
   gap: 8px;
@@ -811,7 +857,11 @@ input[readonly] {
   align-items: center;
   justify-content: flex-start;
   gap: 8px 16px;
-  padding: 8px 12px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .attachment-page-header > div:first-child {
@@ -822,6 +872,11 @@ input[readonly] {
   border: 0;
   padding: 0;
   gap: 4px;
+}
+
+.attachment-page-header .page-tabs {
+  flex: 0 1 auto;
+  max-width: 100%;
 }
 
 .attachment-page-header .attachment-header-storage {
@@ -3938,6 +3993,21 @@ button.signing-field-remove {
 }
 
 .json-key { color: var(--accent-text); }
+.image-playground-drop { min-height: 320px; padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 2px dashed var(--border); border-radius: var(--radius-sm); overflow-wrap: anywhere; }
+.image-playground-drop.is-dragging { border-color: var(--accent); background: var(--accent-soft); }
+.image-playground-drop img { max-width: 100%; max-height: 280px; object-fit: contain; }
+.image-playground-result { min-height: 320px; max-height: 500px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; margin: 0; }
+.document-playground-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.document-playground-drop { min-height: 90px; flex-direction: row; flex-wrap: wrap; gap: 8px 12px; padding: 12px 16px; }
+.document-playground-drop > svg { flex-shrink: 0; }
+.document-playground-drop p { margin: 0; min-width: 0; }
+.document-playground-drop small { flex-basis: 100%; }
+.document-playground-options { padding: 10px 12px; flex-wrap: wrap; }
+.document-playground-options label { display: inline-flex; align-items: center; gap: 6px; }
+.document-playground-options input { width: auto; }
+.document-playground-result { min-height: 360px; max-height: 65dvh; overflow: auto; padding: 12px; }
+.document-playground-result pre { margin: 0; overflow: auto; }
+.document-playground-result .decision-result { height: auto; max-height: none; min-height: 0; overflow: visible; }
 .json-string { color: var(--good); }
 .json-number { color: var(--file-slide); }
 .json-literal { color: var(--file-pdf); }

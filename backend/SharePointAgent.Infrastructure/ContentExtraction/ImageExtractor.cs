@@ -44,7 +44,7 @@ public sealed class ImageExtractor(
 
         if (AttachmentImageService.DescriptionExtensions.Contains(extension))
         {
-            var description = await DescribeAsync(fileName, filePath, attachmentId, userId, content, cancellationToken);
+            var description = (await DescribeCoreAsync(fileName, filePath, attachmentId, userId, content, cancellationToken)).Description;
             if (!string.IsNullOrWhiteSpace(description))
             {
                 sections.Add("## Image description\n\n" + description);
@@ -63,7 +63,10 @@ public sealed class ImageExtractor(
         return string.Join("\n\n", sections);
     }
 
-    private async Task<string> DescribeAsync(string fileName, string? filePath, Guid? attachmentId, Guid? userId, byte[] content, CancellationToken cancellationToken)
+    public Task<ImageDescription> DescribeAsync(string fileName, byte[] content, Guid userId, CancellationToken cancellationToken) =>
+        DescribeCoreAsync(fileName, null, null, userId, content, cancellationToken);
+
+    private async Task<ImageDescription> DescribeCoreAsync(string fileName, string? filePath, Guid? attachmentId, Guid? userId, byte[] content, CancellationToken cancellationToken)
     {
         var model = openAiOptions.Value.ChatDeployment;
         var describer = new ImageDescriber(openAi.GetChatClient(model).AsIChatClient(), model, async result =>
@@ -91,7 +94,7 @@ public sealed class ImageExtractor(
             });
             await db.SaveChangesAsync(cancellationToken);
         });
-        return (await describer.DescribeContentAsync(fileName, content, filePath, null, cancellationToken)).Description;
+        return await describer.DescribeContentAsync(fileName, content, filePath, null, cancellationToken);
     }
 }
 

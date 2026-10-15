@@ -1,5 +1,5 @@
 import SystemOneUsageReport from '../components/SystemOneUsageReport'
-import { ChartNoAxesCombined, Cpu, Image, Layers, Mic } from 'lucide-react'
+import { Cpu, Image, Layers, Mic } from 'lucide-react'
 import ImageDescriptionUsageReport from '../components/ImageDescriptionUsageReport'
 import { useSearchParams } from 'react-router-dom'
 import EmbeddingUsageReport from '../components/EmbeddingUsageReport'
@@ -13,9 +13,8 @@ export default function TokenUsagePage() {
   const active = tabs.find(tab => tab === params.get('tab')) ?? 'tokens'
   const select = (tab: string) => setParams({ tab })
   return <div className="stack">
-    <div className="page-head"><div><h1><ChartNoAxesCombined size={20} />Token usage</h1><p>Explore chat, embedding, image description, voice dictation, SystemOne, and Content Safety usage across the application.</p></div></div>
-    <div className="card card-head embedding-tabs" role="tablist" aria-label="Token usage reports">
-      {tabs.map((tab, index) => <button key={tab} id={`usage-tab-${tab}`} role="tab" aria-selected={active === tab} aria-controls={`usage-panel-${tab}`} tabIndex={active === tab ? 0 : -1} className={active === tab ? 'primary' : 'ghost'} onClick={() => select(tab)} onKeyDown={event => {
+    <div className="page-tabs" role="tablist" aria-label="Token usage reports">
+      {tabs.map((tab, index) => <button type="button" key={tab} id={`usage-tab-${tab}`} role="tab" aria-selected={active === tab} aria-controls={`usage-panel-${tab}`} tabIndex={active === tab ? 0 : -1} onClick={() => select(tab)} onKeyDown={event => {
         let next: string
         if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
           next = tabs[(index + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]
