@@ -421,6 +421,10 @@ The Subscriptions page additionally uses, and these **change tenant state**:
 
 ## Graph search
 
+**Playgrounds → Knowledge Graph → Entity and Relationship Extraction** tests the indexing extractor on pasted document text (up to 20,000 characters). It uses `KnowledgeGraph:Extraction:Deployment`, processor chunk size/overlap, neighboring context, and ontology grounding. Each output chunk includes raw model output, accepted entities and relationships, and rejection counts. It does not resolve canonical IDs or save graph data. The separate **Query Plan** mode tests interpreting search questions.
+
+Under **Playgrounds → Query Plan**, administrators can extract entity names and relationship types from a question without running document search or graph traversal. The playground uses `AzureOpenAI:ChatDeployment` and the configured ontology, preserves input when switching tabs, and supports cancellation, reset, and copying the plan JSON. Each extraction makes one AI request through `POST /api/admin/graph-query-playground`.
+
 Each Graph page search first calls the configured `AzureOpenAI:ChatDeployment` with structured output to identify entity names and relationship types. This adds one model request per search; it does not extract or modify stored graph data. Names are resolved through the alias index, and relationship types must exist in the configured ontology. Empty relationship types explore all configured types within the normal traversal limits. Invalid or incomplete model output returns a retryable error before document search begins.
 
 The agent's `find_relationships` tool accepts `question`, `entities`, optional `relationshipTypes`, and `top`. Its description lists the configured relationships, so the agent supplies the query plan directly without a second model call. Both entry points bypass keyword routing when supplying a plan and retain evidence authorization checks. All retrieval callers must supply a query plan; admin evaluation uses the same AI planner.

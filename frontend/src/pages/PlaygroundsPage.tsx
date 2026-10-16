@@ -1,6 +1,7 @@
 import { useId } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { BrainCircuit, Image, ListTree, FileText, ShieldCheck, Mic } from 'lucide-react'
+import { BrainCircuit, Image, ListTree, FileText, ShieldCheck, Mic, Network } from 'lucide-react'
+import KnowledgeGraphPlaygroundsPage from './KnowledgeGraphPlaygroundsPage'
 import DecisionMakingPlaygroundPage from './DecisionMakingPlaygroundPage'
 import ImagePlaygroundsPage from './ImagePlaygroundsPage'
 import DocumentPlaygroundsPage, { isDocumentPlaygroundProvider } from './DocumentPlaygroundsPage'
@@ -10,6 +11,7 @@ import VoicePlaygroundsPage from './VoicePlaygroundsPage'
 
 const providers = [
   { key: 'decision-making', label: 'Decision Making', Icon: BrainCircuit },
+  { key: 'knowledge-graph', label: 'Knowledge Graph', Icon: Network },
   { key: 'image', label: 'Image', Icon: Image },
   { key: 'content-safety', label: 'Content Safety', Icon: ShieldCheck },
   { key: 'voice', label: 'Voice', Icon: Mic },
@@ -20,7 +22,7 @@ const providers = [
 export default function PlaygroundsPage() {
   const [params, setParams] = useSearchParams()
   const id = useId()
-  const requested = params.get('provider')
+  const requested = params.get('provider') === 'graph-query' ? 'knowledge-graph' : params.get('provider')
   const selected = requested === 'image-description' || requested === 'image-text' ? 'image'
     : isDocumentPlaygroundProvider(requested) ? 'document'
     : requested === 'dynamic-sessions' || requested === 'sandboxes' ? 'workspace'
@@ -64,7 +66,8 @@ export default function PlaygroundsPage() {
     {/* Keep all playgrounds mounted so switching preserves inputs, results, and pending requests. */}
     {providers.map(({ key }) => <div key={key} role="tabpanel" id={`${id}-${key}-panel`}
       aria-labelledby={`${id}-${key}`} hidden={selected !== key}>
-      {key === 'content-safety' ? <ContentSafetyPlaygroundPage active={selected === key} />
+      {key === 'knowledge-graph' ? <KnowledgeGraphPlaygroundsPage />
+        : key === 'content-safety' ? <ContentSafetyPlaygroundPage active={selected === key} />
         : key === 'voice' ? <VoicePlaygroundsPage active={selected === key} />
         : key === 'workspace'
         ? <WorkspacePlaygroundsPage active={selected === key} />

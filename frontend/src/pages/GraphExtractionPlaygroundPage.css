@@ -1,0 +1,6 @@
+.graph-extraction-playground { min-width: 0; }
+.graph-extraction-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.graph-extraction-text textarea { width: 100%; box-sizing: border-box; min-height: 160px; }
+.graph-extraction-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.graph-extraction-output { padding: 12px; min-width: 0; overflow-wrap: anywhere; }
+.graph-extraction-output pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 400px; overflow: auto; }

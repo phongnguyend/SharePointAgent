@@ -94,12 +94,67 @@ public sealed class GraphSearchEndpointTests
         await retrieval.DidNotReceiveWithAnyArgs().AugmentAsync(default!, default);
     }
 
-    private static async Task<WebApplication> CreateApp(ISearchQueryStore search, IGraphRetrievalService retrieval, string? user, IGraphQueryPlanner? queryPlanner = null)
+    [Theory]
+    [InlineData(AppRoles.GlobalAdmin, "What follows Portal?", 200)]
+    [InlineData(AppRoles.GlobalAdmin, " ", 400)]
+    [InlineData(AppRoles.User, "What follows Portal?", 403)]
+    [InlineData(AppRoles.GlobalReaderAdmin, "What follows Portal?", 403)]
+    public async Task PlaygroundOnlyPlansAndChecksAccess(string role, string question, int expectedStatus)
+    {
+        var search = Substitute.For<ISearchQueryStore>();
+        var retrieval = Substitute.For<IGraphRetrievalService>();
+        var planner = Substitute.For<IGraphQueryPlanner>();
+        planner.PlanAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new GraphQueryPlan { Entities = ["Portal"] });
+        await using var app = await CreateApp(search, retrieval, "reader", planner, role);
+        using var client = app.GetTestClient();
+        using var response = await client.PostAsJsonAsync("/api/admin/graph-query-playground", new { query = question });
+
+        Assert.Equal(expectedStatus, (int)response.StatusCode);
+        Assert.True(response.Headers.CacheControl!.NoStore);
+        await planner.Received(expectedStatus == 200 ? 1 : 0).PlanAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await search.DidNotReceiveWithAnyArgs().SearchAsync(default, default!, default);
+        await retrieval.DidNotReceiveWithAnyArgs().AugmentAsync(default!, default);
+        if (expectedStatus == 200)
+        {
+            using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            Assert.Equal("Portal", body.RootElement.GetProperty("plan").GetProperty("entities")[0].GetString());
+        }
+    }
+
+    [Fact]
+    public async Task ExtractionPlaygroundUsesIndexingExtractorWithoutSearch()
+    {
+        var search = Substitute.For<ISearchQueryStore>();
+        var retrieval = Substitute.For<IGraphRetrievalService>();
+        var extractor = Substitute.For<IGraphExtractor>();
+        extractor.ExtractAsync(Arg.Any<GraphExtractionInput>(), Arg.Any<CancellationToken>())
+            .Returns(new GraphExtractionResponse());
+        await using var app = await CreateApp(search, retrieval, "reader", role: AppRoles.GlobalAdmin, extractor: extractor);
+        using var client = app.GetTestClient();
+        using var response = await client.PostAsJsonAsync("/api/admin/graph-extraction-playground", new { text = "CRM depends on ERP." });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        await extractor.Received(1).ExtractAsync(Arg.Is<GraphExtractionInput>(input => input.ChunkText == "CRM depends on ERP."), Arg.Any<CancellationToken>());
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(0, body.RootElement.GetProperty("chunks")[0].GetProperty("grounded").GetProperty("rejectedRelations").GetInt32());
+        await search.DidNotReceiveWithAnyArgs().SearchAsync(default, default!, default);
+        await retrieval.DidNotReceiveWithAnyArgs().AugmentAsync(default!, default);
+    }
+
+    private static async Task<WebApplication> CreateApp(ISearchQueryStore search, IGraphRetrievalService retrieval, string? user, IGraphQueryPlanner? queryPlanner = null, string role = AppRoles.User, IGraphExtractor? extractor = null)
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
         builder.Services.AddSingleton(search);
         builder.Services.AddSingleton(retrieval);
+        if (extractor is not null)
+        {
+            builder.Services.AddSingleton(extractor);
+            builder.Services.Configure<KnowledgeGraphOptions>(options => options.Extraction.Deployment = "test");
+            builder.Services.AddOptions<ProcessorOptions>();
+            builder.Services.AddSingleton(GraphFixtures.Ontology);
+        }
         var planner = Substitute.For<IGraphQueryPlanner>();
         planner.PlanAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new GraphQueryPlan { Entities = ["Portal"], RelationshipTypes = ["DEPENDS_ON"] });
@@ -107,6 +162,8 @@ public sealed class GraphSearchEndpointTests
         var app = builder.Build();
         app.Use((context, next) =>
         {
+            context.Items[typeof(AppUserView)] = new AppUserView(Guid.Empty, "test@example.test", "Test",
+                [role], true, true, DateTimeOffset.UtcNow, null, "");
             if (user is not null)
             {
                 context.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("oid", user)], "test"));
