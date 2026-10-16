@@ -62,6 +62,16 @@ export default function GraphPage() {
         {running && <button type="button" onClick={() => controller.current?.abort()}><Square size={15} />Cancel</button>}
       </form>
       {error && <ErrorBanner message={error} />}
+      {result?.plan && <details className="decision-panel graph-query-plan">
+        <summary>Query plan (debug)</summary>
+        <div className="stack">
+          <p className="muted">AI interpretation of your question, before entity lookup and evidence verification.</p>
+          <p><strong>Entities:</strong> {result.plan.entities.join(', ') || 'None extracted; using document search seeds.'}</p>
+          <p><strong>Relationship types:</strong> {result.plan.relationshipTypes.join(', ') || 'All configured relationship types'}</p>
+          <div className="decision-panel-heading"><strong>Plan JSON</strong><CopyButton value={JSON.stringify(result.plan, null, 2)} /></div>
+          <pre>{JSON.stringify(result.plan, null, 2)}</pre>
+        </div>
+      </details>}
       <div aria-live="polite" role="status">
         {running ? 'Searching graph evidence…' : result ? statusMessages[result.status] ?? `${result.chunks.length} evidence chunks found · ${result.elapsedMs.toLocaleString()} ms` : 'Enter a relationship question to begin.'}
       </div>

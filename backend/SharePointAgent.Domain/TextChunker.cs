@@ -2,9 +2,12 @@ namespace SharePointAgent.Domain;
 
 public static class TextChunker
 {
+    public const string Version = "words-v1";
+
     public static IReadOnlyList<string> Split(string text, int size, int overlap)
     {
-        if (overlap >= size)
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(size);
+        if (overlap < 0 || overlap >= size)
         {
             throw new ArgumentOutOfRangeException(nameof(overlap), "Overlap must be smaller than chunk size.");
         }
@@ -16,14 +19,37 @@ public static class TextChunker
         }
 
         var chunks = new List<string>();
-        for (var start = 0; start < text.Length; start += size - overlap)
+        var start = 0;
+        while (start < text.Length)
         {
-            var length = Math.Min(size, text.Length - start);
-            chunks.Add(text.Substring(start, length));
-            if (start + length >= text.Length)
+            var end = start + Math.Min(size, text.Length - start);
+            if (end < text.Length && text[end] != ' ')
+            {
+                var boundary = text.LastIndexOf(' ', end - 1, end - start);
+                // A single oversized word stays intact: size is a target, not a reason to cut a word.
+                end = boundary > start ? boundary : text.IndexOf(' ', end);
+                if (end < 0)
+                {
+                    end = text.Length;
+                }
+            }
+            chunks.Add(text[start..end].TrimEnd());
+            if (end == text.Length)
             {
                 break;
             }
+
+            var next = Math.Max(start + 1, end - overlap);
+            // Round the overlap forward to a word start, preserving progress and never skipping new text.
+            while (next < end && text[next - 1] != ' ')
+            {
+                next++;
+            }
+            while (next < text.Length && text[next] == ' ')
+            {
+                next++;
+            }
+            start = next;
         }
         return chunks;
     }

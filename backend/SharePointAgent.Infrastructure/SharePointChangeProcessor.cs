@@ -33,7 +33,7 @@ public sealed class SharePointChangeProcessor(
     // Identifies the pipeline that produced the stored chunks. Changing the chunk geometry or the embedding
     // model makes every tracked file stale, so files are rebuilt rather than reported as unchanged.
     private readonly string _indexFingerprint = string.Create(System.Globalization.CultureInfo.InvariantCulture,
-        $"chunk={processorOptions.Value.ChunkSizeCharacters}/{processorOptions.Value.ChunkOverlapCharacters};embedding={openAiOptions.Value.EmbeddingDeployment};dimensions={searchOptions.Value.VectorDimensions}");
+        $"chunk={processorOptions.Value.ChunkSizeCharacters}/{processorOptions.Value.ChunkOverlapCharacters};chunker={TextChunker.Version};embedding={openAiOptions.Value.EmbeddingDeployment};dimensions={searchOptions.Value.VectorDimensions}");
 
     // Serializes every trigger (Service Bus signals, the scheduled poll, and the startup sync) so a
     // single delta cursor is never advanced by two passes at once.

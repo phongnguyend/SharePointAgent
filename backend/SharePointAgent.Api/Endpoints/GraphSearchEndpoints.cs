@@ -44,7 +44,7 @@ public static class GraphSearchEndpoints
             var seeds = await search.SearchAsync(SearchQueryMode.Hybrid, new SearchQueryRequest(payload.Query.Trim(), userId, payload.Top, 0), ct);
             // Seeds identify entities, but remain eligible as relationship evidence in the result.
             var result = await retrieval.AugmentAsync(new GraphRetrievalRequest(userId, payload.Query.Trim(), [], SeedHits: seeds.Items, Plan: plan), ct);
-            return Results.Ok(new { status = result.Status.ToString(), chunks = result.Chunks, elapsedMs = stopwatch.ElapsedMilliseconds });
+            return Results.Ok(new { status = result.Status.ToString(), chunks = result.Chunks, plan, elapsedMs = stopwatch.ElapsedMilliseconds });
         }).WithMetadata(new RequestSizeLimitAttribute(16 * 1024));
     }
 
