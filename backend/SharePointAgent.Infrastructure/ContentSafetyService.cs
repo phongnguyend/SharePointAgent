@@ -21,6 +21,10 @@ public sealed class ContentSafetyService(HttpClient http, TokenCredential creden
 {
     public bool Enabled => options.Value.Enabled;
 
+    public bool Configured => Uri.TryCreate(options.Value.Endpoint, UriKind.Absolute, out var endpoint)
+        && endpoint.Scheme == "https"
+        && (options.Value.UseManagedIdentity || !string.IsNullOrWhiteSpace(options.Value.ApiKey));
+
     public async Task<Guid?> CheckAsync(string text, Guid? userId, Guid? conversationId, CancellationToken ct,
         string operation = "UserMessage", Guid? questionId = null, Guid? attachmentId = null)
     {
@@ -43,8 +47,28 @@ public sealed class ContentSafetyService(HttpClient http, TokenCredential creden
         return assessmentId;
     }
 
-    private async Task AnalyzeChunkAsync(string text, Guid assessmentId, Guid? userId, Guid? conversationId,
-        string operation, Guid? questionId, Guid? attachmentId, CancellationToken ct)
+    public async Task<ContentSafetyAssessment> EvaluateAsync(string text, Guid userId, CancellationToken ct)
+    {
+        if (!Configured)
+        {
+            throw new InvalidOperationException("Configure a ContentSafety HTTPS endpoint and credentials to use this playground.");
+        }
+        if (string.IsNullOrWhiteSpace(text) || text.Length > 10000)
+        {
+            throw new ArgumentException("Enter between 1 and 10,000 characters.");
+        }
+        var row = await AnalyzeChunkAsync(text, Guid.NewGuid(), userId, null, "Playground", null, null, ct, rejectBlocked: false);
+        return new(row.AssessmentId, row.Status,
+        [
+            new("Hate", row.HateSeverity!.Value, row.HateThreshold),
+            new("Sexual", row.SexualSeverity!.Value, row.SexualThreshold),
+            new("Violence", row.ViolenceSeverity!.Value, row.ViolenceThreshold),
+            new("SelfHarm", row.SelfHarmSeverity!.Value, row.SelfHarmThreshold)
+        ], row.CharacterCount, row.DurationMs, row.TraceId);
+    }
+
+    private async Task<ContentSafetyUsageEntity> AnalyzeChunkAsync(string text, Guid assessmentId, Guid? userId, Guid? conversationId,
+        string operation, Guid? questionId, Guid? attachmentId, CancellationToken ct, bool rejectBlocked = true)
     {
         var settings = options.Value;
         var row = new ContentSafetyUsageEntity
@@ -120,10 +144,11 @@ public sealed class ContentSafetyService(HttpClient http, TokenCredential creden
             using var saveTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             await db.SaveChangesAsync(saveTimeout.Token);
         }
-        if (row.Status == "Blocked")
+        if (rejectBlocked && row.Status == "Blocked")
         {
             throw new ContentSafetyRejectedException("This content was blocked by the application's content safety policy.", 422, "content_safety_blocked");
         }
+        return row;
     }
 
     public async Task LinkQuestionAsync(Guid? usageId, Guid questionId, CancellationToken ct)

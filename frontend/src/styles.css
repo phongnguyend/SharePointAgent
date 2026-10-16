@@ -47,3 +47,5 @@
 @import './components/Toast.css';
 @import './components/SubAgentManager.css';
 @import './components/AgentSkillManager.css';
+@import './pages/ContentSafetyPlaygroundPage.css';
+@import './pages/VoicePlaygroundPage.css';

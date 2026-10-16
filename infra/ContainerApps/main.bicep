@@ -304,7 +304,6 @@ resource api 'Microsoft.App/containerApps@2025-01-01' = {
           { name: 'ContentSafety__Enabled', value: string(!empty(infrastructure.contentSafetyEndpoint)) }
           { name: 'ContentSafety__Endpoint', value: infrastructure.contentSafetyEndpoint }
           { name: 'ContentSafety__UseManagedIdentity', value: 'true' }
-          { name: 'ContentSafety__ManagedIdentityClientId', value: hosting.apiClientId }
         ]) : []
         resources: { cpu: json('2.0'), memory: '4Gi' }
         probes: [{ type: 'Readiness', httpGet: { path: deployApplicationImages ? '/health' : '/', port: deployApplicationImages ? 8080 : 80 }, periodSeconds: 10 }]

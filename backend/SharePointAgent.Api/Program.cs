@@ -63,6 +63,8 @@ app.MapDecisionPlaygroundEndpoints();
 
 app.MapImagePlaygroundEndpoints();
 
+app.MapContentSafetyPlaygroundEndpoints();
+
 app.MapDocumentPlaygroundEndpoints();
 
 app.MapWorkspacePlaygroundEndpoints();

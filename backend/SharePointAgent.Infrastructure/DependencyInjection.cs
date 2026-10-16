@@ -92,8 +92,7 @@ public static class DependencyInjection
         services.TryAddSingleton(sp =>
         {
             var options = sp.GetRequiredService<IOptions<ContentSafetyOptions>>();
-            var credential = new ManagedIdentityCredential(string.IsNullOrWhiteSpace(options.Value.ManagedIdentityClientId)
-                ? ManagedIdentityId.SystemAssigned : ManagedIdentityId.FromUserAssignedClientId(options.Value.ManagedIdentityClientId));
+            var credential = new DefaultAzureCredential();
             return new ContentSafetyService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("ContentSafety"),
                 credential, sp.GetRequiredService<IDbContextFactory<SharePointIndexDbContext>>(), options);
         });

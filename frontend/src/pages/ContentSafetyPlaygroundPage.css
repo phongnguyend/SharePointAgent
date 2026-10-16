@@ -1,0 +1,6 @@
+.safety-playground-editor { display: flex; flex-direction: column; }
+.safety-playground-editor > .decision-panel-heading { flex-shrink: 0; }
+.safety-playground-input { flex: 1; width: 100%; min-height: 340px; resize: vertical; border: 0; padding: 12px; box-sizing: border-box; }
+.safety-playground-results { padding: 12px; overflow-x: auto; }
+.safety-playground-results table { width: 100%; }
+.safety-playground-id { font-size: 12px; color: var(--text-secondary); overflow-wrap: anywhere; }

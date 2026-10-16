@@ -28,6 +28,26 @@ shared-first import order stable so the cascade does not depend on route loading
 Add new feature styles to the relevant CSS file; register new files in this entry
 point. The workspace playground keeps its existing local CSS import.
 
+## Content safety and voice playgrounds
+
+The **Content Safety** tab analyzes up to 10,000 characters using the configured
+ContentSafety provider and thresholds. It shows severity scores for Hate, Sexual,
+Violence, and Self-harm, plus the resulting policy decision. Analysis requires a
+Global Admin and records usage with operation `Playground`; submitted text is not
+stored in the usage record. `ContentSafety:Enabled` controls chat checks only;
+the playground can analyze text while it is false, provided the HTTPS endpoint
+and credentials are configured. Unavailable services are shown as errors, not
+successful assessments.
+
+The **Voice** tab uses the existing transcription service and quota/usage tracking.
+Upload one WebM, Ogg, MP4, M4A, MP3, or WAV file up to 25 MB, preview it, and click
+**Transcribe**, or use the microphone for up to five minutes and stop to transcribe.
+Microphone recording requires browser permission and a secure context; switching
+tabs or leaving the page releases the microphone. Transcripts can be copied and
+are not sent as chat messages. Configure `AzureOpenAI:TranscriptionDeployment` to
+enable voice. Both playgrounds support cancellation; a cancelled provider request
+may already have incurred usage.
+
 ## Dialog components
 
 All application popups use `src/components/Modal.tsx`, also re-exported from `components/ui`.

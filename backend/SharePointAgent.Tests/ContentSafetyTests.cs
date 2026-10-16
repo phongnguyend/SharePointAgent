@@ -109,5 +109,46 @@ public sealed class ContentSafetyTests
     {
         var service = new ContentSafetyService(null!, null!, null!, Options.Create(new ContentSafetyOptions()));
         Assert.Null(await service.CheckAsync("text", null, null, default));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.EvaluateAsync("text", Guid.Empty, default));
+    }
+
+    [Theory]
+    [InlineData(0, "Allowed", true)]
+    [InlineData(4, "Blocked", true)]
+    [InlineData(0, "Allowed", false)]
+    [InlineData(4, "Blocked", false)]
+    public async Task PlaygroundReturnsScoresAndRecordsBlockedAssessmentsWithoutThrowing(int severity, string status, bool chatEnabled)
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<SharePointIndexDbContext>().UseSqlite(connection).Options;
+        await using var db = new SharePointIndexDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+        var factory = Substitute.For<IDbContextFactory<SharePointIndexDbContext>>();
+        factory.CreateDbContextAsync(Arg.Any<CancellationToken>()).Returns(_ => new SharePointIndexDbContext(options));
+        using var http = new HttpClient(new Handler(severity, HttpStatusCode.OK));
+        var settings = new ContentSafetyOptions { Enabled = chatEnabled, Endpoint = "https://test.example", UseManagedIdentity = false, ApiKey = "secret" };
+        var service = new ContentSafetyService(http, Substitute.For<TokenCredential>(), factory, Options.Create(settings));
+        Assert.True(service.Configured);
+        if (!chatEnabled)
+        {
+            Assert.Null(await service.CheckAsync("sample", Guid.Empty, null, default));
+            Assert.Empty(await db.ContentSafetyUsage.ToListAsync());
+        }
+        var user = Guid.NewGuid();
+        var result = await service.EvaluateAsync("sample", user, default);
+        Assert.Equal(status, result.Status);
+        Assert.Equal(4, result.Categories.Count);
+        Assert.All(result.Categories, category =>
+        {
+            Assert.Equal(severity, category.Severity);
+            Assert.Equal(4, category.Threshold);
+        });
+        var row = await db.ContentSafetyUsage.SingleAsync();
+        Assert.Equal("Playground", row.Operation);
+        Assert.Equal(user, row.UserId);
+        Assert.Equal(result.AssessmentId, row.AssessmentId);
+        Assert.Equal(status, row.Status);
+        Assert.Null(row.ConversationId);
     }
 }

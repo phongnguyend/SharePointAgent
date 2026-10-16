@@ -527,6 +527,11 @@ Set `deployTranscription=true` in the parameter file to deploy `gpt-4o-transcrib
 
 ### Content Safety
 
+`ContentSafety:UseManagedIdentity=true` uses `DefaultAzureCredential`: sign in with
+`az login` for local development; Azure deployments use the hosting identity selected
+through `AZURE_CLIENT_ID`. There is no ContentSafety-specific managed identity client
+ID. Set `UseManagedIdentity=false` to authenticate with `ContentSafety:ApiKey` instead.
+
 `deployContentSafety=true` in the supplied parameter files provisions S0. The template configures API managed-identity access; AgentHost's role must be assigned when registering the hosted agent. `allowContentSafetyApiKeyAuth` controls local key authentication. Outputs include `contentSafetyEndpoint` and `contentSafetyResourceId`, never keys. Disabling the deployment flag does not delete a previously created resource in incremental deployment mode.
 
 ## Deployment behavior

@@ -28,11 +28,12 @@ function microphoneError(cause: unknown) {
  * Records speech and turns it into text for the composer. Nothing is sent as a message: the text is
  * handed to the caller to review and edit, and the recording is discarded after transcription.
  */
-export function DictationButton({ disabled, maxSeconds, onText, onError }: {
+export function DictationButton({ disabled, maxSeconds, onText, onError, onBusyChange }: {
   disabled: boolean
   maxSeconds: number
   onText: (text: string) => void
   onError: (message: string | null) => void
+  onBusyChange?: (busy: boolean) => void
 }) {
   const [state, setState] = useState<'idle' | 'starting' | 'recording' | 'transcribing'>('idle')
   const [elapsed, setElapsed] = useState(0)
@@ -43,6 +44,11 @@ export function DictationButton({ disabled, maxSeconds, onText, onError }: {
   const timer = useRef<number | undefined>(undefined)
   const recordingStarted = useRef(0)
   const request = useRef<AbortController | null>(null)
+  const mounted = useRef(true)
+
+  useEffect(() => {
+    onBusyChange?.(state !== 'idle')
+  }, [state, onBusyChange])
 
   const release = () => {
     window.clearInterval(timer.current)
@@ -52,13 +58,17 @@ export function DictationButton({ disabled, maxSeconds, onText, onError }: {
   }
 
   // Leaving the page must turn the microphone off and drop any pending transcription.
-  useEffect(() => () => {
-    cancelled.current = true
-    if (recorder.current?.state === 'recording') {
-      recorder.current.stop()
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      cancelled.current = true
+      if (recorder.current?.state === 'recording') {
+        recorder.current.stop()
+      }
+      release()
+      request.current?.abort()
     }
-    release()
-    request.current?.abort()
   }, [])
 
   const stop = (discard: boolean) => {
@@ -73,9 +83,13 @@ export function DictationButton({ disabled, maxSeconds, onText, onError }: {
     setState('starting')
     try {
       const media = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
+      if (!mounted.current) {
+        media.getTracks().forEach(track => track.stop())
+        return
+      }
+      stream.current = media
       const mimeType = MIME_TYPES.find(type => MediaRecorder.isTypeSupported(type))
       const instance = new MediaRecorder(media, mimeType ? { mimeType } : undefined)
-      stream.current = media
       recorder.current = instance
       chunks.current = []
       cancelled.current = false
@@ -101,6 +115,9 @@ export function DictationButton({ disabled, maxSeconds, onText, onError }: {
         request.current = controller
         transcribeAudio(audio, durationSeconds, controller.signal)
           .then(result => {
+            if (controller.signal.aborted || !mounted.current) {
+              return
+            }
             if (result.text.trim()) {
               onText(result.text.trim())
             } else {

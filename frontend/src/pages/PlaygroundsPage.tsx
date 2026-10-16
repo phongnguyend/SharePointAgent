@@ -1,16 +1,20 @@
 import { useId } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { BrainCircuit, GitBranch, Image, ScanText, FileDown, ListTree, FileType, FileText, Sheet, Presentation } from 'lucide-react'
+import { BrainCircuit, GitBranch, Image, ScanText, FileDown, ListTree, FileType, FileText, Sheet, Presentation, ShieldCheck, Mic } from 'lucide-react'
 import DecisionPlaygroundPage from './DecisionPlaygroundPage'
 import ImagePlaygroundPage from './ImagePlaygroundPage'
 import DocumentPlaygroundPage from './DocumentPlaygroundPage'
 import WorkspacePlaygroundPage from './WorkspacePlaygroundPage'
+import ContentSafetyPlaygroundPage from './ContentSafetyPlaygroundPage'
+import VoicePlaygroundPage from './VoicePlaygroundPage'
 
 const providers = [
   { key: 'jev', label: 'Jev', Icon: BrainCircuit },
   { key: 'microsoft-decision', label: 'Microsoft Decision', Icon: GitBranch },
   { key: 'image-description', label: 'Image Description', Icon: Image },
   { key: 'image-text', label: 'Image Text Extraction', Icon: ScanText },
+  { key: 'content-safety', label: 'Content Safety', Icon: ShieldCheck },
+  { key: 'voice', label: 'Voice', Icon: Mic },
   { key: 'markitdown', label: 'MarkItDown', Icon: FileDown },
   { key: 'pageindex', label: 'PageIndex', Icon: ListTree },
   { key: 'pdf', label: 'PDF', Icon: FileType },
@@ -46,7 +50,9 @@ export default function PlaygroundsPage() {
     {/* Keep all playgrounds mounted so switching preserves inputs, results, and pending requests. */}
     {providers.map(({ key }) => <div key={key} role="tabpanel" id={`${id}-${key}-panel`}
       aria-labelledby={`${id}-${key}`} hidden={selected !== key}>
-      {key === 'dynamic-sessions' || key === 'sandboxes'
+      {key === 'content-safety' ? <ContentSafetyPlaygroundPage active={selected === key} />
+        : key === 'voice' ? <VoicePlaygroundPage active={selected === key} />
+        : key === 'dynamic-sessions' || key === 'sandboxes'
         ? <WorkspacePlaygroundPage provider={key} active={selected === key} />
         : key === 'image-description' || key === 'image-text'
         ? <ImagePlaygroundPage operation={key === 'image-description' ? 'describe' : 'extract'} active={selected === key} />
