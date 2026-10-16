@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using SharePointAgent.Application;
 using SharePointAgent.Domain;
-using SharePointAgent.Infrastructure.GraphRag;
+using SharePointAgent.Infrastructure.KnowledgeGraph;
 using Xunit;
 
 namespace SharePointAgent.Tests;
@@ -46,8 +46,8 @@ public sealed class SynchronousGraphIndexingTests
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["GraphRag:IndexingEnabled"] = enabled.ToString(),
-            ["GraphRag:SynchronousIndexing"] = synchronous.ToString()
+            ["KnowledgeGraph:IndexingEnabled"] = enabled.ToString(),
+            ["KnowledgeGraph:SynchronousIndexing"] = synchronous.ToString()
         }).Build();
         var services = new ServiceCollection();
         services.AddGraphIndexingSignal(configuration);

@@ -1,7 +1,7 @@
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 using SharePointAgent.Application;
-using SharePointAgent.Infrastructure.GraphRag;
+using SharePointAgent.Infrastructure.KnowledgeGraph;
 using Xunit;
 using static SharePointAgent.Tests.GraphFixtures;
 
@@ -124,14 +124,30 @@ public sealed class GraphExtractionTests
     }
 
     [Fact]
-    public async Task MalformedOutputIsRetriedThenSkipped()
+    public async Task MalformedOutputIsRetriedThenSurfaced()
     {
         var chat = new ScriptedChatClient(_ => "not json");
 
-        var result = await Extractor(chat, retries: 2).ExtractAsync(new GraphExtractionInput("doc", null, Text, null, null), default);
+        var exception = await Assert.ThrowsAsync<SharePointAgent.Domain.GraphTransientFailureException>(() =>
+            Extractor(chat, retries: 2).ExtractAsync(new GraphExtractionInput("doc", null, Text, null, null), default));
 
-        Assert.Empty(result.Entities);
+        Assert.Equal("extraction.invalidOutput", exception.Code);
         Assert.Equal(3, chat.Calls);
+    }
+
+    [Fact]
+    public async Task TokenLimitedOutputIsRejectedEvenWhenItParses()
+    {
+        var chat = new ScriptedChatClient(_ => "{\"entities\":[],\"relations\":[]}")
+        {
+            FinishReason = ChatFinishReason.Length
+        };
+
+        var exception = await Assert.ThrowsAsync<SharePointAgent.Domain.GraphTransientFailureException>(() =>
+            Extractor(chat, retries: 0).ExtractAsync(new GraphExtractionInput("doc", null, Text, null, null), default));
+
+        Assert.Equal("extraction.invalidOutput", exception.Code);
+        Assert.Equal(1, chat.Calls);
     }
 
     [Fact]
@@ -179,11 +195,16 @@ public sealed class GraphExtractionTests
 
         public ChatOptions? LastOptions { get; private set; }
 
+        public ChatFinishReason? FinishReason { get; init; }
+
         public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
         {
             Calls++;
             LastOptions = options;
-            return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, respond(Calls))));
+            return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, respond(Calls)))
+            {
+                FinishReason = FinishReason
+            });
         }
 
         public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default) =>

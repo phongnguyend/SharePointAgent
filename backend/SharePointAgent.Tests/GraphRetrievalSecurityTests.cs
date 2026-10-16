@@ -3,7 +3,7 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using SharePointAgent.Application;
 using SharePointAgent.Domain;
-using SharePointAgent.Infrastructure.GraphRag;
+using SharePointAgent.Infrastructure.KnowledgeGraph;
 using Xunit;
 using static SharePointAgent.Tests.GraphFixtures;
 
@@ -51,7 +51,7 @@ public sealed class GraphRetrievalSecurityTests
         writer.ApplySnapshotAsync(Snapshot(record, [subject, @object], [Assertion(subject, "DEPENDS_ON", @object, Evidence(record, 0, text))]), default).Wait();
     }
 
-    private GraphRetrievalService Service(Action<GraphRagOptions>? configure = null, IGraphReader? reader = null) => new(
+    private GraphRetrievalService Service(Action<KnowledgeGraphOptions>? configure = null, IGraphReader? reader = null) => new(
         Options(configure),
         SharePoint(),
         new GraphQueryRouter(Ontology),

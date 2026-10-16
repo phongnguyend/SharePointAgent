@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using SharePointAgent.Application;
 using SharePointAgent.Domain;
-using SharePointAgent.Infrastructure.GraphRag;
+using SharePointAgent.Infrastructure.KnowledgeGraph;
 using Xunit;
 using static SharePointAgent.Tests.GraphFixtures;
 
@@ -22,7 +22,7 @@ public sealed class GraphIndexingPipelineTests
         Relations = [Relation("e1", "depends on", "e2", "CRM depends on ERP")]
     });
 
-    private GraphIndexingPipeline Pipeline(Action<GraphRagOptions>? configure = null)
+    private GraphIndexingPipeline Pipeline(Action<KnowledgeGraphOptions>? configure = null)
     {
         var options = Options(configure);
         var writer = new GraphProjectionWriter(_store, Ontology, options, TimeProvider.System, NullLogger<GraphProjectionWriter>.Instance);

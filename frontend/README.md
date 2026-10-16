@@ -425,7 +425,7 @@ The **Graph** navigation item opens `/graph`. Ask a relationship question (owner
 
 `POST /api/graph/search` accepts `{ query, top }` with a query up to 2,000 characters and 1–20 seed chunks. It always uses the signed-in Entra object ID, including for administrators. Hybrid search supplies permission-trimmed seeds, then the existing graph retrieval verifies current evidence and authorized paths. Raw canonical entity names and unverified edges are not exposed. Results are bounded and are not an exhaustive graph listing.
 
-Enable `GraphRag:RetrievalEnabled` for the tenant and populate the graph through the indexing pipeline. Disabled and shadow-only configurations do not publish graph search results. The page distinguishes unsupported relationship questions, missing seeds, missing authorized evidence, and retrieval failures.
+Enable `KnowledgeGraph:RetrievalEnabled` for the tenant and populate the graph through the indexing pipeline. Disabled and shadow-only configurations do not publish graph search results. The page distinguishes unsupported relationship questions, missing seeds, missing authorized evidence, and retrieval failures.
 
 ## Voice playgrounds
 

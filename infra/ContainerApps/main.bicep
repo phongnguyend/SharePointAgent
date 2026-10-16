@@ -32,16 +32,16 @@ param infrastructure object
 param agentWorkspaceMode string = 'Local'
 
 @description('Turn on graph extraction in the worker.')
-param enableGraphRagIndexing bool = false
+param enableKnowledgeGraphIndexing bool = false
 
 @description('Run graph indexing inline after search-index changes instead of publishing to the graph queue.')
-param graphRagSynchronousIndexing bool = false
+param knowledgeGraphSynchronousIndexing bool = false
 
 @description('Compute graph retrieval and record its metrics without showing results to users.')
-param enableGraphRagShadowRetrieval bool = false
+param enableKnowledgeGraphShadowRetrieval bool = false
 
 @description('Add verified graph-derived chunks to chat answers. Enable only after shadow retrieval and evaluation.')
-param enableGraphRagRetrieval bool = false
+param enableKnowledgeGraphRetrieval bool = false
 
 @description('Use release images and runtime settings. False provisions hello containers without application secrets.')
 param deployApplicationImages bool = false
@@ -155,16 +155,16 @@ var markItDownUrl = 'https://${markItDownName}.${containerAppsEnvironment.proper
 var pageIndexUrl = 'https://${pageIndexName}.${containerAppsEnvironment.properties.defaultDomain}'
 var apiEndpoint = 'https://${apiName}.${containerAppsEnvironment.properties.defaultDomain}'
 // The Graph RAG resources always exist; these flags decide whether the apps use them.
-var graphRagEnv = [
-  { name: 'GraphRag__IndexingEnabled', value: string(enableGraphRagIndexing) }
-  { name: 'GraphRag__SynchronousIndexing', value: string(graphRagSynchronousIndexing) }
-  { name: 'GraphRag__Extraction__Deployment', value: infrastructure.chatDeploymentName }
-  { name: 'GraphRag__ShadowRetrieval', value: string(enableGraphRagShadowRetrieval) }
-  { name: 'GraphRag__RetrievalEnabled', value: string(enableGraphRagRetrieval) }
-  { name: 'GraphRag__Cosmos__UseManagedIdentity', value: 'true' }
-  { name: 'GraphRag__Cosmos__Endpoint', value: infrastructure.graphCosmosEndpoint }
-  { name: 'GraphRag__Archive__UseManagedIdentity', value: 'true' }
-  { name: 'GraphRag__Archive__ServiceUri', value: infrastructure.uploadStorageServiceUri }
+var knowledgeGraphEnv = [
+  { name: 'KnowledgeGraph__IndexingEnabled', value: string(enableKnowledgeGraphIndexing) }
+  { name: 'KnowledgeGraph__SynchronousIndexing', value: string(knowledgeGraphSynchronousIndexing) }
+  { name: 'KnowledgeGraph__Extraction__Deployment', value: infrastructure.chatDeploymentName }
+  { name: 'KnowledgeGraph__ShadowRetrieval', value: string(enableKnowledgeGraphShadowRetrieval) }
+  { name: 'KnowledgeGraph__RetrievalEnabled', value: string(enableKnowledgeGraphRetrieval) }
+  { name: 'KnowledgeGraph__Cosmos__UseManagedIdentity', value: 'true' }
+  { name: 'KnowledgeGraph__Cosmos__Endpoint', value: infrastructure.graphCosmosEndpoint }
+  { name: 'KnowledgeGraph__Archive__UseManagedIdentity', value: 'true' }
+  { name: 'KnowledgeGraph__Archive__ServiceUri', value: infrastructure.uploadStorageServiceUri }
 ]
 var commonEnv = [
   { name: 'Monitoring__OpenTelemetry__Exporter', value: 'AzureMonitor' }
@@ -289,7 +289,7 @@ resource api 'Microsoft.App/containerApps@2025-01-01' = {
       containers: [{
         name: 'api'
         image: apiImage
-        env: deployApplicationImages ? concat(commonEnv, graphRagEnv, [
+        env: deployApplicationImages ? concat(commonEnv, knowledgeGraphEnv, [
           { name: 'AZURE_CLIENT_ID', value: hosting.apiClientId }
           { name: 'SqlServer__ConnectionString', value: 'Server=tcp:${hosting.sqlServerFqdn},1433;Database=${hosting.sqlDatabaseName};Authentication=Active Directory Managed Identity;User Id=${hosting.apiClientId};Encrypt=True;TrustServerCertificate=False;' }
           { name: 'ChatAgent__Mode', value: 'Foundry' }
@@ -337,7 +337,7 @@ resource background 'Microsoft.App/containerApps@2025-01-01' = {
       containers: [{
         name: 'background'
         image: backgroundImage
-        env: deployApplicationImages ? concat(commonEnv, graphRagEnv, [
+        env: deployApplicationImages ? concat(commonEnv, knowledgeGraphEnv, [
           { name: 'AZURE_CLIENT_ID', value: hosting.workerClientId }
           { name: 'SqlServer__ConnectionString', value: 'Server=tcp:${hosting.sqlServerFqdn},1433;Database=${hosting.sqlDatabaseName};Authentication=Active Directory Managed Identity;User Id=${hosting.workerClientId};Encrypt=True;TrustServerCertificate=False;' }
         ]) : []

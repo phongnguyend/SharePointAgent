@@ -2,8 +2,8 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using SharePointAgent.Domain;
-using SharePointAgent.Infrastructure.GraphRag;
-using SharePointAgent.Infrastructure.GraphRag.Cosmos;
+using SharePointAgent.Infrastructure.KnowledgeGraph;
+using SharePointAgent.Infrastructure.KnowledgeGraph.Cosmos;
 using Xunit;
 using static SharePointAgent.Tests.GraphFixtures;
 

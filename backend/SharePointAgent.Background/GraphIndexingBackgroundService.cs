@@ -1,7 +1,7 @@
 using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Options;
 using SharePointAgent.Application;
-using SharePointAgent.Infrastructure.GraphRag;
+using SharePointAgent.Infrastructure.KnowledgeGraph;
 
 namespace SharePointAgent.Background;
 
@@ -13,7 +13,7 @@ namespace SharePointAgent.Background;
 public sealed class GraphIndexingBackgroundService(
     ServiceBusClient serviceBus,
     GraphIndexingMessageHandler handler,
-    IOptions<GraphRagOptions> options,
+    IOptions<KnowledgeGraphOptions> options,
     ILogger<GraphIndexingBackgroundService> logger) : BackgroundService
 {
     public const string AttemptProperty = "graphAttempt";

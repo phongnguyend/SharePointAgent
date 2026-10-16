@@ -1,5 +1,5 @@
 using SharePointAgent.Domain;
-using SharePointAgent.Infrastructure.GraphRag;
+using SharePointAgent.Infrastructure.KnowledgeGraph;
 using Xunit;
 using static SharePointAgent.Tests.GraphFixtures;
 

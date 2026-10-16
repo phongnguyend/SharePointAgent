@@ -1,6 +1,6 @@
 using SharePointAgent.Background;
 using SharePointAgent.Infrastructure;
-using SharePointAgent.Infrastructure.GraphRag;
+using SharePointAgent.Infrastructure.KnowledgeGraph;
 using SharePointAgent.Infrastructure.Monitoring;
 
 var builder = Host.CreateApplicationBuilder(args);

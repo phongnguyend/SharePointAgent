@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
 using SharePointAgent.Application;
-using SharePointAgent.Infrastructure.GraphRag;
+using SharePointAgent.Infrastructure.KnowledgeGraph;
 
 namespace SharePointAgent.Background;
 
@@ -11,7 +11,7 @@ namespace SharePointAgent.Background;
 /// </summary>
 public sealed class GraphReconciliationBackgroundService(
     GraphReconciliationService reconciliation,
-    IOptions<GraphRagOptions> options,
+    IOptions<KnowledgeGraphOptions> options,
     ILogger<GraphReconciliationBackgroundService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

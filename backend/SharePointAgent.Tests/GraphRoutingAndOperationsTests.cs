@@ -4,7 +4,7 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using SharePointAgent.Application;
 using SharePointAgent.Domain;
-using SharePointAgent.Infrastructure.GraphRag;
+using SharePointAgent.Infrastructure.KnowledgeGraph;
 using Xunit;
 using static SharePointAgent.Tests.GraphFixtures;
 
@@ -93,7 +93,7 @@ public sealed class GraphRoutingAndOperationsTests
             new GraphEvaluationRun("q2", ["c"], 300)
         };
 
-        var summary = GraphRagEvaluation.Summarize(cases, runs);
+        var summary = KnowledgeGraphEvaluation.Summarize(cases, runs);
 
         Assert.Equal(2, summary.Cases);
         Assert.Equal(0.75, summary.MeanRecall, 3);

@@ -117,10 +117,10 @@ param serviceBusTopicName string = 'sharepoint-changes'
 param serviceBusSubscriptionName string = 'search-indexer'
 
 @description('Use a serverless Cosmos DB account. Switch to provisioned throughput once partitioning and RU use have been benchmarked on representative data.')
-param graphRagCosmosServerless bool = true
+param knowledgeGraphCosmosServerless bool = true
 
 @description('Let the API identity write to the graph, which administrator entity merges need. When false the API can only read it.')
-param graphRagAllowAdminMerges bool = false
+param knowledgeGraphAllowAdminMerges bool = false
 
 @description('Azure AI Search service SKU.')
 @allowed([
@@ -266,7 +266,7 @@ resource graphCosmos 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
     databaseAccountOfferType: 'Standard'
     locations: [{ locationName: cosmosLocation, failoverPriority: 0, isZoneRedundant: false }]
     consistencyPolicy: { defaultConsistencyLevel: 'Session' }
-    capabilities: graphRagCosmosServerless ? [{ name: 'EnableServerless' }] : []
+    capabilities: knowledgeGraphCosmosServerless ? [{ name: 'EnableServerless' }] : []
     disableLocalAuth: cosmosDisableLocalAuth
     disableKeyBasedMetadataWriteAccess: true
     minimalTlsVersion: 'Tls12'
@@ -745,10 +745,10 @@ resource workerGraphCosmos 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignm
 
 resource apiGraphCosmos 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-11-15' = {
   parent: graphCosmos
-  name: guid(graphCosmosAccountName, apiIdentity.id, graphRagAllowAdminMerges ? cosmosDataContributorRole : cosmosDataReaderRole)
+  name: guid(graphCosmosAccountName, apiIdentity.id, knowledgeGraphAllowAdminMerges ? cosmosDataContributorRole : cosmosDataReaderRole)
   properties: {
     principalId: apiIdentity.properties.principalId
-    roleDefinitionId: '${graphCosmos.id}/sqlRoleDefinitions/${graphRagAllowAdminMerges ? cosmosDataContributorRole : cosmosDataReaderRole}'
+    roleDefinitionId: '${graphCosmos.id}/sqlRoleDefinitions/${knowledgeGraphAllowAdminMerges ? cosmosDataContributorRole : cosmosDataReaderRole}'
     scope: graphCosmos.id
   }
 }

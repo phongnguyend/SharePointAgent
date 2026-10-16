@@ -16,7 +16,7 @@ using Microsoft.Graph;
 using SharePointAgent.Persistence;
 using SharePointAgent.Application;
 using SharePointAgent.Domain;
-using SharePointAgent.Infrastructure.GraphRag;
+using SharePointAgent.Infrastructure.KnowledgeGraph;
 
 using SearchOptions = SharePointAgent.Application.SearchOptions;
 

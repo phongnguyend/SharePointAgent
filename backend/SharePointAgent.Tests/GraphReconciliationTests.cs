@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using SharePointAgent.Application;
 using SharePointAgent.Domain;
-using SharePointAgent.Infrastructure.GraphRag;
+using SharePointAgent.Infrastructure.KnowledgeGraph;
 using Xunit;
 using static SharePointAgent.Tests.GraphFixtures;
 
@@ -30,7 +30,7 @@ public sealed class GraphReconciliationTests
         record.DriveId, record.ItemId, record.Name, record.ParentPath, record.WebUrl, record.MimeType, record.Size, record.LastModifiedUtc,
         record.ETag, record.CTag, record.PermissionsHash, record.IndexFingerprint, record.ChunkCount, record.ScanId, record.IndexedAtUtc, null);
 
-    private GraphReconciliationService Service(Action<GraphRagOptions>? configure = null) => new(
+    private GraphReconciliationService Service(Action<KnowledgeGraphOptions>? configure = null) => new(
         Options(configure), SharePoint(), _indexState, _metadata,
         new BoundedGraphTraversal(_store, Ontology, NullLogger<BoundedGraphTraversal>.Instance), _store,
         new GraphProjectionWriter(_store, Ontology, Options(), TimeProvider.System, NullLogger<GraphProjectionWriter>.Instance),

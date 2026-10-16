@@ -25,7 +25,7 @@ public static class GraphSearchEndpoints
             var retrieval = context.RequestServices.GetService<IGraphRetrievalService>();
             if (retrieval?.ReturnsResults != true)
             {
-                return Results.Conflict(new { error = "Graph search is unavailable. Enable GraphRag:RetrievalEnabled for this tenant; shadow mode does not expose results." });
+                return Results.Conflict(new { error = "Graph search is unavailable. Enable KnowledgeGraph:RetrievalEnabled for this tenant; shadow mode does not expose results." });
             }
             var stopwatch = Stopwatch.StartNew();
             var seeds = await search.SearchAsync(SearchQueryMode.Hybrid, new SearchQueryRequest(payload.Query.Trim(), userId, payload.Top, 0), ct);
