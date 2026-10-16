@@ -96,6 +96,8 @@ app.MapChatTranscriptionEndpoints();
 app.MapWorkspaceFileEndpoints();
 app.MapGraphRagEndpoints();
 
+app.MapGraphSearchEndpoints();
+
 app.Run();
 
 public partial class Program;

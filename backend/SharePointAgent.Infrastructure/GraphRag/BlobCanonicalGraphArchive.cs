@@ -129,6 +129,6 @@ public sealed class BlobCanonicalGraphArchive : ICanonicalGraphArchive
     }
 
     private static BlobContainerClient CreateContainer(GraphArchiveOptions options) => options.UsedManagedIdentity
-        ? new BlobServiceClient(new Uri(options.ServiceUri!), DependencyInjection.CreateManagedIdentityCredential()).GetBlobContainerClient(options.ContainerName)
+        ? new BlobServiceClient(new Uri(options.ServiceUri!), new Azure.Identity.DefaultAzureCredential()).GetBlobContainerClient(options.ContainerName)
         : new BlobContainerClient(options.ConnectionString!, options.ContainerName);
 }

@@ -214,7 +214,7 @@ public static class DependencyInjection
         {
             var options = sp.GetRequiredService<IOptions<OpenAiOptions>>().Value;
             return options.UsedManagedIdentity
-                ? new AzureOpenAIClient(new Uri(options.Endpoint), CreateManagedIdentityCredential())
+                ? new AzureOpenAIClient(new Uri(options.Endpoint), CreateDefaultAzureCredential())
                 : new AzureOpenAIClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!));
         });
 
@@ -364,14 +364,14 @@ public static class DependencyInjection
         {
             var options = sp.GetRequiredService<IOptions<UploadOptions>>().Value;
             return options.UsedManagedIdentity
-                ? new BlobServiceClient(new Uri(options.ServiceUri!), CreateManagedIdentityCredential())
+                ? new BlobServiceClient(new Uri(options.ServiceUri!), CreateDefaultAzureCredential())
                 : new BlobServiceClient(options.ConnectionString!);
         });
         services.AddSingleton(sp =>
         {
             var options = sp.GetRequiredService<IOptions<SearchOptions>>().Value;
             return options.UsedManagedIdentity
-                ? new SearchIndexClient(new Uri(options.Endpoint), CreateManagedIdentityCredential())
+                ? new SearchIndexClient(new Uri(options.Endpoint), CreateDefaultAzureCredential())
                 : new SearchIndexClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!));
         });
         services.AddSingleton<AttachmentContentCache>();
@@ -379,7 +379,7 @@ public static class DependencyInjection
         {
             var options = sp.GetRequiredService<IOptions<OpenAiOptions>>().Value;
             return options.UsedManagedIdentity
-                ? new AzureOpenAIClient(new Uri(options.Endpoint), CreateManagedIdentityCredential())
+                ? new AzureOpenAIClient(new Uri(options.Endpoint), CreateDefaultAzureCredential())
                 : new AzureOpenAIClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!));
         });
         services.AddTransient<AttachmentImageService>();
@@ -423,7 +423,7 @@ public static class DependencyInjection
         {
             var options = sp.GetRequiredService<IOptions<OpenAiOptions>>().Value;
             return options.UsedManagedIdentity
-                ? new AzureOpenAIClient(new Uri(options.Endpoint), CreateManagedIdentityCredential())
+                ? new AzureOpenAIClient(new Uri(options.Endpoint), CreateDefaultAzureCredential())
                 : new AzureOpenAIClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!));
         });
         services.AddHttpClient<DocumentIntelligenceClient>();
@@ -476,7 +476,7 @@ public static class DependencyInjection
         {
             var options = sp.GetRequiredService<IOptions<OpenAiOptions>>().Value;
             return options.UsedManagedIdentity
-                ? new AzureOpenAIClient(new Uri(options.Endpoint), CreateManagedIdentityCredential())
+                ? new AzureOpenAIClient(new Uri(options.Endpoint), CreateDefaultAzureCredential())
                 : new AzureOpenAIClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!));
         });
         services.AddMemoryCache();
@@ -504,7 +504,7 @@ public static class DependencyInjection
         {
             var options = sp.GetRequiredService<IOptions<SearchOptions>>().Value;
             return options.UsedManagedIdentity
-                ? new SearchIndexClient(new Uri(options.Endpoint), CreateManagedIdentityCredential())
+                ? new SearchIndexClient(new Uri(options.Endpoint), CreateDefaultAzureCredential())
                 : new SearchIndexClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!));
         });
         AddSearchClient(services);
@@ -514,12 +514,9 @@ public static class DependencyInjection
         return services;
     }
 
-    internal static TokenCredential CreateManagedIdentityCredential()
+    internal static TokenCredential CreateDefaultAzureCredential()
     {
-        var clientId = Environment.GetEnvironmentVariable("AZURE_CLIENT_ID");
-        return new ManagedIdentityCredential(string.IsNullOrWhiteSpace(clientId)
-            ? ManagedIdentityId.SystemAssigned
-            : ManagedIdentityId.FromUserAssignedClientId(clientId));
+        return new DefaultAzureCredential();
     }
 
     private static void AddSharePointOptions(IServiceCollection services, IConfiguration configuration)
@@ -565,7 +562,7 @@ public static class DependencyInjection
             // The service version travels with the Azure OpenAI package rather than with configuration.
             var clientOptions = new AzureOpenAIClientOptions();
             var client = options.UsedManagedIdentity
-                ? new AzureOpenAIClient(new Uri(options.Endpoint), CreateManagedIdentityCredential(), clientOptions)
+                ? new AzureOpenAIClient(new Uri(options.Endpoint), CreateDefaultAzureCredential(), clientOptions)
                 : new AzureOpenAIClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!), clientOptions);
             return new TrackedEmbeddingGenerator(
                 client.GetEmbeddingClient(options.EmbeddingDeployment).AsIEmbeddingGenerator(dimensions),
@@ -587,7 +584,7 @@ public static class DependencyInjection
         {
             var options = sp.GetRequiredService<IOptions<SearchOptions>>().Value;
             return options.UsedManagedIdentity
-                ? new SearchClient(new Uri(options.Endpoint), options.SharePointIndexName, CreateManagedIdentityCredential())
+                ? new SearchClient(new Uri(options.Endpoint), options.SharePointIndexName, CreateDefaultAzureCredential())
                 : new SearchClient(new Uri(options.Endpoint), options.SharePointIndexName, new AzureKeyCredential(options.ApiKey!));
         });
     }
@@ -613,7 +610,7 @@ public static class DependencyInjection
         {
             var options = sp.GetRequiredService<IOptions<ServiceBusOptions>>().Value;
             return options.UsedManagedIdentity
-                ? new ServiceBusClient(options.FullyQualifiedNamespace!, CreateManagedIdentityCredential())
+                ? new ServiceBusClient(options.FullyQualifiedNamespace!, CreateDefaultAzureCredential())
                 : new ServiceBusClient(options.ConnectionString!);
         });
     }

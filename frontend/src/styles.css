@@ -2,6 +2,7 @@
  * Component styles live beside their TSX files; central imports keep the cascade
  * independent of route loading and JavaScript module evaluation order. */
 @import './styles/shared.css';
+@import './pages/GraphPage.css';
 @import './pages/TextToSpeechPlaygroundPage.css';
 @import './pages/BrowsePage.css';
 @import './App.css';

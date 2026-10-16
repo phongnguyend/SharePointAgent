@@ -192,7 +192,7 @@ public static class AppAccess
             return true;
         }
 
-        var search = path is "/api/search/fulltext" or "/api/search/vector" or "/api/search/hybrid";
+        var search = path is "/api/search/fulltext" or "/api/search/vector" or "/api/search/hybrid" or "/api/graph/search";
         if (search && HttpMethods.IsPost(method))
         {
             return true;

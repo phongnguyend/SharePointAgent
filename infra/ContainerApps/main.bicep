@@ -154,6 +154,7 @@ var apiEndpoint = 'https://${apiName}.${containerAppsEnvironment.properties.defa
 // The Graph RAG resources always exist; these flags decide whether the apps use them.
 var graphRagEnv = [
   { name: 'GraphRag__IndexingEnabled', value: string(enableGraphRagIndexing) }
+  { name: 'GraphRag__Extraction__Deployment', value: infrastructure.chatDeploymentName }
   { name: 'GraphRag__ShadowRetrieval', value: string(enableGraphRagShadowRetrieval) }
   { name: 'GraphRag__RetrievalEnabled', value: string(enableGraphRagRetrieval) }
   { name: 'GraphRag__Cosmos__UsedManagedIdentity', value: 'true' }

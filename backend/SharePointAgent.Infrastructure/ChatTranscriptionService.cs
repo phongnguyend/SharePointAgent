@@ -44,7 +44,7 @@ public sealed class ChatTranscriptionService(
     private readonly OpenAiOptions settings = options.Value;
 
     // The same managed identity as the other Azure OpenAI clients; created once so its token is cached.
-    private static readonly Lazy<TokenCredential> ManagedIdentity = new(DependencyInjection.CreateManagedIdentityCredential);
+    private static readonly Lazy<TokenCredential> ManagedIdentity = new(DependencyInjection.CreateDefaultAzureCredential);
 
     public bool Enabled => !string.IsNullOrWhiteSpace(settings.TranscriptionDeployment);
 

@@ -61,8 +61,8 @@ public sealed class GraphRagOptions
 
 public sealed class GraphExtractionOptions
 {
-    /// <summary>The chat deployment used for extraction. Empty uses <c>AzureOpenAI:ChatDeployment</c>.</summary>
-    public string? Deployment { get; set; }
+    /// <summary>The explicit Azure OpenAI deployment name required by the graph indexing worker.</summary>
+    public string Deployment { get; set; } = "";
 
     /// <summary>
     /// Whether files protected by a sensitivity label with encryption are extracted. Off by default: their

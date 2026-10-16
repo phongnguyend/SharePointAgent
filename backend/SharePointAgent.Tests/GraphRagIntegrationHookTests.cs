@@ -74,6 +74,37 @@ public sealed class GraphRagIntegrationHookTests
         Assert.Contains(exception.Failures, failure => failure.Contains("GraphRag:Ontology"));
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void IndexingRequiresExplicitDeploymentEvenWhenChatDeploymentExists(string deployment)
+    {
+        var services = new ServiceCollection();
+        services.AddGraphIndexingServices(Configuration(
+            ("GraphRag:IndexingEnabled", "true"),
+            ("GraphRag:Cosmos:Endpoint", "https://graph.documents.azure.com:443/"),
+            ("GraphRag:Archive:ServiceUri", "https://archive.blob.core.windows.net/"),
+            ("AzureOpenAI:ChatDeployment", "chat-model"),
+            ("GraphRag:Extraction:Deployment", deployment)));
+        using var provider = services.BuildServiceProvider();
+        var exception = Assert.Throws<OptionsValidationException>(() => provider.GetRequiredService<IOptions<GraphRagOptions>>().Value);
+        Assert.Contains(exception.Failures, failure => failure.Contains("GraphRag:Extraction:Deployment"));
+    }
+
+    [Fact]
+    public void IndexingUsesExplicitDeployment()
+    {
+        var services = new ServiceCollection();
+        services.AddGraphIndexingServices(Configuration(
+            ("GraphRag:IndexingEnabled", "true"),
+            ("GraphRag:Cosmos:Endpoint", "https://graph.documents.azure.com:443/"),
+            ("GraphRag:Archive:ServiceUri", "https://archive.blob.core.windows.net/"),
+            ("AzureOpenAI:ChatDeployment", "chat-model"),
+            ("GraphRag:Extraction:Deployment", "extraction-model")));
+        using var provider = services.BuildServiceProvider();
+        Assert.Equal("extraction-model", provider.GetRequiredService<IOptions<GraphRagOptions>>().Value.Extraction.Deployment);
+    }
+
     [Fact]
     public void ConfiguredRetrievalRegistersTheVerifiedPathOnly()
     {

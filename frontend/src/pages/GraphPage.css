@@ -1,0 +1,13 @@
+.graph-search-form { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+.graph-search-form label, .graph-filter { display: flex; flex-direction: column; gap: 6px; }
+.graph-query { flex: 1; min-width: 220px; }
+.graph-filter { max-width: 320px; }
+.graph-results { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(0, 2fr); gap: 16px; align-items: start; }
+.graph-result-list { display: flex; flex-direction: column; gap: 8px; max-height: 650px; overflow: auto; }
+.graph-result { display: flex; flex-direction: column; align-items: start; gap: 8px; text-align: left; padding: 14px; overflow-wrap: anywhere; }
+.graph-result.selected { border-color: var(--accent, #2879df); box-shadow: inset 3px 0 var(--accent, #2879df); }
+.graph-evidence { min-width: 0; }
+.graph-evidence h3 { overflow-wrap: anywhere; }
+.graph-evidence-body { padding: 16px; }
+.graph-evidence pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 520px; overflow: auto; }
+@media (max-width: 760px) { .graph-results { grid-template-columns: 1fr; } .graph-result-list { max-height: 320px; } }

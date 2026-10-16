@@ -11,6 +11,7 @@ import {
   Moon,
   Scale,
   Search,
+  Network,
   Sparkles,
   Sun,
   Upload,
@@ -21,6 +22,7 @@ import OverviewPage from './pages/OverviewPage'
 import IndexedFilesPage from './pages/IndexedFilesPage'
 import AdminPage from './pages/AdminPage'
 import SearchPage from './pages/SearchPage'
+import GraphPage from './pages/GraphPage'
 import ChatPage from './pages/ChatPage'
 import FeedbackPage from './pages/FeedbackPage'
 import AgentsPage from './pages/AgentsPage'
@@ -86,6 +88,10 @@ export default function App() {
             <Sparkles size={16} />
             Chat
           </NavLink>
+          <NavLink to="/graph">
+            <Network size={16} />
+            Graph
+          </NavLink>
           {canReadAdmin && <NavLink to="/feedback">
             <Scale size={16} />
             Feedback
@@ -124,6 +130,7 @@ export default function App() {
           <Route path="/delta" element={<Navigate to={canReadAdmin ? '/admin?tab=delta' : home} replace />} />
           <Route path="/subscriptions" element={<Navigate to={canReadAdmin ? '/admin?tab=subscriptions' : home} replace />} />
           <Route path="/search" element={<SearchPage />} />
+          <Route path="/graph" element={<GraphPage />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/feedback" element={canReadAdmin ? <FeedbackPage /> : <Navigate to={home} replace />} />
           <Route path="/agents/skills" element={canReadAdmin ? <AgentSkillsPage /> : <Navigate to={home} replace />} />

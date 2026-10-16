@@ -42,6 +42,9 @@ param sqlLocation string = location
 @description('Cosmos DB region. Override independently when access or capacity is restricted in the shared resource region.')
 param cosmosLocation string = location
 
+@description('Disable Cosmos DB key authentication. Set false for local development.')
+param cosmosDisableLocalAuth bool = true
+
 param sqlDatabaseName string = 'sharepointagent'
 @description('SQL database DTU SKU. Basic is the minimal default; use an S-series SKU for Standard.')
 param sqlDatabaseSku string = 'Basic'
@@ -252,8 +255,8 @@ resource graphSnapshotContainer 'Microsoft.Storage/storageAccounts/blobServices/
   properties: { publicAccess: 'None' }
 }
 
-// Graph RAG projection. Local (key) auth is disabled: the applications use data-plane RBAC with managed
-// identity, and only this template can change the containers.
+// Graph RAG projection. Applications use data-plane RBAC; local development can opt into key auth.
+// Only this template can change the containers, including when key authentication is enabled.
 resource graphCosmos 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
   name: graphCosmosAccountName
   location: cosmosLocation
@@ -264,7 +267,7 @@ resource graphCosmos 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
     locations: [{ locationName: cosmosLocation, failoverPriority: 0, isZoneRedundant: false }]
     consistencyPolicy: { defaultConsistencyLevel: 'Session' }
     capabilities: graphRagCosmosServerless ? [{ name: 'EnableServerless' }] : []
-    disableLocalAuth: true
+    disableLocalAuth: cosmosDisableLocalAuth
     disableKeyBasedMetadataWriteAccess: true
     minimalTlsVersion: 'Tls12'
     publicNetworkAccess: 'Enabled'

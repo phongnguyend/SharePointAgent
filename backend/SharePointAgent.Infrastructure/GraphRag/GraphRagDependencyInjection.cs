@@ -56,6 +56,10 @@ public static class GraphRagDependencyInjection
         }
 
         AddGraphRagOptions(services, configuration, requireArchive: true);
+        services.AddOptions<GraphRagOptions>()
+            .Validate(o => !string.IsNullOrWhiteSpace(o.Extraction.Deployment),
+                "GraphRag:Extraction:Deployment is required when graph indexing is enabled.")
+            .ValidateOnStart();
         AddGraphStore(services);
         services.TryAddSingleton<IGraphChunkSource, AzureSearchGraphChunkSource>();
         services.TryAddSingleton<IGraphExtractor, AzureOpenAiGraphExtractor>();
@@ -148,12 +152,12 @@ public static class GraphRagDependencyInjection
             EnableContentResponseOnWrite = false
         };
         return options.UsedManagedIdentity
-            ? new CosmosClient(options.Endpoint, DependencyInjection.CreateManagedIdentityCredential(), clientOptions)
+            ? new CosmosClient(options.Endpoint, DependencyInjection.CreateDefaultAzureCredential(), clientOptions)
             : new CosmosClient(options.ConnectionString, clientOptions);
     }
 
     private static SearchIndexClient CreateSearchIndexClient(SearchOptions options) => options.UsedManagedIdentity
-        ? new SearchIndexClient(new Uri(options.Endpoint), DependencyInjection.CreateManagedIdentityCredential())
+        ? new SearchIndexClient(new Uri(options.Endpoint), DependencyInjection.CreateDefaultAzureCredential())
         : new SearchIndexClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!));
 
     /// <summary>Marks that the options are already bound, so hosts that add both sides bind them once.</summary>

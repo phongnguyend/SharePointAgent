@@ -775,6 +775,10 @@ Main resource names start with `workloadName`, followed by the environment. ACR 
 
 ## Validation
 
+Graph indexing requires an explicit `GraphRag:Extraction:Deployment` on the Background worker. There is no fallback to `AzureOpenAI:ChatDeployment`; an empty value fails validation when indexing services are enabled. The checked-in host settings use `gpt-5-mini`. Container Apps and the release script explicitly configure the extraction deployment to the infrastructure chat deployment name.
+
+All `UsedManagedIdentity=true` settings use `DefaultAzureCredential`, including Azure OpenAI (and transcription), Azure AI Search, Service Bus, uploads, Document Intelligence, Graph RAG Cosmos/archive, and workspace snapshots. Locally, sign in using `az login` or an IDE credential; in Azure, the credential chain can use the hosting managed identity (`AZURE_CLIENT_ID` selects a user-assigned identity). `false` retains the service's API key or connection string authentication. Cosmos key authentication is controlled by `cosmosDisableLocalAuth` (default `true`). `parameters.local.json` sets it to `false`, deploying `disableLocalAuth: false` for local development; other environments retain disabled key authentication. Redeploy infrastructure to apply this setting. Key-based database/container metadata writes remain disabled.
+
 Compile `main.bicep` and the templates in its subfolders with `az bicep build`. Compilation does not verify subscription quota, permissions, networking or Foundry regional availability. Application deployments use actual images and change runtime configuration; review them before applying to an existing environment.
 
 ## Azure Speech (text to speech)

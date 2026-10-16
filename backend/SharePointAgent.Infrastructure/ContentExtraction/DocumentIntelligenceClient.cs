@@ -14,7 +14,7 @@ public sealed class DocumentIntelligenceClient(
     private static readonly string[] Scopes = ["https://cognitiveservices.azure.com/.default"];
     private readonly DocumentIntelligenceOptions _options = options.Value;
     private readonly TokenCredential? _credential = options.Value.UsedManagedIdentity
-        ? DependencyInjection.CreateManagedIdentityCredential()
+        ? DependencyInjection.CreateDefaultAzureCredential()
         : null;
 
     public async Task<string> ExtractAsync(byte[] content, CancellationToken cancellationToken)

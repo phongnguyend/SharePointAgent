@@ -10,7 +10,7 @@ using SharePointAgent.Infrastructure.Monitoring;
 namespace SharePointAgent.Infrastructure.GraphRag;
 
 /// <summary>
-/// Extracts one chunk with the Azure OpenAI deployment the application already uses, through
+/// Extracts one chunk with the explicitly configured Graph RAG Azure OpenAI deployment, through
 /// Microsoft.Extensions.AI and JSON-schema structured output. Throttling and server errors are retried with
 /// jittered backoff; output that is not valid JSON is retried and then treated as no extraction, so one
 /// unusual chunk cannot block a document.
@@ -25,13 +25,12 @@ public sealed class AzureOpenAiGraphExtractor : IGraphExtractor
 
     public AzureOpenAiGraphExtractor(
         AzureOpenAIClient client,
-        IOptions<OpenAiOptions> openAiOptions,
         IOptions<GraphRagOptions> options,
         GraphOntology ontology,
         ILogger<AzureOpenAiGraphExtractor> logger)
         : this(
-            client.GetChatClient(ResolveModel(openAiOptions.Value, options.Value)).AsIChatClient(),
-            ResolveModel(openAiOptions.Value, options.Value),
+            client.GetChatClient(options.Value.Extraction.Deployment).AsIChatClient(),
+            options.Value.Extraction.Deployment,
             options,
             ontology,
             logger,
@@ -121,6 +120,4 @@ public sealed class AzureOpenAiGraphExtractor : IGraphExtractor
 
     private static bool IsTransient(int status) => status is 408 or 429 or >= 500;
 
-    private static string ResolveModel(OpenAiOptions openAi, GraphRagOptions options) =>
-        string.IsNullOrWhiteSpace(options.Extraction.Deployment) ? openAi.ChatDeployment : options.Extraction.Deployment;
 }

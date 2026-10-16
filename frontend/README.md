@@ -419,6 +419,14 @@ The Subscriptions page additionally uses, and these **change tenant state**:
 
 **These endpoints require Entra sign-in and provide shared operator access.** Assign only trusted operators to the enterprise application: indexed files, conversations, uploads, and subscription administration are not isolated per signed-in user. Health checks, public sign-in configuration, and the validated Graph webhook are the only anonymous API endpoints.
 
+## Graph search
+
+The **Graph** navigation item opens `/graph`. Ask a relationship question (ownership, dependencies, impact, or connections), choose the search breadth, and inspect matching evidence. Filter by relationship, select a result to read/copy its source chunk, or open the source document. Hop counts and disputed flags describe how graph retrieval found that evidence.
+
+`POST /api/graph/search` accepts `{ query, top }` with a query up to 2,000 characters and 1–20 seed chunks. It always uses the signed-in Entra object ID, including for administrators. Hybrid search supplies permission-trimmed seeds, then the existing graph retrieval verifies current evidence and authorized paths. Raw canonical entity names and unverified edges are not exposed. Results are bounded and are not an exhaustive graph listing.
+
+Enable `GraphRag:RetrievalEnabled` for the tenant and populate the graph through the indexing pipeline. Disabled and shadow-only configurations do not publish graph search results. The page distinguishes unsupported relationship questions, missing seeds, missing authorized evidence, and retrieval failures.
+
 ## Voice playgrounds
 
 Under **Playgrounds → Voice**, use **Speech to text** for the existing Azure OpenAI transcription playground or **Text to speech** for Azure AI Speech synthesis. Switching tabs preserves inputs and stops microphone recording/audio playback.
