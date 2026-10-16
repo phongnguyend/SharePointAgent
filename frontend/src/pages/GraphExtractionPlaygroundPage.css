@@ -1,6 +1,7 @@
 .graph-extraction-playground { min-width: 0; }
-.graph-extraction-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.graph-extraction-text textarea { width: 100%; box-sizing: border-box; min-height: 160px; }
-.graph-extraction-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.graph-extraction-output { padding: 12px; min-width: 0; overflow-wrap: anywhere; }
-.graph-extraction-output pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 400px; overflow: auto; }
+.graph-extraction-editor, .graph-extraction-result { display: flex; flex-direction: column; min-width: 0; }
+.graph-extraction-editor > .decision-panel-heading, .graph-extraction-result > .decision-panel-heading { flex-shrink: 0; gap: 12px; }
+.graph-extraction-playground .graph-extraction-textarea { flex: 1; width: 100%; min-height: 340px; resize: vertical; border: 0; border-radius: 0; padding: 12px; box-sizing: border-box; }
+.graph-extraction-textarea:focus-visible { outline-offset: -2px; }
+.graph-extraction-output { padding: 12px; min-width: 0; max-height: 600px; overflow: auto; overflow-wrap: anywhere; }
+.graph-extraction-output pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }

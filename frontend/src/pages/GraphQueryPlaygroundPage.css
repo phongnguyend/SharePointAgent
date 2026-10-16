@@ -1,6 +1,7 @@
-.graph-query-playground { min-width: 0; }
-.graph-plan-question { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.graph-plan-question textarea { width: 100%; box-sizing: border-box; min-height: 160px; }
-.graph-plan-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.graph-plan-output { padding: 12px; min-width: 0; overflow-wrap: anywhere; }
-.graph-plan-output pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 400px; overflow: auto; }
+.graph-plan-playground { min-width: 0; }
+.graph-plan-editor, .graph-plan-result { display: flex; flex-direction: column; min-width: 0; }
+.graph-plan-editor > .decision-panel-heading, .graph-plan-result > .decision-panel-heading { flex-shrink: 0; gap: 12px; }
+.graph-plan-playground .graph-plan-textarea { flex: 1; width: 100%; min-height: 340px; resize: vertical; border: 0; border-radius: 0; padding: 12px; box-sizing: border-box; }
+.graph-plan-textarea:focus-visible { outline-offset: -2px; }
+.graph-plan-output { padding: 12px; min-width: 0; max-height: 600px; overflow: auto; overflow-wrap: anywhere; }
+.graph-plan-output pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }

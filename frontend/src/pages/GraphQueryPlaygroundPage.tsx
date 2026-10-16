@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Network, Play, RotateCcw, Square } from 'lucide-react'
 import { request } from '../api/http'
 import type { GraphQueryPlan } from '../api/graphClient'
@@ -8,6 +8,7 @@ import './GraphQueryPlaygroundPage.css'
 type PlanResult = { plan: GraphQueryPlan; elapsedMs: number }
 
 export default function GraphQueryPlaygroundPage() {
+  const inputId = useId()
   const limit = 2000
   const [question, setQuestion] = useState('')
   const [result, setResult] = useState<PlanResult | null>(null)
@@ -41,29 +42,41 @@ export default function GraphQueryPlaygroundPage() {
     }
   }
 
-  return <section className="card graph-query-playground">
-    <div className="card-head"><h2><Network size={18} />{'Query plan playground'}</h2></div>
+  return <section className="card graph-plan-playground">
+    <div className="card-head decision-toolbar">
+      <h2><Network size={18} />Query plan playground</h2>
+      <div className="row">
+        <button type="button" className="primary" disabled={running || !question.trim()} onClick={() => void run()}><Play size={15} />Extract plan</button>
+        {running && <button type="button" onClick={() => controller.current?.abort()}><Square size={15} />Cancel</button>}
+        <button type="button" disabled={running} onClick={() => { setQuestion(''); setResult(null); setError('') }}><RotateCcw size={15} />Reset</button>
+      </div>
+    </div>
     <div className="card-body stack">
-      <p className="muted">{'Extract entity names and relationship types from a question without graph retrieval.'}</p>
-      <form className="stack" onSubmit={event => { event.preventDefault(); void run() }}>
-        <label className="graph-plan-question">{'Question'}<textarea value={question} onChange={event => setQuestion(event.target.value)} maxLength={limit} rows={6} disabled={running} placeholder={'Which systems depend on the customer portal?'} required /></label>
-        <div className="graph-plan-actions">
-          <button className="primary" type="submit" disabled={running || !question.trim()}><Play size={15} /> {'Extract plan'}</button>
-          {running ? <button type="button" onClick={() => controller.current?.abort()}><Square size={15} />Cancel</button>
-            : <button type="button" onClick={() => { setQuestion(''); setResult(null); setError('') }}><RotateCcw size={15} />Reset</button>}
-          <span className="muted">{question.length.toLocaleString()} / {limit.toLocaleString()}</span>
-        </div>
-      </form>
+      <p className="decision-description">Extract entity names and relationship types from a question without graph retrieval.</p>
       {error && <ErrorBanner message={error} />}
-      <div role="status" aria-live="polite">{running ? 'Extracting…' : result ? `Completed in ${result.elapsedMs.toLocaleString()} ms` : 'Enter a question to begin.'}</div>
-      {result && <section className="decision-panel">
-        <div className="decision-panel-heading"><h3>{'Query plan'}</h3><CopyButton value={JSON.stringify(result.plan, null, 2)} /></div>
-        <div className="graph-plan-output">
-          <><p><strong>Entities:</strong> {result.plan.entities.join(', ') || 'None extracted'}</p>
-          <p><strong>Relationship types:</strong> {result.plan.relationshipTypes.join(', ') || 'All configured relationship types'}</p></>
-          <pre>{JSON.stringify(result.plan, null, 2)}</pre>
+      <div className="decision-playground-grid">
+        <div className="decision-panel graph-plan-editor">
+          <div className="decision-panel-heading">
+            <label htmlFor={inputId}>Question</label>
+            <span className="muted">{question.length.toLocaleString()} / {limit.toLocaleString()}</span>
+          </div>
+          <textarea id={inputId} className="graph-plan-textarea" value={question} onChange={event => { setQuestion(event.target.value); setResult(null) }}
+            maxLength={limit} disabled={running} placeholder="Which systems depend on the customer portal?" />
         </div>
-      </section>}
+        <section className="decision-panel graph-plan-result" aria-busy={running}>
+          <div className="decision-panel-heading">
+            <h3>Query plan</h3>
+            {result && <CopyButton value={JSON.stringify(result.plan, null, 2)} />}
+          </div>
+          {!result ? <div className="decision-response-empty" role="status" aria-live="polite">{running ? 'Extracting?' : 'Enter question and click Extract plan.'}</div>
+            : <div className="graph-plan-output">
+              <p><strong>Entities:</strong> {result.plan.entities.join(', ') || 'None extracted'}</p>
+              <p><strong>Relationship types:</strong> {result.plan.relationshipTypes.join(', ') || 'All configured relationship types'}</p>
+              <pre>{JSON.stringify(result.plan, null, 2)}</pre>
+              <p className="muted" role="status">Completed in {result.elapsedMs.toLocaleString()} ms</p>
+            </div>}
+        </section>
+      </div>
     </div>
   </section>
 }
