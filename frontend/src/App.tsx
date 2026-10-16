@@ -84,13 +84,13 @@ export default function App() {
             <Search size={16} />
             Search
           </NavLink>
-          <NavLink to="/chat">
-            <Sparkles size={16} />
-            Chat
-          </NavLink>
           <NavLink to="/graph">
             <Network size={16} />
             Graph
+          </NavLink>
+          <NavLink to="/chat">
+            <Sparkles size={16} />
+            Chat
           </NavLink>
           {canReadAdmin && <NavLink to="/feedback">
             <Scale size={16} />

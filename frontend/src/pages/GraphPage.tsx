@@ -54,7 +54,7 @@ export default function GraphPage() {
     <div className="card-body stack">
       <p className="muted">AI identifies the entities and relationships in your question, then searches for supporting evidence in documents you can access.</p>
       <form className="graph-search-form" onSubmit={event => { event.preventDefault(); void run() }}>
-        <label className="graph-query">Question<input value={query} maxLength={2000} disabled={running} onChange={event => setQuery(event.target.value)} placeholder="What systems depend on the customer portal?" required /></label>
+        <label className="graph-query">Question<input type="text" value={query} maxLength={2000} disabled={running} onChange={event => setQuery(event.target.value)} placeholder="What systems depend on the customer portal?" required /></label>
         <label>Search breadth<select value={top} disabled={running} onChange={event => setTop(Number(event.target.value))}>
           {[5, 10, 20].map(value => <option key={value} value={value}>{value}</option>)}
         </select></label>

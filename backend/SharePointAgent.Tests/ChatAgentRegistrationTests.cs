@@ -138,6 +138,9 @@ public sealed class ChatAgentRegistrationTests
             ["AzureOpenAI:ApiKey"] = "test",
             ["AzureSearch:Endpoint"] = "https://example.search.windows.net",
             ["AzureSearch:ApiKey"] = "test",
+            // Retrieval is always registered; constructing the client does not contact Cosmos.
+            ["KnowledgeGraph:Cosmos:Endpoint"] = "https://example.documents.azure.com:443/",
+            ["KnowledgeGraph:Cosmos:UseManagedIdentity"] = "true",
             ["SharePoint:TenantId"] = Guid.NewGuid().ToString(),
             ["SharePoint:ClientId"] = Guid.NewGuid().ToString(),
             ["SharePoint:ClientSecret"] = "test",
