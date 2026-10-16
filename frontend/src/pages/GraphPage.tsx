@@ -4,11 +4,9 @@ import { searchGraph, type GraphSearchResult } from '../api/graphClient'
 import { CopyButton, ErrorBanner } from '../components/ui'
 
 const statusMessages: Record<string, string> = {
-  NotGraphQuestion: 'Ask about a relationship, such as ownership, dependencies, or how systems are connected.',
   NoSeedEntities: 'No graph entities matched this question. Try a specific system, project, or document name.',
   NoAuthorizedEvidence: 'No current relationship evidence was found in documents you can access.',
   Disabled: 'Graph retrieval is disabled for this tenant.',
-  Shadow: 'Graph retrieval is in shadow mode. Results are not published.',
   NoUser: 'Your identity could not be resolved. Sign in again.',
   FellBack: 'Graph retrieval could not complete. Try again or use the Search page.',
 }
@@ -54,7 +52,7 @@ export default function GraphPage() {
   return <section className="card graph-page">
     <div className="card-head"><h2><Network size={18} />Graph</h2></div>
     <div className="card-body stack">
-      <p className="muted">Search Graph RAG relationships using evidence from documents you can access. Ask who owns a system, what depends on it, or how projects are related.</p>
+      <p className="muted">AI identifies the entities and relationships in your question, then searches for supporting evidence in documents you can access.</p>
       <form className="graph-search-form" onSubmit={event => { event.preventDefault(); void run() }}>
         <label className="graph-query">Question<input value={query} maxLength={2000} disabled={running} onChange={event => setQuery(event.target.value)} placeholder="What systems depend on the customer portal?" required /></label>
         <label>Search breadth<select value={top} disabled={running} onChange={event => setTop(Number(event.target.value))}>

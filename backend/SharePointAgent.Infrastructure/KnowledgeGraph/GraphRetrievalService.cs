@@ -9,7 +9,7 @@ namespace SharePointAgent.Infrastructure.KnowledgeGraph;
 /// <summary>
 /// Adds graph-derived chunks to a baseline search the reader has already been authorized for. The steps are:
 /// <list type="number">
-/// <item>Route the question. Only relationship questions continue.</item>
+/// <item>Validate the explicit query plan against the configured ontology.</item>
 /// <item>Seed the traversal from entities the question names unambiguously, and from entities asserted in
 /// the authorized baseline chunks.</item>
 /// <item>Traverse within strict budgets.</item>
@@ -24,13 +24,13 @@ namespace SharePointAgent.Infrastructure.KnowledgeGraph;
 public sealed class GraphRetrievalService(
     IOptions<KnowledgeGraphOptions> options,
     IOptions<SharePointOptions> sharePointOptions,
-    GraphQueryRouter router,
+    GraphQueryPlanValidator validator,
     GraphEntityLinker linker,
     IGraphReader reader,
     GraphEvidenceVerifier verifier,
     ILogger<GraphRetrievalService> logger) : IGraphRetrievalService
 {
-    public bool ReturnsResults => options.Value.RetrievalEnabled && options.Value.IsEnabledForTenant(sharePointOptions.Value.TenantId);
+    public bool ReturnsResults => options.Value.IsEnabledForTenant(sharePointOptions.Value.TenantId);
 
     public async Task<GraphRetrievalResult> AugmentAsync(GraphRetrievalRequest request, CancellationToken cancellationToken)
     {
@@ -63,7 +63,7 @@ public sealed class GraphRetrievalService(
     {
         var settings = options.Value;
         var tenantId = sharePointOptions.Value.TenantId;
-        if ((!settings.RetrievalEnabled && !settings.ShadowRetrieval) || !settings.IsEnabledForTenant(tenantId))
+        if (!settings.IsEnabledForTenant(tenantId))
         {
             return GraphRetrievalResult.Empty(GraphRetrievalStatus.Disabled);
         }
@@ -74,11 +74,7 @@ public sealed class GraphRetrievalService(
             return GraphRetrievalResult.Empty(GraphRetrievalStatus.NoUser);
         }
 
-        var route = router.Route(request.Query);
-        if (!route.IsGraphQuestion)
-        {
-            return GraphRetrievalResult.Empty(GraphRetrievalStatus.NotGraphQuestion);
-        }
+        var predicates = validator.Validate(request.Plan);
 
         var traversal = settings.Traversal;
         var seeds = await SeedsAsync(tenantId, request, traversal, cancellationToken);
@@ -90,7 +86,7 @@ public sealed class GraphRetrievalService(
         var plan = new GraphTraversalPlan(
             tenantId,
             seeds,
-            route.Predicates,
+            predicates,
             traversal.DefaultMaxDepth,
             traversal.MaxEntities,
             traversal.MaxAssertions,
@@ -142,10 +138,6 @@ public sealed class GraphRetrievalService(
             return GraphRetrievalResult.Empty(GraphRetrievalStatus.NoAuthorizedEvidence);
         }
 
-        if (!settings.RetrievalEnabled)
-        {
-            return new GraphRetrievalResult(GraphRetrievalStatus.Shadow, request.IncludeShadowResults ? chunks : []);
-        }
         return new GraphRetrievalResult(GraphRetrievalStatus.Augmented, chunks);
     }
 
@@ -158,7 +150,7 @@ public sealed class GraphRetrievalService(
         string tenantId, GraphRetrievalRequest request, GraphTraversalOptions traversal, CancellationToken cancellationToken)
     {
         var seeds = new List<string>();
-        var linked = await linker.LinkAsync(tenantId, request.Query, cancellationToken);
+        var linked = await linker.LinkNamesAsync(tenantId, request.Plan.Entities, cancellationToken);
         seeds.AddRange(linked.EntityIds);
 
         var authorizedHits = request.BaselineHits.Concat(request.SeedHits ?? []).ToList();

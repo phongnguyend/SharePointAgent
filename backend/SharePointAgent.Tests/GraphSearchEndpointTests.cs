@@ -32,7 +32,8 @@ public sealed class GraphSearchEndpointTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.True(response.Headers.CacheControl!.NoStore);
         await search.Received(1).SearchAsync(SearchQueryMode.Hybrid, Arg.Is<SearchQueryRequest>(r => r.UserId == "reader" && r.Top == 10), Arg.Any<CancellationToken>());
-        await retrieval.Received(1).AugmentAsync(Arg.Is<GraphRetrievalRequest>(r => r.UserId == "reader" && !r.IncludeShadowResults && r.BaselineHits.Count == 0 && r.SeedHits!.Count == 1), Arg.Any<CancellationToken>());
+        await retrieval.Received(1).AugmentAsync(Arg.Is<GraphRetrievalRequest>(r => r.UserId == "reader" && r.BaselineHits.Count == 0 && r.SeedHits!.Count == 1
+            && r.Plan != null && r.Plan.Entities.Contains("Portal") && r.Plan.RelationshipTypes.Contains("DEPENDS_ON")), Arg.Any<CancellationToken>());
         Assert.Contains("Evidence", await response.Content.ReadAsStringAsync());
     }
 
@@ -66,12 +67,35 @@ public sealed class GraphSearchEndpointTests
         }
     }
 
-    private static async Task<WebApplication> CreateApp(ISearchQueryStore search, IGraphRetrievalService retrieval, string? user)
+    [Fact]
+    public async Task PlannerFailureDoesNotRunSearchOrExposeProviderDetails()
+    {
+        var search = Substitute.For<ISearchQueryStore>();
+        var retrieval = Substitute.For<IGraphRetrievalService>();
+        retrieval.ReturnsResults.Returns(true);
+        var planner = Substitute.For<IGraphQueryPlanner>();
+        planner.PlanAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns<GraphQueryPlan>(_ => throw new InvalidOperationException("private provider details"));
+        await using var app = await CreateApp(search, retrieval, "reader", planner);
+        using var client = app.GetTestClient();
+        using var response = await client.PostAsJsonAsync("/api/graph/search", new { query = "CRM follows what?" });
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        Assert.DoesNotContain("private provider details", await response.Content.ReadAsStringAsync());
+        await search.DidNotReceiveWithAnyArgs().SearchAsync(default, default!, default);
+        await retrieval.DidNotReceiveWithAnyArgs().AugmentAsync(default!, default);
+    }
+
+    private static async Task<WebApplication> CreateApp(ISearchQueryStore search, IGraphRetrievalService retrieval, string? user, IGraphQueryPlanner? queryPlanner = null)
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
         builder.Services.AddSingleton(search);
         builder.Services.AddSingleton(retrieval);
+        var planner = Substitute.For<IGraphQueryPlanner>();
+        planner.PlanAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new GraphQueryPlan { Entities = ["Portal"], RelationshipTypes = ["DEPENDS_ON"] });
+        builder.Services.AddSingleton(queryPlanner ?? planner);
         var app = builder.Build();
         app.Use((context, next) =>
         {

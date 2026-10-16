@@ -16,6 +16,19 @@ namespace SharePointAgent.Tests;
 /// </summary>
 public sealed class GraphRetrievalSecurityTests
 {
+    [Theory]
+    [InlineData("CRM follows what?")]
+    [InlineData("Summarize CRM")]
+    public async Task ExplicitPlanDoesNotDependOnWordingAndStillChecksPermissions(string question)
+    {
+        var plan = new GraphQueryPlan { Entities = ["CRM"], RelationshipTypes = ["DEPENDS_ON"] };
+        var result = await Service().AugmentAsync(new GraphRetrievalRequest("user-a", question, [], Plan: plan), default);
+
+        Assert.Equal(GraphRetrievalStatus.Augmented, result.Status);
+        Assert.Contains(result.Chunks, chunk => chunk.Hit.Content == PublicText);
+        Assert.DoesNotContain(result.Chunks, chunk => chunk.Hit.Content == RestrictedText);
+    }
+
     private const string Secret = "Billing Engine";
 
     private const string PublicText = "The CRM depends on ERP for invoicing.";
@@ -54,14 +67,14 @@ public sealed class GraphRetrievalSecurityTests
     private GraphRetrievalService Service(Action<KnowledgeGraphOptions>? configure = null, IGraphReader? reader = null) => new(
         Options(configure),
         SharePoint(),
-        new GraphQueryRouter(Ontology),
+        new GraphQueryPlanValidator(Ontology),
         new GraphEntityLinker(_aliases),
         reader ?? new BoundedGraphTraversal(_store, Ontology, _logs.For<BoundedGraphTraversal>()),
         new GraphEvidenceVerifier(_chunks, _metadata, Options(configure)),
         _logs.For<GraphRetrievalService>());
 
     private Task<GraphRetrievalResult> AskAsync(string? user, string question = "What does the CRM depend on, directly or indirectly?", IReadOnlyList<SearchQueryHit>? baseline = null, GraphRetrievalService? service = null) =>
-        (service ?? Service()).AugmentAsync(new GraphRetrievalRequest(user, question, baseline ?? []), default);
+        (service ?? Service()).AugmentAsync(new GraphRetrievalRequest(user, question, baseline ?? [], new GraphQueryPlan { Entities = GraphEntityLinker.Phrases(question).Take(20).ToList() }), default);
 
     [Fact]
     public async Task AUserWithAccessToEveryHopGetsTheMultiHopEvidence()
@@ -119,7 +132,7 @@ public sealed class GraphRetrievalSecurityTests
     public async Task AnotherTenantsGraphIsUnreachable()
     {
         var result = await AskAsync("user-b", service: new GraphRetrievalService(
-            Options(), SharePoint("tenant-b"), new GraphQueryRouter(Ontology), new GraphEntityLinker(_aliases),
+            Options(), SharePoint("tenant-b"), new GraphQueryPlanValidator(Ontology), new GraphEntityLinker(_aliases),
             new BoundedGraphTraversal(_store, Ontology, NullLogger<BoundedGraphTraversal>.Instance),
             new GraphEvidenceVerifier(_chunks, _metadata, Options()), NullLogger<GraphRetrievalService>.Instance));
 
@@ -175,30 +188,11 @@ public sealed class GraphRetrievalSecurityTests
     }
 
     [Fact]
-    public async Task ShadowModeHidesResultsFromTheAgentButNotFromEvaluation()
-    {
-        var shadow = Service(options =>
-        {
-            options.RetrievalEnabled = false;
-            options.ShadowRetrieval = true;
-        });
-
-        var forAgent = await AskAsync("user-b", service: shadow);
-        var forEvaluation = await shadow.AugmentAsync(new GraphRetrievalRequest("user-b", "What does the CRM depend on?", [], IncludeShadowResults: true), default);
-
-        Assert.Equal(GraphRetrievalStatus.Shadow, forAgent.Status);
-        Assert.Empty(forAgent.Chunks);
-        Assert.NotEmpty(forEvaluation.Chunks);
-    }
-
-    [Fact]
-    public async Task DisabledTenantsAndNonRelationshipQuestionsSkipTheGraph()
+    public async Task DisabledTenantsSkipTheGraph()
     {
         var disabled = await AskAsync("user-b", service: Service(options => options.EnabledTenantIds = ["someone-else"]));
-        var plain = await AskAsync("user-b", "Summarize the CRM rollout timeline");
 
         Assert.Equal(GraphRetrievalStatus.Disabled, disabled.Status);
-        Assert.Equal(GraphRetrievalStatus.NotGraphQuestion, plain.Status);
     }
 
     [Fact]
@@ -225,21 +219,16 @@ public sealed class GraphRetrievalSecurityTests
     {
         var seed = new[] { _chunks.Hit(Drive, "public", 0) };
 
-        var result = await Service().AugmentAsync(new GraphRetrievalRequest("user-b", "What depends on what across documents here?", [], SeedHits: seed), default);
+        var result = await Service().AugmentAsync(new GraphRetrievalRequest("user-b", "What depends on what across documents here?", [], Plan: new GraphQueryPlan(), SeedHits: seed), default);
 
         Assert.Contains(result.Chunks, chunk => chunk.Hit.Content == PublicText);
         Assert.Contains(result.Chunks, chunk => chunk.Hit.Content == RestrictedText);
     }
 
     [Fact]
-    public void ResultsAreShownOnlyWhenRetrievalIsOnForTheTenant()
+    public void ResultsAreAvailableForAllowedTenants()
     {
         Assert.True(Service().ReturnsResults);
-        Assert.False(Service(options =>
-        {
-            options.RetrievalEnabled = false;
-            options.ShadowRetrieval = true;
-        }).ReturnsResults);
         Assert.False(Service(options => options.EnabledTenantIds = ["someone-else"]).ReturnsResults);
     }
 

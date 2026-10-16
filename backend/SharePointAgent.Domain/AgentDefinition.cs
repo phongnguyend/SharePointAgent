@@ -31,7 +31,7 @@ public static class AgentDefaults
         returns nothing relevant, say plainly that the indexed documents do not cover it — do not fall back
         on general knowledge and present it as though it came from the library.
 
-        When the {{ChatAgentToolNames.FindRelatedDocuments}} tool is available, use it for questions about how things relate across
+        When the {{ChatAgentToolNames.FindRelationships}} tool is available, use it for questions about how things relate across
         documents: what a system depends on or integrates with, what an outage or change would impact, who owns
         something, which policies or requirements apply, and which documents supersede others. Usually search
         first, then look for related documents. Each related excerpt names the relationship that links it; cite

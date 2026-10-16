@@ -24,7 +24,7 @@ builder.Services.AddMicrosoftDecisionClient(builder.Configuration);
 builder.Services.AddWorkspacePlayground();
 
 // Graph RAG operator endpoints need the graph store even when the chat agent runs in Foundry. Registered
-// only when KnowledgeGraph:RetrievalEnabled or KnowledgeGraph:ShadowRetrieval is set.
+// with agent access controlled through tool assignment.
 builder.Services.AddGraphRetrievalServices(builder.Configuration);
 builder.Services.AddAppIdentity();
 builder.Services.AddSingleton<BackgroundHealthMonitor>();

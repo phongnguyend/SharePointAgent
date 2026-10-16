@@ -46,7 +46,8 @@ public sealed class ChatAgentService(
     AgentHttpGet httpGet,
     AgentSkillStore skillStore,
     IGraphRetrievalService? graphRetrieval = null,
-    AgentDocumentOutlines? documentOutlines = null) : IChatAgentExecutor
+    AgentDocumentOutlines? documentOutlines = null,
+    IOptions<KnowledgeGraphOptions>? knowledgeGraphOptions = null) : IChatAgentExecutor
 {
     private static readonly (string Method, string Name)[] ToolDefinitions =
     [
@@ -78,7 +79,7 @@ public sealed class ChatAgentService(
         bool includeDocumentOutline = false, bool includeGraphRetrieval = false) => ToolDefinitions
         .Concat(includeScriptExecution ? [(nameof(AgentTools.ExecuteScriptAsync), ChatAgentToolNames.ExecuteScript)] : [])
         .Concat(includeDocumentOutline ? [(nameof(AgentTools.GetDocumentOutlineAsync), ChatAgentToolNames.GetDocumentOutline)] : [])
-        .Concat(includeGraphRetrieval ? [(nameof(AgentTools.FindRelatedDocumentsAsync), ChatAgentToolNames.FindRelatedDocuments)] : [])
+        .Concat(includeGraphRetrieval ? [(nameof(AgentTools.FindRelationshipsAsync), ChatAgentToolNames.FindRelationships)] : [])
         .Select(tool => new AgentCapability(tool.Name,
             System.Reflection.CustomAttributeExtensions.GetCustomAttribute<DescriptionAttribute>(typeof(AgentTools).GetMethod(tool.Method)!)?.Description ?? ""))
         .OrderBy(tool => tool.Name, StringComparer.Ordinal)
@@ -230,9 +231,17 @@ public sealed class ChatAgentService(
         if (graphRetrieval is { ReturnsResults: true })
         {
             tools.Add(AIFunctionFactory.Create(
-                typeof(AgentTools).GetMethod(nameof(AgentTools.FindRelatedDocumentsAsync))!,
+                typeof(AgentTools).GetMethod(nameof(AgentTools.FindRelationshipsAsync))!,
                 turnTools,
-                new AIFunctionFactoryOptions { Name = ChatAgentToolNames.FindRelatedDocuments }));
+                new AIFunctionFactoryOptions
+                {
+                    Name = ChatAgentToolNames.FindRelationships,
+                    Description = "Find permission-verified excerpts supporting relationships. Supply entity names, not IDs. "
+                        + "Choose relationshipTypes from the configured ontology below, or omit them to explore all types. "
+                        + "Cite returned evidence and acknowledge disputed relationships. "
+                        + string.Join("; ", (knowledgeGraphOptions?.Value ?? new KnowledgeGraphOptions()).CreateOntology().Relations.Values
+                            .Select(relation => $"{relation.Predicate}: {relation.Description}"))
+                }));
         }
 
         // Snapshot the ordinary tools before adding delegation, so children cannot call siblings or parents.
@@ -455,7 +464,7 @@ public sealed class ChatAgentService(
     {
         ChatAgentToolNames.HttpGet => "Fetching a public URL…",
         ChatAgentToolNames.SearchSharePointDocuments => "Searching indexed SharePoint documents…",
-        ChatAgentToolNames.FindRelatedDocuments => "Finding related documents…",
+        ChatAgentToolNames.FindRelationships => "Finding relationships…",
         ChatAgentToolNames.SearchAttachments => "Searching this conversation's attachments…",
         ChatAgentToolNames.DownloadAttachment => "Downloading the attachment…",
         ChatAgentToolNames.DescribeImage => "Describing the image…",
@@ -905,28 +914,27 @@ public sealed class ChatAgentService(
             }
 
             _searchHits.AddRange(results.Items);
-            if (graphRetrieval is { ReturnsResults: false })
-            {
-                // Shadow mode: graph retrieval runs only to record its metrics and returns nothing.
-                await graphRetrieval.AugmentAsync(new GraphRetrievalRequest(userId, query, results.Items), cancellationToken);
-            }
 
             logger.LogInformation("Agent searched for {Query} and got {Count} excerpts.", query, hits.Count);
             return hits;
         }
 
-        public int RelatedDocumentsCount { get; private set; }
+        public int RelationshipsCount { get; private set; }
 
         [Description($"Find excerpts from other indexed documents that are connected to what the question is about by a recorded relationship: dependencies, integrations, ownership, implementation, policies or requirements that apply, and documents that supersede others. Use this for impact, dependency, ownership, and cross-document relationship questions, usually after {ChatAgentToolNames.SearchSharePointDocuments}. Each excerpt names the relationship that links it and how many hops away it is. Cite these excerpts like search results, say so when sources disagree or an excerpt is marked disputed, and never state a relationship that no excerpt supports. An empty list means no verifiable relationship was found.")]
-        public async Task<IReadOnlyList<RelatedDocumentHit>> FindRelatedDocumentsAsync(
+        public async Task<IReadOnlyList<RelatedDocumentHit>> FindRelationshipsAsync(
             [Description("The relationship question, naming the system, project, policy, team, or other subject it is about.")]
             string question,
+            [Description("Entity names from the question, not IDs. At most 20 names, each at most 200 characters.")]
+            string[] entities,
             [Description("How many related excerpts to return, 1 to 10. Use 5 unless the question needs broader coverage.")]
             int top = 5,
+            [Description("Configured relationship types. Omit or leave empty to explore all types when unsure.")]
+            string[]? relationshipTypes = null,
             CancellationToken cancellationToken = default)
         {
-            RelatedDocumentsCount++;
-            await reportStatus("Finding related documents…", cancellationToken);
+            RelationshipsCount++;
+            await reportStatus("Finding relationships…", cancellationToken);
             if (graphRetrieval is not { ReturnsResults: true })
             {
                 return [];
@@ -936,7 +944,8 @@ public sealed class ChatAgentService(
             // points; excerpts the search tool already returned this turn are not repeated.
             var seeds = await store.SearchAsync(SearchQueryMode.Hybrid, new SearchQueryRequest(question, userId, 5, 0), cancellationToken);
             var related = await graphRetrieval.AugmentAsync(
-                new GraphRetrievalRequest(userId, question, _searchHits.ToList(), SeedHits: seeds.Items), cancellationToken);
+                new GraphRetrievalRequest(userId, question, _searchHits.ToList(), SeedHits: seeds.Items,
+                    Plan: new GraphQueryPlan { Entities = entities?.ToList() ?? [], RelationshipTypes = relationshipTypes?.ToList() ?? [] }), cancellationToken);
 
             var hits = new List<RelatedDocumentHit>();
             foreach (var chunk in related.Chunks.Take(Math.Clamp(top, 1, 10)))
@@ -953,7 +962,7 @@ public sealed class ChatAgentService(
                 }
             }
 
-            logger.LogInformation("Agent looked for related documents and got {Count} excerpts ({Status}).", hits.Count, related.Status);
+            logger.LogInformation("Agent looked for relationships and got {Count} excerpts ({Status}).", hits.Count, related.Status);
             return hits;
         }
 

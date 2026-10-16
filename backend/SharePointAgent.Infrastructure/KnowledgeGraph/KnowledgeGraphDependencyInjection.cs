@@ -17,8 +17,7 @@ using SearchOptions = SharePointAgent.Application.SearchOptions;
 namespace SharePointAgent.Infrastructure.KnowledgeGraph;
 
 /// <summary>
-/// Registers Graph RAG behind its feature flags. With the flags off nothing is registered beyond a no-op
-/// indexing hook, no setting is validated, and the hosts behave exactly as they did before.
+/// Registers knowledge graph retrieval for agent tool assignment and optional indexing services.
 /// </summary>
 public static class KnowledgeGraphDependencyInjection
 {
@@ -27,10 +26,6 @@ public static class KnowledgeGraphDependencyInjection
 
     public static bool IsGraphIndexingSynchronous(this IConfiguration configuration) =>
         configuration.GetValue($"{KnowledgeGraphOptions.SectionName}:{nameof(KnowledgeGraphOptions.SynchronousIndexing)}", false);
-
-    public static bool IsGraphRetrievalEnabled(this IConfiguration configuration) =>
-        configuration.GetValue($"{KnowledgeGraphOptions.SectionName}:{nameof(KnowledgeGraphOptions.RetrievalEnabled)}", false)
-        || configuration.GetValue($"{KnowledgeGraphOptions.SectionName}:{nameof(KnowledgeGraphOptions.ShadowRetrieval)}", false);
 
     /// <summary>
     /// The indexer's hook: inline execution when requested, otherwise Service Bus publishing when enabled.
@@ -82,18 +77,14 @@ public static class KnowledgeGraphDependencyInjection
     /// <summary>The query side, added to every host that runs the chat agent.</summary>
     public static IServiceCollection AddGraphRetrievalServices(this IServiceCollection services, IConfiguration configuration)
     {
-        if (!configuration.IsGraphRetrievalEnabled())
-        {
-            return services;
-        }
-
         AddKnowledgeGraphOptions(services, configuration, requireArchive: false);
         AddGraphStore(services);
         services.TryAddSingleton<IAuthorizedChunkStore, AzureSearchAuthorizedChunkStore>();
-        services.TryAddSingleton<GraphQueryRouter>();
+        services.TryAddSingleton<GraphQueryPlanValidator>();
         services.TryAddSingleton<GraphEntityLinker>();
         services.TryAddSingleton<GraphEvidenceVerifier>();
         services.TryAddSingleton<IGraphRetrievalService, GraphRetrievalService>();
+        services.TryAddSingleton<IGraphQueryPlanner, AzureOpenAiGraphQueryPlanner>();
         return services;
     }
 

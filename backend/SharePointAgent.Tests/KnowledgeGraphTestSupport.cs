@@ -465,7 +465,7 @@ internal static class GraphFixtures
 
     public static IOptions<KnowledgeGraphOptions> Options(Action<KnowledgeGraphOptions>? configure = null)
     {
-        var options = new KnowledgeGraphOptions { IndexingEnabled = true, RetrievalEnabled = true };
+        var options = new KnowledgeGraphOptions { IndexingEnabled = true };
         configure?.Invoke(options);
         return Microsoft.Extensions.Options.Options.Create(options);
     }

@@ -65,11 +65,9 @@ public enum GraphRetrievalStatus
 {
     Disabled,
     NoUser,
-    NotGraphQuestion,
     NoSeedEntities,
     Augmented,
     NoAuthorizedEvidence,
-    Shadow,
     FellBack
 }
 

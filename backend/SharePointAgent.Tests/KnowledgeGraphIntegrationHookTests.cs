@@ -21,7 +21,7 @@ namespace SharePointAgent.Tests;
 /// <summary>
 /// The only change to the existing pipeline is a best-effort signal after indexing. These tests pin that it
 /// fires at the right point, that it can never fail indexing, and that nothing graph-related is registered
-/// or validated while the feature flags are off.
+/// or validated when indexing is disabled and retrieval is not registered.
 /// </summary>
 public sealed class KnowledgeGraphIntegrationHookTests
 {
@@ -29,14 +29,13 @@ public sealed class KnowledgeGraphIntegrationHookTests
         new ConfigurationBuilder().AddInMemoryCollection(values.ToDictionary(pair => pair.Key, pair => (string?)pair.Value)).Build();
 
     [Fact]
-    public void WithTheFlagsOffNothingIsRegisteredButANoOpHook()
+    public void DisabledIndexingRegistersOnlyANoOpHook()
     {
         var services = new ServiceCollection();
         var configuration = Configuration();
 
         services.AddGraphIndexingSignal(configuration);
         services.AddGraphIndexingServices(configuration);
-        services.AddGraphRetrievalServices(configuration);
 
         using var provider = services.BuildServiceProvider();
         Assert.IsType<NullGraphIndexingSignal>(provider.GetRequiredService<IGraphIndexingSignal>());
@@ -49,7 +48,7 @@ public sealed class KnowledgeGraphIntegrationHookTests
     public void EnabledRetrievalRequiresAGraphStoreToBeConfigured()
     {
         var services = new ServiceCollection();
-        services.AddGraphRetrievalServices(Configuration(("KnowledgeGraph:RetrievalEnabled", "true"), ("KnowledgeGraph:Cosmos:UseManagedIdentity", "true")));
+        services.AddGraphRetrievalServices(Configuration(("KnowledgeGraph:Cosmos:UseManagedIdentity", "true")));
 
         using var provider = services.BuildServiceProvider();
         var exception = Assert.Throws<OptionsValidationException>(() => provider.GetRequiredService<IOptions<KnowledgeGraphOptions>>().Value);
@@ -109,7 +108,7 @@ public sealed class KnowledgeGraphIntegrationHookTests
     public void ConfiguredRetrievalRegistersTheVerifiedPathOnly()
     {
         var services = new ServiceCollection();
-        services.AddGraphRetrievalServices(Configuration(("KnowledgeGraph:ShadowRetrieval", "true"), ("KnowledgeGraph:Cosmos:Endpoint", "https://graph.documents.azure.com:443/")));
+        services.AddGraphRetrievalServices(Configuration(("KnowledgeGraph:Cosmos:Endpoint", "https://graph.documents.azure.com:443/")));
 
         Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IGraphRetrievalService));
         Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IAuthorizedChunkStore));

@@ -25,12 +25,25 @@ public static class GraphSearchEndpoints
             var retrieval = context.RequestServices.GetService<IGraphRetrievalService>();
             if (retrieval?.ReturnsResults != true)
             {
-                return Results.Conflict(new { error = "Graph search is unavailable. Enable KnowledgeGraph:RetrievalEnabled for this tenant; shadow mode does not expose results." });
+                return Results.Conflict(new { error = "Graph search is unavailable. Check the knowledge graph configuration and tenant access." });
             }
             var stopwatch = Stopwatch.StartNew();
+            GraphQueryPlan plan;
+            try
+            {
+                plan = await context.RequestServices.GetRequiredService<IGraphQueryPlanner>().PlanAsync(payload.Query.Trim(), ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                return Results.Problem("The question could not be interpreted. Please retry or rephrase it.", statusCode: 502);
+            }
             var seeds = await search.SearchAsync(SearchQueryMode.Hybrid, new SearchQueryRequest(payload.Query.Trim(), userId, payload.Top, 0), ct);
             // Seeds identify entities, but remain eligible as relationship evidence in the result.
-            var result = await retrieval.AugmentAsync(new GraphRetrievalRequest(userId, payload.Query.Trim(), [], SeedHits: seeds.Items), ct);
+            var result = await retrieval.AugmentAsync(new GraphRetrievalRequest(userId, payload.Query.Trim(), [], SeedHits: seeds.Items, Plan: plan), ct);
             return Results.Ok(new { status = result.Status.ToString(), chunks = result.Chunks, elapsedMs = stopwatch.ElapsedMilliseconds });
         }).WithMetadata(new RequestSizeLimitAttribute(16 * 1024));
     }

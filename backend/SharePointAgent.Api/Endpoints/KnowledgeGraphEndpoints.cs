@@ -100,7 +100,7 @@ public static class KnowledgeGraphEndpoints
         });
 
         // Retrieval-level comparison of baseline and graph-augmented search for one user's permissions, on a
-        // labelled set of cross-document questions. Graph results are computed even in shadow mode, but only
+        // labelled set of cross-document questions. Graph results are computed for evaluation, but only
         // their chunk IDs and the summary leave this endpoint.
         group.MapPost("/evaluate", async (
             GraphEvaluationPayload payload,
@@ -133,7 +133,8 @@ public static class KnowledgeGraphEndpoints
                 var baselineIds = baseline.Items.Select(hit => hit.Id).ToList();
                 baselineRuns.Add(new GraphEvaluationRun(item.Question, baselineIds, baselineMilliseconds));
 
-                var graph = await retrieval.AugmentAsync(new GraphRetrievalRequest(payload.UserId, item.Question, baseline.Items, IncludeShadowResults: true), cancellationToken);
+                var plan = await context.RequestServices.GetRequiredService<IGraphQueryPlanner>().PlanAsync(item.Question, cancellationToken);
+                var graph = await retrieval.AugmentAsync(new GraphRetrievalRequest(payload.UserId, item.Question, baseline.Items, plan), cancellationToken);
                 graphRuns.Add(new GraphEvaluationRun(item.Question, baselineIds.Concat(graph.Chunks.Select(chunk => chunk.Hit.Id)).ToList(), stopwatch.Elapsed.TotalMilliseconds));
                 statuses[graph.Status.ToString()] = statuses.GetValueOrDefault(graph.Status.ToString()) + 1;
             }
@@ -148,5 +149,5 @@ public static class KnowledgeGraphEndpoints
     }
 
     private static IResult NotEnabled() =>
-        Results.NotFound(new { error = "Graph RAG is not enabled on this host. Set KnowledgeGraph:RetrievalEnabled or KnowledgeGraph:ShadowRetrieval." });
+        Results.NotFound(new { error = "Graph RAG is not enabled on this host. Check the knowledge graph configuration." });
 }

@@ -11,7 +11,7 @@ public static class ChatAgentToolNames
 
     public const string SearchSharePointDocuments = "search_sharepoint_documents";
 
-    public const string FindRelatedDocuments = "find_related_documents";
+    public const string FindRelationships = "find_relationships";
 
     public const string SearchAttachments = "search_attachments";
 

@@ -31,7 +31,12 @@ public sealed class GraphEntityLinker(IEntityAliasIndex aliases)
 
     public async Task<GraphEntityLinkResult> LinkAsync(string tenantId, string question, CancellationToken cancellationToken)
     {
-        var phrases = Phrases(question);
+        return await LinkNamesAsync(tenantId, Phrases(question), cancellationToken);
+    }
+
+    public async Task<GraphEntityLinkResult> LinkNamesAsync(string tenantId, IReadOnlyList<string> names, CancellationToken cancellationToken)
+    {
+        var phrases = names.Select(GraphNormalization.NormalizeName).Distinct(StringComparer.Ordinal).ToList();
         if (phrases.Count == 0)
         {
             return new GraphEntityLinkResult([], 0);

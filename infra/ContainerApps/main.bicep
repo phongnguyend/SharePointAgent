@@ -37,12 +37,6 @@ param enableKnowledgeGraphIndexing bool = false
 @description('Run graph indexing inline after search-index changes instead of publishing to the graph queue.')
 param knowledgeGraphSynchronousIndexing bool = false
 
-@description('Compute graph retrieval and record its metrics without showing results to users.')
-param enableKnowledgeGraphShadowRetrieval bool = false
-
-@description('Add verified graph-derived chunks to chat answers. Enable only after shadow retrieval and evaluation.')
-param enableKnowledgeGraphRetrieval bool = false
-
 @description('Use release images and runtime settings. False provisions hello containers without application secrets.')
 param deployApplicationImages bool = false
 
@@ -159,8 +153,6 @@ var knowledgeGraphEnv = [
   { name: 'KnowledgeGraph__IndexingEnabled', value: string(enableKnowledgeGraphIndexing) }
   { name: 'KnowledgeGraph__SynchronousIndexing', value: string(knowledgeGraphSynchronousIndexing) }
   { name: 'KnowledgeGraph__Extraction__Deployment', value: infrastructure.chatDeploymentName }
-  { name: 'KnowledgeGraph__ShadowRetrieval', value: string(enableKnowledgeGraphShadowRetrieval) }
-  { name: 'KnowledgeGraph__RetrievalEnabled', value: string(enableKnowledgeGraphRetrieval) }
   { name: 'KnowledgeGraph__Cosmos__UseManagedIdentity', value: 'true' }
   { name: 'KnowledgeGraph__Cosmos__Endpoint', value: infrastructure.graphCosmosEndpoint }
   { name: 'KnowledgeGraph__Archive__UseManagedIdentity', value: 'true' }

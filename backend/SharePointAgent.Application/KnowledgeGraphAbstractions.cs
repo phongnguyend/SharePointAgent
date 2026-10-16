@@ -162,22 +162,32 @@ public interface IGraphIndexingPipeline
 /// <summary>
 /// <see cref="BaselineHits"/> are authorized hits the caller already has: they seed the traversal and are not
 /// returned again. <see cref="SeedHits"/> are authorized hits that only seed it, so they can still come back
-/// as the evidence for a relationship. <see cref="IncludeShadowResults"/> returns the chunks shadow mode
-/// computed; only the administrator evaluation endpoint sets it.
+/// as the evidence for a relationship.
 /// </summary>
 public sealed record GraphRetrievalRequest(
     string? UserId,
     string Query,
     IReadOnlyList<SearchQueryHit> BaselineHits,
-    bool IncludeShadowResults = false,
+    GraphQueryPlan Plan,
     IReadOnlyList<SearchQueryHit>? SeedHits = null);
+
+public sealed class GraphQueryPlan
+{
+    public List<string> Entities { get; set; } = [];
+
+    public List<string> RelationshipTypes { get; set; } = [];
+}
+
+public interface IGraphQueryPlanner
+{
+    Task<GraphQueryPlan> PlanAsync(string question, CancellationToken cancellationToken);
+}
 
 /// <summary>Adds authorized, graph-derived chunks to a baseline search, or nothing when anything is uncertain.</summary>
 public interface IGraphRetrievalService
 {
     /// <summary>
-    /// Whether results are shown to users for this host's tenant. False in shadow mode, where retrieval runs
-    /// only to record its metrics.
+    /// Whether graph retrieval is available for this host's tenant.
     /// </summary>
     bool ReturnsResults { get; }
 

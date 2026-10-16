@@ -25,8 +25,9 @@ public sealed class ChatAgentSkillsTests
         Assert.All(tools, tool => Assert.False(string.IsNullOrWhiteSpace(tool.Description)));
         Assert.Equal(tools.Count, tools.Select(tool => tool.Name).Distinct().Count());
 
-        // The relationship tool exists only where Graph RAG retrieval is on, so it is not a standing capability.
-        Assert.DoesNotContain(tools, tool => tool.Name == ChatAgentToolNames.FindRelatedDocuments);
+        // The caller includes the relationship tool when the tenant is allowed to use graph retrieval.
+        Assert.DoesNotContain(tools, tool => tool.Name == ChatAgentToolNames.FindRelationships);
+        Assert.Contains(ChatAgentService.GetTools(includeGraphRetrieval: true), tool => tool.Name == ChatAgentToolNames.FindRelationships);
     }
 
     [Fact]
@@ -35,7 +36,7 @@ public sealed class ChatAgentSkillsTests
         var instructions = AgentDefaults.Instructions;
 
         Assert.Contains("Use the search_sharepoint_documents tool", instructions);
-        Assert.Contains("When the find_related_documents tool is available", instructions);
+        Assert.Contains("When the find_relationships tool is available", instructions);
         Assert.Contains("The upload_sharepoint_file(fileId, sourcePath) tool", instructions);
         Assert.DoesNotContain("ChatAgentToolNames", instructions);
         Assert.DoesNotContain("{", instructions);

@@ -12,43 +12,6 @@ namespace SharePointAgent.Tests;
 
 public sealed class GraphRoutingAndOperationsTests
 {
-    [Theory]
-    [InlineData("What does the CRM depend on?", "DEPENDS_ON")]
-    [InlineData("What would an ERP outage impact?", "DEPENDS_ON")]
-    [InlineData("Which systems integrate with SAP?", "INTEGRATES_WITH")]
-    [InlineData("Who owns the billing platform?", "OWNED_BY")]
-    [InlineData("Which team is responsible for the portal?", "OWNED_BY")]
-    [InlineData("Which policy supersedes the 2019 retention policy?", "SUPERSEDES")]
-    [InlineData("Which requirements apply to the CRM?", "APPLIES_TO")]
-    [InlineData("How is the portal related to the ERP?", "INTEGRATES_WITH")]
-    public void RelationshipQuestionsAreRoutedToTheirPredicates(string question, string predicate)
-    {
-        var route = new GraphQueryRouter(Ontology).Route(question);
-
-        Assert.True(route.IsGraphQuestion);
-        Assert.Contains(predicate, route.Predicates);
-    }
-
-    [Theory]
-    [InlineData("Summarize the onboarding guide")]
-    [InlineData("What is the known downtime window?")]
-    [InlineData("")]
-    [InlineData(null)]
-    public void OtherQuestionsAreNotRouted(string? question)
-    {
-        Assert.False(new GraphQueryRouter(Ontology).Route(question).IsGraphQuestion);
-    }
-
-    [Fact]
-    public void PredicatesTheOntologyDoesNotDefineAreNeverRouted()
-    {
-        var definition = GraphOntologyDefaults.CreateDefinition();
-        definition.Version = "trimmed";
-        definition.Relations.RemoveAll(relation => relation.Predicate != "OWNED_BY");
-
-        Assert.False(new GraphQueryRouter(GraphOntology.Create(definition)).Route("What does the CRM depend on?").IsGraphQuestion);
-    }
-
     [Fact]
     public void LinkingPhrasesSkipStopWordsAndPreferShortPhrasesWhenCapped()
     {

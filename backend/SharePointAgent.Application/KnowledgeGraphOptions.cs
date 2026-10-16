@@ -4,12 +4,7 @@ using SharePointAgent.Domain;
 namespace SharePointAgent.Application;
 
 /// <summary>
-/// Graph RAG settings. Everything is off by default: with no <c>KnowledgeGraph</c> section the existing indexing
-/// and retrieval run exactly as they did, and no graph service, Cosmos account, or archive is required.
-/// <para>
-/// Rollout order is indexing, then shadow retrieval (graph results computed and measured but never shown),
-/// then retrieval for the tenants listed in <see cref="EnabledTenantIds"/>.
-/// </para>
+/// Knowledge graph settings. Agent tool assignment controls retrieval; indexing is configured separately.
 /// </summary>
 public sealed class KnowledgeGraphOptions
 {
@@ -20,15 +15,6 @@ public sealed class KnowledgeGraphOptions
 
     /// <summary>Await graph indexing after each search-index change instead of publishing to Service Bus.</summary>
     public bool SynchronousIndexing { get; set; }
-
-    /// <summary>Add authorized, graph-derived chunks to the chat agent's search results.</summary>
-    public bool RetrievalEnabled { get; set; }
-
-    /// <summary>
-    /// Run graph retrieval and record its metrics without passing anything to the agent. Used to measure
-    /// latency, cost, and authorization rejections before users see graph results.
-    /// </summary>
-    public bool ShadowRetrieval { get; set; }
 
     /// <summary>The tenants graph features run for. Empty means every tenant.</summary>
     public List<string> EnabledTenantIds { get; set; } = [];

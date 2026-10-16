@@ -421,11 +421,15 @@ The Subscriptions page additionally uses, and these **change tenant state**:
 
 ## Graph search
 
+Each Graph page search first calls the configured `AzureOpenAI:ChatDeployment` with structured output to identify entity names and relationship types. This adds one model request per search; it does not extract or modify stored graph data. Names are resolved through the alias index, and relationship types must exist in the configured ontology. Empty relationship types explore all configured types within the normal traversal limits. Invalid or incomplete model output returns a retryable error before document search begins.
+
+The agent's `find_relationships` tool accepts `question`, `entities`, optional `relationshipTypes`, and `top`. Its description lists the configured relationships, so the agent supplies the query plan directly without a second model call. Both entry points bypass keyword routing when supplying a plan and retain evidence authorization checks. All retrieval callers must supply a query plan; admin evaluation uses the same AI planner.
+
 The **Graph** navigation item opens `/graph`. Ask a relationship question (ownership, dependencies, impact, or connections), choose the search breadth, and inspect matching evidence. Filter by relationship, select a result to read/copy its source chunk, or open the source document. Hop counts and disputed flags describe how graph retrieval found that evidence.
 
 `POST /api/graph/search` accepts `{ query, top }` with a query up to 2,000 characters and 1–20 seed chunks. It always uses the signed-in Entra object ID, including for administrators. Hybrid search supplies permission-trimmed seeds, then the existing graph retrieval verifies current evidence and authorized paths. Raw canonical entity names and unverified edges are not exposed. Results are bounded and are not an exhaustive graph listing.
 
-Enable `KnowledgeGraph:RetrievalEnabled` for the tenant and populate the graph through the indexing pipeline. Disabled and shadow-only configurations do not publish graph search results. The page distinguishes unsupported relationship questions, missing seeds, missing authorized evidence, and retrieval failures.
+Configure knowledge graph storage and populate the graph through the indexing pipeline. Assign `find_relationships` to an agent to allow graph retrieval, or unassign it to disable graph use by that agent. The Graph page is independently available for allowed tenants. The page distinguishes unsupported relationship questions, missing seeds, missing authorized evidence, and retrieval failures.
 
 ## Voice playgrounds
 
