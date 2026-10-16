@@ -25,17 +25,25 @@ public static class GraphRagDependencyInjection
     public static bool IsGraphIndexingEnabled(this IConfiguration configuration) =>
         configuration.GetValue($"{GraphRagOptions.SectionName}:{nameof(GraphRagOptions.IndexingEnabled)}", false);
 
+    public static bool IsGraphIndexingSynchronous(this IConfiguration configuration) =>
+        configuration.GetValue($"{GraphRagOptions.SectionName}:{nameof(GraphRagOptions.SynchronousIndexing)}", false);
+
     public static bool IsGraphRetrievalEnabled(this IConfiguration configuration) =>
         configuration.GetValue($"{GraphRagOptions.SectionName}:{nameof(GraphRagOptions.RetrievalEnabled)}", false)
         || configuration.GetValue($"{GraphRagOptions.SectionName}:{nameof(GraphRagOptions.ShadowRetrieval)}", false);
 
     /// <summary>
-    /// The indexer's hook: a Service Bus publisher when graph indexing and Service Bus are both on, otherwise
-    /// a no-op. Called from every registration that adds the SharePoint change processor.
+    /// The indexer's hook: inline execution when requested, otherwise Service Bus publishing when enabled.
+    /// Called from every registration that adds the SharePoint change processor.
     /// </summary>
     public static IServiceCollection AddGraphIndexingSignal(this IServiceCollection services, IConfiguration configuration)
     {
-        if (configuration.IsGraphIndexingEnabled() && configuration.IsServiceBusEnabled())
+        if (configuration.IsGraphIndexingEnabled() && configuration.IsGraphIndexingSynchronous())
+        {
+            services.AddGraphIndexingServices(configuration);
+            services.TryAddSingleton<IGraphIndexingSignal, SynchronousGraphIndexingSignal>();
+        }
+        else if (configuration.IsGraphIndexingEnabled())
         {
             AddGraphRagOptions(services, configuration, requireArchive: false);
             services.TryAddSingleton<IGraphIndexingSignal, ServiceBusGraphIndexingSignal>();
@@ -151,12 +159,12 @@ public static class GraphRagDependencyInjection
             MaxRetryWaitTimeOnRateLimitedRequests = TimeSpan.FromSeconds(30),
             EnableContentResponseOnWrite = false
         };
-        return options.UsedManagedIdentity
+        return options.UseManagedIdentity
             ? new CosmosClient(options.Endpoint, DependencyInjection.CreateDefaultAzureCredential(), clientOptions)
             : new CosmosClient(options.ConnectionString, clientOptions);
     }
 
-    private static SearchIndexClient CreateSearchIndexClient(SearchOptions options) => options.UsedManagedIdentity
+    private static SearchIndexClient CreateSearchIndexClient(SearchOptions options) => options.UseManagedIdentity
         ? new SearchIndexClient(new Uri(options.Endpoint), DependencyInjection.CreateDefaultAzureCredential())
         : new SearchIndexClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!));
 

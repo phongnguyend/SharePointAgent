@@ -136,23 +136,22 @@ SharePoint__ClientId
 SharePoint__ClientSecret
 SharePoint__NotificationUrl
 SharePoint__ClientState
-ServiceBus__Enabled
-ServiceBus__UsedManagedIdentity
+ServiceBus__UseManagedIdentity
 ServiceBus__FullyQualifiedNamespace
 ServiceBus__ConnectionString
 SqlServer__ConnectionString
 SqlServer__AutoMigrate
-AzureSearch__UsedManagedIdentity
+AzureSearch__UseManagedIdentity
 AzureSearch__Endpoint
 AzureSearch__ApiKey
 AzureSearch__SharePointIndexName
 AzureSearch__UploadIndexName
-AzureOpenAI__UsedManagedIdentity
+AzureOpenAI__UseManagedIdentity
 AzureOpenAI__Endpoint
 AzureOpenAI__EmbeddingDeployment
-DocumentIntelligence__UsedManagedIdentity
+DocumentIntelligence__UseManagedIdentity
 MarkItDown__Endpoint
-Uploads__UsedManagedIdentity
+Uploads__UseManagedIdentity
 Uploads__ConnectionString
 Uploads__ServiceUri
 Uploads__ContainerName
@@ -275,7 +274,7 @@ This message means Graph returned HTTP 401 or 403 during the directory lookup. C
 
 `AzureOpenAI:Endpoint` takes the resource endpoint with no API path, such as `https://<resource>.openai.azure.com` or `https://<resource>.services.ai.azure.com`. The SDK appends `/openai/deployments/<deployment>/embeddings` itself, so the OpenAI-compatible base URL that the Foundry portal also offers — the same host with `/openai/v1` appended — would be doubled into a path that returns 404 on every embedding request. Startup validation rejects an endpoint that carries a path rather than letting it fail per request.
 
-Each Azure service has its own `UsedManagedIdentity` setting. Set it to `true` to use the host's system-assigned managed identity. Set it to `false` to use `ConnectionString` for Service Bus, or `ApiKey` for Azure AI Search, Azure OpenAI, and Document Intelligence. SQL Server is the exception: it has no such flag, because the choice belongs in `SqlServer:ConnectionString` itself. Store connection strings and keys in user secrets, environment variables, or a secret store rather than in `appsettings.json`.
+Each Azure service has its own `UseManagedIdentity` setting. Set it to `true` to use the host's system-assigned managed identity. Set it to `false` to use `ConnectionString` for Service Bus, or `ApiKey` for Azure AI Search, Azure OpenAI, and Document Intelligence. SQL Server is the exception: it has no such flag, because the choice belongs in `SqlServer:ConnectionString` itself. Store connection strings and keys in user secrets, environment variables, or a secret store rather than in `appsettings.json`.
 
 ```powershell
 dotnet restore
@@ -295,7 +294,7 @@ The SQL Server container is declared with a persistent lifetime, so the indexed 
 
 `Processor:ChangeSignalListenerEnabled` defaults to `true`. Set it to `false` to stop the worker from consuming change signals from the Service Bus subscription, leaving `Processor:ScheduledSyncEnabled` as the only trigger for delta synchronization.
 
-`ServiceBus:Enabled` defaults to `true` and controls whether the application uses Service Bus at all. When it is `false` no Service Bus client is created and `ServiceBus:FullyQualifiedNamespace`/`ServiceBus:ConnectionString` are not validated, so a polling-only worker can be deployed with no Service Bus settings; every feature that depends on Service Bus is switched off with it, including the change signal listener regardless of `Processor:ChangeSignalListenerEnabled`. The API requires `ServiceBus:Enabled` to be `true` and refuses to start otherwise, because its webhook endpoint publishes the change signals.
+Service Bus is required by the API and Background worker. Both validate `ServiceBus:FullyQualifiedNamespace` when `UseManagedIdentity=true`, or `ServiceBus:ConnectionString` otherwise. `Processor:ChangeSignalListenerEnabled` independently controls the SharePoint change listener; disabling that listener does not disable Service Bus.
 
 ## Search index schema
 
@@ -462,7 +461,7 @@ VALUES (N'20260910133933_InitialCreate', N'10.0.12');
 
 `appsettings.json` ships pointing at SQL Server LocalDB — `Server=(localdb)\MSSQLLocalDB;Database=SharePointSearch;Integrated Security=true;TrustServerCertificate=true` — so a local run needs no SQL setup beyond creating the empty database once with `sqlcmd -S "(localdb)\MSSQLLocalDB" -Q "CREATE DATABASE [SharePointSearch];"`. The tables themselves are created by the migration on first start. Deployments override the setting with `SqlServer__ConnectionString`.
 
-The worker's SQL login needs `SELECT`, `INSERT`, `UPDATE`, and `DELETE` on its tables, plus DDL rights while `SqlServer:AutoMigrate` is on. Managed identity is expressed in the connection string rather than a `UsedManagedIdentity` flag, because SQL Server access is granted inside the database:
+The worker's SQL login needs `SELECT`, `INSERT`, `UPDATE`, and `DELETE` on its tables, plus DDL rights while `SqlServer:AutoMigrate` is on. Managed identity is expressed in the connection string rather than a `UseManagedIdentity` flag, because SQL Server access is granted inside the database:
 
 ```text
 Server=<server>.database.windows.net;Database=<database>;Authentication=Active Directory Default;Encrypt=True

@@ -102,7 +102,7 @@ public static class DependencyInjection
     {
         AddGraphClient(services);
         AddSharePointOptions(services, configuration);
-        AddServiceBusOptions(services, configuration, required: true);
+        AddServiceBusOptions(services, configuration);
         services.AddMemoryCache();
         services.AddSingleton<SharePointClient>();
         services.AddSingleton<SubscriptionManager>();
@@ -213,14 +213,14 @@ public static class DependencyInjection
         services.AddSingleton(sp =>
         {
             var options = sp.GetRequiredService<IOptions<OpenAiOptions>>().Value;
-            return options.UsedManagedIdentity
+            return options.UseManagedIdentity
                 ? new AzureOpenAIClient(new Uri(options.Endpoint), CreateDefaultAzureCredential())
                 : new AzureOpenAIClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!));
         });
 
         services.AddSingleton<AgentSharePointFiles>();
         services.AddOptions<DocumentIntelligenceOptions>().Bind(configuration.GetSection(DocumentIntelligenceOptions.SectionName))
-            .Validate(o => string.IsNullOrWhiteSpace(o.Endpoint) || o.UsedManagedIdentity || !string.IsNullOrWhiteSpace(o.ApiKey), "DocumentIntelligence:ApiKey is required when an endpoint is configured and UsedManagedIdentity is false.").ValidateOnStart();
+            .Validate(o => string.IsNullOrWhiteSpace(o.Endpoint) || o.UseManagedIdentity || !string.IsNullOrWhiteSpace(o.ApiKey), "DocumentIntelligence:ApiKey is required when an endpoint is configured and UseManagedIdentity is false.").ValidateOnStart();
         services.AddHttpClient<DocumentIntelligenceClient>();
         services.AddAgentWorkspaces(configuration, hostedSession);
         services.AddSingleton<WorkspaceAgentFileBrowser>();
@@ -363,14 +363,14 @@ public static class DependencyInjection
         services.AddSingleton(sp =>
         {
             var options = sp.GetRequiredService<IOptions<UploadOptions>>().Value;
-            return options.UsedManagedIdentity
+            return options.UseManagedIdentity
                 ? new BlobServiceClient(new Uri(options.ServiceUri!), CreateDefaultAzureCredential())
                 : new BlobServiceClient(options.ConnectionString!);
         });
         services.AddSingleton(sp =>
         {
             var options = sp.GetRequiredService<IOptions<SearchOptions>>().Value;
-            return options.UsedManagedIdentity
+            return options.UseManagedIdentity
                 ? new SearchIndexClient(new Uri(options.Endpoint), CreateDefaultAzureCredential())
                 : new SearchIndexClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!));
         });
@@ -378,7 +378,7 @@ public static class DependencyInjection
         services.AddSingleton(sp =>
         {
             var options = sp.GetRequiredService<IOptions<OpenAiOptions>>().Value;
-            return options.UsedManagedIdentity
+            return options.UseManagedIdentity
                 ? new AzureOpenAIClient(new Uri(options.Endpoint), CreateDefaultAzureCredential())
                 : new AzureOpenAIClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!));
         });
@@ -386,7 +386,7 @@ public static class DependencyInjection
         AddImageExtractor(services);
         services.AddTransient<AttachmentPdfService>();
         services.AddOptions<DocumentIntelligenceOptions>().Bind(configuration.GetSection(DocumentIntelligenceOptions.SectionName))
-            .Validate(o => string.IsNullOrWhiteSpace(o.Endpoint) || o.UsedManagedIdentity || !string.IsNullOrWhiteSpace(o.ApiKey), "DocumentIntelligence:ApiKey is required when an endpoint is configured and UsedManagedIdentity is false.").ValidateOnStart();
+            .Validate(o => string.IsNullOrWhiteSpace(o.Endpoint) || o.UseManagedIdentity || !string.IsNullOrWhiteSpace(o.ApiKey), "DocumentIntelligence:ApiKey is required when an endpoint is configured and UseManagedIdentity is false.").ValidateOnStart();
         services.AddHttpClient<DocumentIntelligenceClient>();
         services.AddSingleton<ChatMessageAttachmentFileService>();
         services.AddSingleton<IAgentSkillFileStorage, AgentSkillFileStorage>();
@@ -413,7 +413,7 @@ public static class DependencyInjection
     public static IServiceCollection AddIndexedFileReindexServices(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<DocumentIntelligenceOptions>().Bind(configuration.GetSection(DocumentIntelligenceOptions.SectionName))
-            .Validate(o => string.IsNullOrWhiteSpace(o.Endpoint) || o.UsedManagedIdentity || !string.IsNullOrWhiteSpace(o.ApiKey), "DocumentIntelligence:ApiKey is required when an endpoint is configured and UsedManagedIdentity is false.").ValidateOnStart();
+            .Validate(o => string.IsNullOrWhiteSpace(o.Endpoint) || o.UseManagedIdentity || !string.IsNullOrWhiteSpace(o.ApiKey), "DocumentIntelligence:ApiKey is required when an endpoint is configured and UseManagedIdentity is false.").ValidateOnStart();
         services.AddOptions<ProcessorOptions>().Bind(configuration.GetSection(ProcessorOptions.SectionName)).ValidateDataAnnotations()
             .Validate(o => o.ChunkOverlapCharacters < o.ChunkSizeCharacters, "Chunk overlap must be smaller than chunk size.")
             .Validate(o => o.AllowedFileExtensions.Any(x => !string.IsNullOrWhiteSpace(x)), "Processor:AllowedFileExtensions must list at least one file extension.").ValidateOnStart();
@@ -422,7 +422,7 @@ public static class DependencyInjection
         services.TryAddSingleton(sp =>
         {
             var options = sp.GetRequiredService<IOptions<OpenAiOptions>>().Value;
-            return options.UsedManagedIdentity
+            return options.UseManagedIdentity
                 ? new AzureOpenAIClient(new Uri(options.Endpoint), CreateDefaultAzureCredential())
                 : new AzureOpenAIClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!));
         });
@@ -440,32 +440,21 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Reads <c>ServiceBus:Enabled</c> straight from configuration, before the options system is available,
-    /// so Service Bus clients and the features that consume them are registered together.
-    /// </summary>
-    public static bool IsServiceBusEnabled(this IConfiguration configuration) =>
-        configuration.GetValue($"{ServiceBusOptions.SectionName}:{nameof(ServiceBusOptions.Enabled)}", true);
-
-    /// <summary>
-    /// Reads <c>Processor:ChangeSignalListenerEnabled</c> the same way. The listener also needs Service Bus,
-    /// so it only runs when <see cref="IsServiceBusEnabled"/> is true as well.
+    /// Reads the independent change-signal listener switch before options are available.
     /// </summary>
     public static bool IsChangeSignalListenerEnabled(this IConfiguration configuration) =>
-        configuration.GetValue($"{ProcessorOptions.SectionName}:{nameof(ProcessorOptions.ChangeSignalListenerEnabled)}", true)
-        && configuration.IsServiceBusEnabled();
+        configuration.GetValue($"{ProcessorOptions.SectionName}:{nameof(ProcessorOptions.ChangeSignalListenerEnabled)}", true);
 
     public static IServiceCollection AddChangeProcessorServices(this IServiceCollection services, IConfiguration configuration)
     {
-        var serviceBusEnabled = configuration.IsServiceBusEnabled();
-
         AddGraphClient(services);
         AddSharePointOptions(services, configuration);
-        AddServiceBusOptions(services, configuration, required: false);
+        AddServiceBusOptions(services, configuration);
         AddSearchOptions(services, configuration);
         AddOpenAiOptions(services, configuration);
         services.AddPersistence(configuration);
         services.AddOptions<DocumentIntelligenceOptions>().Bind(configuration.GetSection(DocumentIntelligenceOptions.SectionName))
-            .Validate(o => string.IsNullOrWhiteSpace(o.Endpoint) || o.UsedManagedIdentity || !string.IsNullOrWhiteSpace(o.ApiKey), "DocumentIntelligence:ApiKey is required when an endpoint is configured and UsedManagedIdentity is false.").ValidateOnStart();
+            .Validate(o => string.IsNullOrWhiteSpace(o.Endpoint) || o.UseManagedIdentity || !string.IsNullOrWhiteSpace(o.ApiKey), "DocumentIntelligence:ApiKey is required when an endpoint is configured and UseManagedIdentity is false.").ValidateOnStart();
         services.AddOptions<MarkItDownOptions>().Bind(configuration.GetSection(MarkItDownOptions.SectionName)).ValidateDataAnnotations()
             .Validate(o => o.IsConfigured, "MarkItDown:Endpoint is required; DOCX, PPTX, and XLSX files are converted to markdown by the MarkItDown service.").ValidateOnStart();
         services.AddOptions<ProcessorOptions>().Bind(configuration.GetSection(ProcessorOptions.SectionName)).ValidateDataAnnotations()
@@ -475,7 +464,7 @@ public static class DependencyInjection
         services.TryAddSingleton(sp =>
         {
             var options = sp.GetRequiredService<IOptions<OpenAiOptions>>().Value;
-            return options.UsedManagedIdentity
+            return options.UseManagedIdentity
                 ? new AzureOpenAIClient(new Uri(options.Endpoint), CreateDefaultAzureCredential())
                 : new AzureOpenAIClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!));
         });
@@ -496,14 +485,11 @@ public static class DependencyInjection
         services.AddSingleton<IContentExtractor, ContentExtractor>();
         AddEmbeddingGenerator(services);
 
-        if (serviceBusEnabled)
-        {
-            AddServiceBusClient(services);
-        }
+        AddServiceBusClient(services);
         services.AddSingleton(sp =>
         {
             var options = sp.GetRequiredService<IOptions<SearchOptions>>().Value;
-            return options.UsedManagedIdentity
+            return options.UseManagedIdentity
                 ? new SearchIndexClient(new Uri(options.Endpoint), CreateDefaultAzureCredential())
                 : new SearchIndexClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!));
         });
@@ -528,13 +514,13 @@ public static class DependencyInjection
     private static void AddSearchOptions(IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<SearchOptions>().Bind(configuration.GetSection(SearchOptions.SectionName)).ValidateDataAnnotations()
-            .Validate(o => o.UsedManagedIdentity || !string.IsNullOrWhiteSpace(o.ApiKey), "AzureSearch:ApiKey is required when UsedManagedIdentity is false.").ValidateOnStart();
+            .Validate(o => o.UseManagedIdentity || !string.IsNullOrWhiteSpace(o.ApiKey), "AzureSearch:ApiKey is required when UseManagedIdentity is false.").ValidateOnStart();
     }
 
     private static void AddOpenAiOptions(IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<OpenAiOptions>().Bind(configuration.GetSection(OpenAiOptions.SectionName)).ValidateDataAnnotations()
-            .Validate(o => o.UsedManagedIdentity || !string.IsNullOrWhiteSpace(o.ApiKey), "AzureOpenAI:ApiKey is required when UsedManagedIdentity is false.")
+            .Validate(o => o.UseManagedIdentity || !string.IsNullOrWhiteSpace(o.ApiKey), "AzureOpenAI:ApiKey is required when UseManagedIdentity is false.")
             .Validate(o => IsResourceRootEndpoint(o.Endpoint), "AzureOpenAI:Endpoint must be the resource endpoint without an API path, for example https://<resource>.services.ai.azure.com; the SDK appends the deployment path itself, so a base URL ending in /openai/v1 returns 404.").ValidateOnStart();
     }
 
@@ -561,7 +547,7 @@ public static class DependencyInjection
 
             // The service version travels with the Azure OpenAI package rather than with configuration.
             var clientOptions = new AzureOpenAIClientOptions();
-            var client = options.UsedManagedIdentity
+            var client = options.UseManagedIdentity
                 ? new AzureOpenAIClient(new Uri(options.Endpoint), CreateDefaultAzureCredential(), clientOptions)
                 : new AzureOpenAIClient(new Uri(options.Endpoint), new AzureKeyCredential(options.ApiKey!), clientOptions);
             return new TrackedEmbeddingGenerator(
@@ -583,24 +569,19 @@ public static class DependencyInjection
         services.AddSingleton(sp =>
         {
             var options = sp.GetRequiredService<IOptions<SearchOptions>>().Value;
-            return options.UsedManagedIdentity
+            return options.UseManagedIdentity
                 ? new SearchClient(new Uri(options.Endpoint), options.SharePointIndexName, CreateDefaultAzureCredential())
                 : new SearchClient(new Uri(options.Endpoint), options.SharePointIndexName, new AzureKeyCredential(options.ApiKey!));
         });
     }
 
     /// <summary>
-    /// Binds the Service Bus settings. Connection settings are only required when Service Bus is enabled;
-    /// set <paramref name="required"/> for applications that cannot run without it.
+    /// Binds and validates the required Service Bus connection settings.
     /// </summary>
-    private static void AddServiceBusOptions(IServiceCollection services, IConfiguration configuration, bool required)
+    private static void AddServiceBusOptions(IServiceCollection services, IConfiguration configuration)
     {
         var options = services.AddOptions<ServiceBusOptions>().Bind(configuration.GetSection(ServiceBusOptions.SectionName)).ValidateDataAnnotations()
-            .Validate(o => !o.Enabled || o.IsConfigured, "ServiceBus:FullyQualifiedNamespace is required with managed identity; otherwise ServiceBus:ConnectionString is required.");
-        if (required)
-        {
-            options.Validate(o => o.Enabled, "ServiceBus:Enabled must be true; this application publishes SharePoint change signals to Service Bus.");
-        }
+            .Validate(o => o.IsConfigured, "ServiceBus:FullyQualifiedNamespace is required with managed identity; otherwise ServiceBus:ConnectionString is required.");
         options.ValidateOnStart();
     }
 
@@ -609,7 +590,7 @@ public static class DependencyInjection
         services.AddSingleton(sp =>
         {
             var options = sp.GetRequiredService<IOptions<ServiceBusOptions>>().Value;
-            return options.UsedManagedIdentity
+            return options.UseManagedIdentity
                 ? new ServiceBusClient(options.FullyQualifiedNamespace!, CreateDefaultAzureCredential())
                 : new ServiceBusClient(options.ConnectionString!);
         });

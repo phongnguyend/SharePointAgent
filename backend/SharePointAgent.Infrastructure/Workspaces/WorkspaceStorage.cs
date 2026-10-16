@@ -188,7 +188,7 @@ public sealed class BlobWorkspaceStorage : IWorkspaceSnapshotStore, ISandboxRegi
         }
     }
 
-    private static BlobContainerClient CreateContainer(WorkspaceSnapshotOptions options) => options.UsedManagedIdentity
+    private static BlobContainerClient CreateContainer(WorkspaceSnapshotOptions options) => options.UseManagedIdentity
         ? new BlobServiceClient(new Uri(options.ServiceUri!), new DefaultAzureCredential()).GetBlobContainerClient(options.ContainerName)
         : new BlobContainerClient(options.ConnectionString!, options.ContainerName);
 

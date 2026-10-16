@@ -93,7 +93,7 @@ public sealed class ChatTranscriptionService(
         {
             Content = form
         };
-        if (settings.UsedManagedIdentity)
+        if (settings.UseManagedIdentity)
         {
             var token = await ManagedIdentity.Value.GetTokenAsync(new TokenRequestContext(["https://cognitiveservices.azure.com/.default"]), ct);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Token);

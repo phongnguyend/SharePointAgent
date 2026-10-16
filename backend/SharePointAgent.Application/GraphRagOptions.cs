@@ -18,6 +18,9 @@ public sealed class GraphRagOptions
     /// <summary>Extract graph facts from indexed files and project them to the graph store.</summary>
     public bool IndexingEnabled { get; set; }
 
+    /// <summary>Await graph indexing after each search-index change instead of publishing to Service Bus.</summary>
+    public bool SynchronousIndexing { get; set; }
+
     /// <summary>Add authorized, graph-derived chunks to the chat agent's search results.</summary>
     public bool RetrievalEnabled { get; set; }
 
@@ -136,7 +139,7 @@ public sealed class CosmosGraphOptions
     /// <summary>A connection string, for local development against the emulator only.</summary>
     public string? ConnectionString { get; set; }
 
-    public bool UsedManagedIdentity { get; set; } = true;
+    public bool UseManagedIdentity { get; set; } = true;
 
     [Required] public string DatabaseName { get; set; } = "graphrag";
 
@@ -162,14 +165,14 @@ public sealed class CosmosGraphOptions
 
     [Range(0, 20)] public int MaxRetryAttemptsOnThrottling { get; set; } = 6;
 
-    public bool IsConfigured => UsedManagedIdentity
+    public bool IsConfigured => UseManagedIdentity
         ? Uri.TryCreate(Endpoint, UriKind.Absolute, out _)
         : !string.IsNullOrWhiteSpace(ConnectionString);
 }
 
 public sealed class GraphArchiveOptions
 {
-    public bool UsedManagedIdentity { get; set; } = true;
+    public bool UseManagedIdentity { get; set; } = true;
 
     public string? ServiceUri { get; set; }
 
@@ -177,7 +180,7 @@ public sealed class GraphArchiveOptions
 
     [Required] public string ContainerName { get; set; } = "graph-snapshots";
 
-    public bool IsConfigured => UsedManagedIdentity
+    public bool IsConfigured => UseManagedIdentity
         ? Uri.TryCreate(ServiceUri, UriKind.Absolute, out _)
         : !string.IsNullOrWhiteSpace(ConnectionString);
 }

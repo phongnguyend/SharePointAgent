@@ -13,7 +13,7 @@ public sealed class DocumentIntelligenceClient(
 {
     private static readonly string[] Scopes = ["https://cognitiveservices.azure.com/.default"];
     private readonly DocumentIntelligenceOptions _options = options.Value;
-    private readonly TokenCredential? _credential = options.Value.UsedManagedIdentity
+    private readonly TokenCredential? _credential = options.Value.UseManagedIdentity
         ? DependencyInjection.CreateDefaultAzureCredential()
         : null;
 
@@ -59,7 +59,7 @@ public sealed class DocumentIntelligenceClient(
 
     private async Task AuthorizeAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        if (_options.UsedManagedIdentity)
+        if (_options.UseManagedIdentity)
         {
             var token = await _credential!.GetTokenAsync(new TokenRequestContext(Scopes), cancellationToken);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Token);

@@ -27,22 +27,20 @@ public sealed class ServiceBusOptions
 {
     public const string SectionName = "ServiceBus";
 
-    /// <summary>
-    /// Whether Service Bus is available to this application. When false no client is registered and no
-    /// connection settings are required, so features that depend on Service Bus must stay disabled.
-    /// </summary>
-    public bool Enabled { get; set; } = true;
+    public bool UseManagedIdentity { get; set; }
 
-    public bool UsedManagedIdentity { get; set; }
     public string? FullyQualifiedNamespace { get; set; }
+
     public string? ConnectionString { get; set; }
+
     [Required] public string TopicName { get; set; } = "sharepoint-changes";
+
     [Required] public string SubscriptionName { get; set; } = "search-indexer";
 
     /// <summary>
     /// True when the settings required to create a Service Bus client are present.
     /// </summary>
-    public bool IsConfigured => UsedManagedIdentity
+    public bool IsConfigured => UseManagedIdentity
         ? !string.IsNullOrWhiteSpace(FullyQualifiedNamespace)
         : !string.IsNullOrWhiteSpace(ConnectionString);
 }
@@ -50,7 +48,7 @@ public sealed class ServiceBusOptions
 public sealed class SearchOptions
 {
     public const string SectionName = "AzureSearch";
-    public bool UsedManagedIdentity { get; set; }
+    public bool UseManagedIdentity { get; set; }
     [Required, Url] public string Endpoint { get; set; } = "";
     public string? ApiKey { get; set; }
     [Required] public string SharePointIndexName { get; set; } = "sharepoint-files";
@@ -88,7 +86,7 @@ public sealed class UploadOptions
     }
 
     public const string SectionName = "Uploads";
-    public bool UsedManagedIdentity { get; set; }
+    public bool UseManagedIdentity { get; set; }
     public string? ConnectionString { get; set; }
     public string? ServiceUri { get; set; }
     [Required] public string ContainerName { get; set; } = "chat-uploads";
@@ -96,7 +94,7 @@ public sealed class UploadOptions
     [Range(100, 8000)] public int ChunkSizeCharacters { get; set; } = 4000;
     [Range(0, 2000)] public int ChunkOverlapCharacters { get; set; } = 400;
 
-    public bool IsConfigured => UsedManagedIdentity
+    public bool IsConfigured => UseManagedIdentity
         ? Uri.TryCreate(ServiceUri, UriKind.Absolute, out _)
         : !string.IsNullOrWhiteSpace(ConnectionString);
 }
@@ -135,7 +133,7 @@ public sealed class OpenAiOptions
     /// </summary>
     public string? TranscriptionEndpoint { get; set; }
 
-    public bool UsedManagedIdentity { get; set; }
+    public bool UseManagedIdentity { get; set; }
 }
 
 /// <summary>
@@ -164,7 +162,7 @@ public sealed class SqlServerOptions
 public sealed class DocumentIntelligenceOptions
 {
     public const string SectionName = "DocumentIntelligence";
-    public bool UsedManagedIdentity { get; set; }
+    public bool UseManagedIdentity { get; set; }
     public string? Endpoint { get; set; }
     public string ModelId { get; set; } = "prebuilt-read";
     public string ApiVersion { get; set; } = "2024-11-30";

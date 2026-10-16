@@ -246,7 +246,7 @@ public sealed class SandboxesWorkspaceOptions
 /// </summary>
 public sealed class WorkspaceSnapshotOptions
 {
-    public bool UsedManagedIdentity { get; set; } = true;
+    public bool UseManagedIdentity { get; set; } = true;
 
     public string? ServiceUri { get; set; }
 
@@ -257,7 +257,7 @@ public sealed class WorkspaceSnapshotOptions
     /// <summary>A workspace larger than this, zipped, is not snapshotted, and the next fresh session starts without it.</summary>
     [Range(1, 2048)] public int MaxMegabytes { get; set; } = 200;
 
-    public bool IsConfigured => UsedManagedIdentity
+    public bool IsConfigured => UseManagedIdentity
         ? Uri.TryCreate(ServiceUri, UriKind.Absolute, out _)
         : !string.IsNullOrWhiteSpace(ConnectionString);
 }

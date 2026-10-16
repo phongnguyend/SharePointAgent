@@ -20,12 +20,11 @@ if (builder.Configuration.IsChangeSignalListenerEnabled())
 builder.Services.AddHostedService<ScheduledSyncBackgroundService>();
 builder.Services.AddHostedService<MarkItDownHealthBackgroundService>();
 
-// Graph RAG indexing runs beside the search indexer and never inside it; with GraphRag:IndexingEnabled off
-// nothing here is registered.
+// Graph indexing may run inline with search indexing or through the queue. Reconciliation repairs missed work.
 builder.Services.AddGraphIndexingServices(builder.Configuration);
 if (builder.Configuration.IsGraphIndexingEnabled())
 {
-    if (builder.Configuration.IsServiceBusEnabled())
+    if (!builder.Configuration.IsGraphIndexingSynchronous())
     {
         builder.Services.AddHostedService<GraphIndexingBackgroundService>();
     }

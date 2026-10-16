@@ -90,7 +90,7 @@ Configure the hosted container with environment variables or a secret-backed con
 | `MarkItDown__ApiKey` | Converter authentication key; the deployment resolves this from its Foundry secret connection. |
 | `ContentSafety__Enabled`, `ContentSafety__Endpoint`, `ContentSafety__UseManagedIdentity` | Content Safety configuration; the hosted agent identity needs Cognitive Services User on that resource. |
 
-The host defaults Azure OpenAI, Search, and Blob Storage to managed identity. Grant the hosted identity access to those resources and SQL, or use the existing `UsedManagedIdentity=false` and API-key/connection-string options. Graph continues to use application credentials. `LocalWorkingDirectory:Directory` defaults to `$HOME/sharepoint-agent` in this host so Foundry can persist the agent's working directory between turns, with fetched files cached in its `Downloads/SharePoint` and `Downloads/Attachments` folders; leave it unset unless using another persistent session path.
+The host defaults Azure OpenAI, Search, and Blob Storage to managed identity. Grant the hosted identity access to those resources and SQL, or use the existing `UseManagedIdentity=false` and API-key/connection-string options. Graph continues to use application credentials. `LocalWorkingDirectory:Directory` defaults to `$HOME/sharepoint-agent` in this host so Foundry can persist the agent's working directory between turns, with fetched files cached in its `Downloads/SharePoint` and `Downloads/Attachments` folders; leave it unset unless using another persistent session path.
 
 Build from the `SharePointAgent` directory:
 

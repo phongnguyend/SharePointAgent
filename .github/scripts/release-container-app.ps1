@@ -16,14 +16,13 @@ $commonValues = @{
   SharePoint__SitePath = $env:SHAREPOINT_SITE_PATH
   SharePoint__DocumentLibraryName = $env:SHAREPOINT_DOCUMENT_LIBRARY_NAME
   SharePoint__NotificationUrl = "$($outputs.apiUrl.value.TrimEnd('/'))/api/sharepoint/webhook"
-  ServiceBus__Enabled = 'true'
-  ServiceBus__UsedManagedIdentity = 'true'
+  ServiceBus__UseManagedIdentity = 'true'
   ServiceBus__FullyQualifiedNamespace = $outputs.serviceBusFullyQualifiedNamespace.value
   ServiceBus__TopicName = $outputs.serviceBusTopicName.value
   ServiceBus__SubscriptionName = $outputs.serviceBusSubscriptionName.value
-  AzureSearch__UsedManagedIdentity = 'true'
+  AzureSearch__UseManagedIdentity = 'true'
   AzureSearch__Endpoint = $outputs.searchEndpoint.value
-  AzureOpenAI__UsedManagedIdentity = 'true'
+  AzureOpenAI__UseManagedIdentity = 'true'
   AzureOpenAI__Endpoint = $outputs.openAiEndpoint.value
   AzureOpenAI__EmbeddingDeployment = $outputs.embeddingDeploymentName.value
   AzureOpenAI__ChatDeployment = $outputs.chatDeploymentName.value
@@ -32,7 +31,7 @@ $commonValues = @{
   MarkItDown__Endpoint = $outputs.markItDownEndpoint.value
   PageIndex__Endpoint = [string]$outputs.pageIndexEndpoint.value
   Ollaya__Endpoint = (Get-OllayaEndpoint)
-  DocumentIntelligence__UsedManagedIdentity = 'true'
+  DocumentIntelligence__UseManagedIdentity = 'true'
   DocumentIntelligence__Endpoint = [string]$outputs.documentIntelligenceEndpoint.value
 }
 $commonEnvironment = @($commonValues.GetEnumerator() | ForEach-Object { @{ name = $_.Key; value = [string]$_.Value } }) + @(
@@ -65,7 +64,7 @@ if ($Component -eq 'Api') {
     ChatAgent__Mode = 'Foundry'
     ChatAgent__Foundry__Endpoint = "$($hosting.foundryProjectEndpoint)/agents/sharepoint-agent/endpoint/protocols/invocations?api-version=v1"
     ChatAgent__Foundry__ManagedIdentityClientId = $hosting.apiClientId
-    Uploads__UsedManagedIdentity = 'true'
+    Uploads__UseManagedIdentity = 'true'
     Uploads__ServiceUri = $outputs.uploadStorageServiceUri.value
     Uploads__ContainerName = $outputs.uploadContainerName.value
     Cors__AllowedOrigins__0 = $env:FRONTEND_ORIGIN

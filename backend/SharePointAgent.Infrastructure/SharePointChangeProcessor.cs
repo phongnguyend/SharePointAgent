@@ -364,7 +364,7 @@ public sealed class SharePointChangeProcessor(
 
     /// <summary>
     /// Tells the graph pipeline that a file's indexed state changed. Sent only after the index and the tracked
-    /// record are both written, and best-effort by design: graph indexing must never fail or hold up search
+    /// record are both written. Synchronous mode waits for graph indexing; failures do not roll back search
     /// indexing, and graph reconciliation repairs any request that is lost here.
     /// </summary>
     private async Task SignalGraphAsync(GraphIndexingRequestKind kind, string driveId, string itemId, CancellationToken cancellationToken)

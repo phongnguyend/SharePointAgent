@@ -12,6 +12,15 @@ public sealed class NullGraphIndexingSignal : IGraphIndexingSignal
     public Task PublishAsync(GraphIndexingRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
+/// <summary>Runs the graph pipeline inline; the caller waits for completion and handles failures.</summary>
+public sealed class SynchronousGraphIndexingSignal(IGraphIndexingPipeline pipeline) : IGraphIndexingSignal
+{
+    public async Task PublishAsync(GraphIndexingRequest request, CancellationToken cancellationToken)
+    {
+        await pipeline.ProcessAsync(request, cancellationToken);
+    }
+}
+
 /// <summary>
 /// Queues indexing requests on the existing Service Bus namespace. Messages carry identifiers only; the
 /// worker reads everything else from the indexed-file table and the search index when it processes them.

@@ -34,6 +34,9 @@ param agentWorkspaceMode string = 'Local'
 @description('Turn on graph extraction in the worker.')
 param enableGraphRagIndexing bool = false
 
+@description('Run graph indexing inline after search-index changes instead of publishing to the graph queue.')
+param graphRagSynchronousIndexing bool = false
+
 @description('Compute graph retrieval and record its metrics without showing results to users.')
 param enableGraphRagShadowRetrieval bool = false
 
@@ -154,12 +157,13 @@ var apiEndpoint = 'https://${apiName}.${containerAppsEnvironment.properties.defa
 // The Graph RAG resources always exist; these flags decide whether the apps use them.
 var graphRagEnv = [
   { name: 'GraphRag__IndexingEnabled', value: string(enableGraphRagIndexing) }
+  { name: 'GraphRag__SynchronousIndexing', value: string(graphRagSynchronousIndexing) }
   { name: 'GraphRag__Extraction__Deployment', value: infrastructure.chatDeploymentName }
   { name: 'GraphRag__ShadowRetrieval', value: string(enableGraphRagShadowRetrieval) }
   { name: 'GraphRag__RetrievalEnabled', value: string(enableGraphRagRetrieval) }
-  { name: 'GraphRag__Cosmos__UsedManagedIdentity', value: 'true' }
+  { name: 'GraphRag__Cosmos__UseManagedIdentity', value: 'true' }
   { name: 'GraphRag__Cosmos__Endpoint', value: infrastructure.graphCosmosEndpoint }
-  { name: 'GraphRag__Archive__UsedManagedIdentity', value: 'true' }
+  { name: 'GraphRag__Archive__UseManagedIdentity', value: 'true' }
   { name: 'GraphRag__Archive__ServiceUri', value: infrastructure.uploadStorageServiceUri }
 ]
 var commonEnv = [
@@ -176,14 +180,13 @@ var commonEnv = [
   { name: 'SharePoint__SitePath', value: sharePointSitePath }
   { name: 'SharePoint__DocumentLibraryName', value: sharePointDocumentLibraryName }
   { name: 'SharePoint__NotificationUrl', value: '${apiEndpoint}/api/sharepoint/webhook' }
-  { name: 'ServiceBus__Enabled', value: 'true' }
-  { name: 'ServiceBus__UsedManagedIdentity', value: 'true' }
+  { name: 'ServiceBus__UseManagedIdentity', value: 'true' }
   { name: 'ServiceBus__FullyQualifiedNamespace', value: infrastructure.serviceBusFullyQualifiedNamespace }
   { name: 'ServiceBus__TopicName', value: infrastructure.serviceBusTopicName }
   { name: 'ServiceBus__SubscriptionName', value: infrastructure.serviceBusSubscriptionName }
-  { name: 'AzureSearch__UsedManagedIdentity', value: 'true' }
+  { name: 'AzureSearch__UseManagedIdentity', value: 'true' }
   { name: 'AzureSearch__Endpoint', value: infrastructure.searchEndpoint }
-  { name: 'AzureOpenAI__UsedManagedIdentity', value: 'true' }
+  { name: 'AzureOpenAI__UseManagedIdentity', value: 'true' }
   { name: 'AzureOpenAI__Endpoint', value: infrastructure.openAiEndpoint }
   { name: 'AzureOpenAI__EmbeddingDeployment', value: infrastructure.embeddingDeploymentName }
   { name: 'AzureOpenAI__ChatDeployment', value: infrastructure.chatDeploymentName }
@@ -192,7 +195,7 @@ var commonEnv = [
   { name: 'PageIndex__Endpoint', value: pageIndexUrl }
   { name: 'MarkItDown__ApiKey', secretRef: 'markitdown-api-key' }
   (empty(jevApiKey) ? { name: 'Jev__ApiKey', value: '' } : { name: 'Jev__ApiKey', secretRef: 'jev-api-key' })
-  { name: 'DocumentIntelligence__UsedManagedIdentity', value: 'true' }
+  { name: 'DocumentIntelligence__UseManagedIdentity', value: 'true' }
   { name: 'DocumentIntelligence__Endpoint', value: infrastructure.documentIntelligenceEndpoint }
 ]
 var secrets = concat([
@@ -291,13 +294,13 @@ resource api 'Microsoft.App/containerApps@2025-01-01' = {
           { name: 'SqlServer__ConnectionString', value: 'Server=tcp:${hosting.sqlServerFqdn},1433;Database=${hosting.sqlDatabaseName};Authentication=Active Directory Managed Identity;User Id=${hosting.apiClientId};Encrypt=True;TrustServerCertificate=False;' }
           { name: 'ChatAgent__Mode', value: 'Foundry' }
           { name: 'AgentWorkspace__Mode', value: agentWorkspaceMode }
-          { name: 'AgentWorkspace__Snapshots__UsedManagedIdentity', value: 'true' }
+          { name: 'AgentWorkspace__Snapshots__UseManagedIdentity', value: 'true' }
           { name: 'AgentWorkspace__Snapshots__ServiceUri', value: infrastructure.uploadStorageServiceUri }
           { name: 'AgentWorkspace__Sandboxes__SubscriptionId', value: subscription().subscriptionId }
           { name: 'AgentWorkspace__Sandboxes__ResourceGroup', value: resourceGroup().name }
           { name: 'ChatAgent__Foundry__Endpoint', value: foundryEndpoint }
           { name: 'ChatAgent__Foundry__ManagedIdentityClientId', value: hosting.apiClientId }
-          { name: 'Uploads__UsedManagedIdentity', value: 'true' }
+          { name: 'Uploads__UseManagedIdentity', value: 'true' }
           { name: 'Uploads__ServiceUri', value: infrastructure.uploadStorageServiceUri }
           { name: 'Uploads__ContainerName', value: infrastructure.uploadContainerName }
           { name: 'Cors__AllowedOrigins__0', value: frontendOrigin }

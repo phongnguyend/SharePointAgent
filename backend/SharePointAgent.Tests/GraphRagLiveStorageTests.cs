@@ -59,7 +59,7 @@ public sealed class CosmosGraphStoreIntegrationTests : IAsyncLifetime
 
         var options = Options(options =>
         {
-            options.Cosmos.UsedManagedIdentity = false;
+            options.Cosmos.UseManagedIdentity = false;
             options.Cosmos.ConnectionString = connection;
             options.Cosmos.DatabaseName = _database;
             options.Cosmos.CreateIfNotExists = true;

@@ -49,7 +49,7 @@ public sealed class GraphRagIntegrationHookTests
     public void EnabledRetrievalRequiresAGraphStoreToBeConfigured()
     {
         var services = new ServiceCollection();
-        services.AddGraphRetrievalServices(Configuration(("GraphRag:RetrievalEnabled", "true"), ("GraphRag:Cosmos:UsedManagedIdentity", "true")));
+        services.AddGraphRetrievalServices(Configuration(("GraphRag:RetrievalEnabled", "true"), ("GraphRag:Cosmos:UseManagedIdentity", "true")));
 
         using var provider = services.BuildServiceProvider();
         var exception = Assert.Throws<OptionsValidationException>(() => provider.GetRequiredService<IOptions<GraphRagOptions>>().Value);
