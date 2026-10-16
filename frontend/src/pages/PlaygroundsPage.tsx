@@ -1,35 +1,49 @@
 import { useId } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { BrainCircuit, GitBranch, Image, ScanText, FileDown, ListTree, FileType, FileText, Sheet, Presentation, ShieldCheck, Mic } from 'lucide-react'
-import DecisionPlaygroundPage from './DecisionPlaygroundPage'
-import ImagePlaygroundPage from './ImagePlaygroundPage'
-import DocumentPlaygroundPage from './DocumentPlaygroundPage'
-import WorkspacePlaygroundPage from './WorkspacePlaygroundPage'
+import { BrainCircuit, Image, ListTree, FileText, ShieldCheck, Mic } from 'lucide-react'
+import DecisionMakingPlaygroundPage from './DecisionMakingPlaygroundPage'
+import ImagePlaygroundsPage from './ImagePlaygroundsPage'
+import DocumentPlaygroundsPage, { isDocumentPlaygroundProvider } from './DocumentPlaygroundsPage'
+import WorkspacePlaygroundsPage from './WorkspacePlaygroundsPage'
 import ContentSafetyPlaygroundPage from './ContentSafetyPlaygroundPage'
 import VoicePlaygroundsPage from './VoicePlaygroundsPage'
 
 const providers = [
-  { key: 'jev', label: 'Jev', Icon: BrainCircuit },
-  { key: 'microsoft-decision', label: 'Microsoft Decision', Icon: GitBranch },
-  { key: 'image-description', label: 'Image Description', Icon: Image },
-  { key: 'image-text', label: 'Image Text Extraction', Icon: ScanText },
+  { key: 'decision-making', label: 'Decision Making', Icon: BrainCircuit },
+  { key: 'image', label: 'Image', Icon: Image },
   { key: 'content-safety', label: 'Content Safety', Icon: ShieldCheck },
   { key: 'voice', label: 'Voice', Icon: Mic },
-  { key: 'markitdown', label: 'MarkItDown', Icon: FileDown },
-  { key: 'pageindex', label: 'PageIndex', Icon: ListTree },
-  { key: 'pdf', label: 'PDF', Icon: FileType },
-  { key: 'docx', label: 'DOCX', Icon: FileText },
-  { key: 'xlsx', label: 'XLSX', Icon: Sheet },
-  { key: 'pptx', label: 'PPTX', Icon: Presentation },
-  { key: 'dynamic-sessions', label: 'ACA Dynamic Sessions', Icon: ListTree },
-  { key: 'sandboxes', label: 'ACA Sandboxes', Icon: FileType },
+  { key: 'document', label: 'Document', Icon: FileText },
+  { key: 'workspace', label: 'Workspace', Icon: ListTree },
 ] as const
 
 export default function PlaygroundsPage() {
   const [params, setParams] = useSearchParams()
   const id = useId()
-  const selected = providers.find(provider => provider.key === params.get('provider'))?.key ?? 'jev'
-  const select = (provider: string) => setParams({ tab: 'playgrounds', provider })
+  const requested = params.get('provider')
+  const selected = requested === 'image-description' || requested === 'image-text' ? 'image'
+    : isDocumentPlaygroundProvider(requested) ? 'document'
+    : requested === 'dynamic-sessions' || requested === 'sandboxes' ? 'workspace'
+    : providers.find(provider => provider.key === requested)?.key ?? 'decision-making'
+  const select = (provider: string) => {
+    const next = new URLSearchParams(params)
+    const previous = params.get('provider')
+    if (!params.has('decision') && (previous === 'jev' || previous === 'microsoft-decision')) {
+      next.set('decision', previous)
+    }
+    if (!params.has('image') && (previous === 'image-description' || previous === 'image-text')) {
+      next.set('image', previous)
+    }
+    if (!params.has('document') && previous && isDocumentPlaygroundProvider(previous)) {
+      next.set('document', previous)
+    }
+    if (!params.has('workspace') && (previous === 'dynamic-sessions' || previous === 'sandboxes')) {
+      next.set('workspace', previous)
+    }
+    next.set('tab', 'playgrounds')
+    next.set('provider', provider)
+    setParams(next)
+  }
 
   return <div className="stack">
     <div className="page-tabs page-tabs-secondary" role="tablist" aria-label="Playgrounds" onKeyDown={event => {
@@ -52,13 +66,13 @@ export default function PlaygroundsPage() {
       aria-labelledby={`${id}-${key}`} hidden={selected !== key}>
       {key === 'content-safety' ? <ContentSafetyPlaygroundPage active={selected === key} />
         : key === 'voice' ? <VoicePlaygroundsPage active={selected === key} />
-        : key === 'dynamic-sessions' || key === 'sandboxes'
-        ? <WorkspacePlaygroundPage provider={key} active={selected === key} />
-        : key === 'image-description' || key === 'image-text'
-        ? <ImagePlaygroundPage operation={key === 'image-description' ? 'describe' : 'extract'} active={selected === key} />
-        : key !== 'jev' && key !== 'microsoft-decision'
-          ? <DocumentPlaygroundPage provider={key} />
-          : <DecisionPlaygroundPage provider={key} />}
+        : key === 'workspace'
+        ? <WorkspacePlaygroundsPage active={selected === key} />
+        : key === 'image'
+        ? <ImagePlaygroundsPage active={selected === key} />
+        : key === 'decision-making'
+          ? <DecisionMakingPlaygroundPage />
+          : <DocumentPlaygroundsPage />}
     </div>)}
   </div>
 }
