@@ -6,7 +6,7 @@ import ImagePlaygroundPage from './ImagePlaygroundPage'
 import DocumentPlaygroundPage from './DocumentPlaygroundPage'
 import WorkspacePlaygroundPage from './WorkspacePlaygroundPage'
 import ContentSafetyPlaygroundPage from './ContentSafetyPlaygroundPage'
-import VoicePlaygroundPage from './VoicePlaygroundPage'
+import VoicePlaygroundsPage from './VoicePlaygroundsPage'
 
 const providers = [
   { key: 'jev', label: 'Jev', Icon: BrainCircuit },
@@ -51,7 +51,7 @@ export default function PlaygroundsPage() {
     {providers.map(({ key }) => <div key={key} role="tabpanel" id={`${id}-${key}-panel`}
       aria-labelledby={`${id}-${key}`} hidden={selected !== key}>
       {key === 'content-safety' ? <ContentSafetyPlaygroundPage active={selected === key} />
-        : key === 'voice' ? <VoicePlaygroundPage active={selected === key} />
+        : key === 'voice' ? <VoicePlaygroundsPage active={selected === key} />
         : key === 'dynamic-sessions' || key === 'sandboxes'
         ? <WorkspacePlaygroundPage provider={key} active={selected === key} />
         : key === 'image-description' || key === 'image-text'

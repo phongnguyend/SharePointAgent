@@ -418,3 +418,9 @@ The Subscriptions page additionally uses, and these **change tenant state**:
 - `DELETE /api/subscriptions/{id}` — refused for the default subscription
 
 **These endpoints require Entra sign-in and provide shared operator access.** Assign only trusted operators to the enterprise application: indexed files, conversations, uploads, and subscription administration are not isolated per signed-in user. Health checks, public sign-in configuration, and the validated Graph webhook are the only anonymous API endpoints.
+
+## Voice playgrounds
+
+Under **Playgrounds → Voice**, use **Speech to text** for the existing Azure OpenAI transcription playground or **Text to speech** for Azure AI Speech synthesis. Switching tabs preserves inputs and stops microphone recording/audio playback.
+
+Text to speech requires a configured `Speech` section on the API and GlobalAdmin access. Choose a voice supplied by the configured resource, enter up to 3,000 characters of plain text, and generate MP3 or WAV audio to preview/download. The application does not save the input or generated audio. Azure charges apply; synthesis is limited to 10 minutes by the provider. Cancel stops waiting but may not stop provider processing.

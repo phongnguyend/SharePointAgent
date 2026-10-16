@@ -1,0 +1,8 @@
+.speech-playground-settings { display: flex; gap: 16px; flex-wrap: wrap; }
+.speech-playground-settings label { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.speech-playground-settings label:first-child { flex: 1; }
+.speech-playground-settings select { width: 100%; }
+.speech-playground-editor { display: flex; flex-direction: column; }
+.speech-playground-editor textarea { flex: 1; width: 100%; min-height: 340px; padding: 12px; box-sizing: border-box; border: 0; resize: vertical; }
+.speech-playground-audio { padding: 20px; }
+.speech-playground-audio audio { width: 100%; }

@@ -776,3 +776,17 @@ Main resource names start with `workloadName`, followed by the environment. ACR 
 ## Validation
 
 Compile `main.bicep` and the templates in its subfolders with `az bicep build`. Compilation does not verify subscription quota, permissions, networking or Foundry regional availability. Application deployments use actual images and change runtime configuration; review them before applying to an existing environment.
+
+## Azure Speech (text to speech)
+
+`infra/main.bicep` provisions an S0 `SpeechServices` account with a custom subdomain when `deploySpeech=true` (default). Set `speechLocation` to override the resource region and `allowSpeechApiKeyAuth=false` to disable keys. It grants the API identity **Cognitive Services Speech User** at resource scope. The Container Apps template and API release script populate `Speech__Endpoint`, `Speech__ResourceId`, and `Speech__UseManagedIdentity=true` from infrastructure outputs. Run the infrastructure deployment before releasing the API.
+
+For local development, copy the `speechEndpoint` and `speechResourceId` deployment outputs into `Speech:Endpoint` and `Speech:ResourceId`. With `Speech:UseManagedIdentity=true`, the API uses `DefaultAzureCredential`, including `az login` locally. Grant your local identity the same data-plane role (Owner/Contributor alone is insufficient):
+
+```powershell
+$speechId = az cognitiveservices account show --resource-group YOUR_RESOURCE_GROUP --name YOUR_SPEECH_ACCOUNT --query id -o tsv
+$principalId = az ad signed-in-user show --query id -o tsv
+az role assignment create --assignee-object-id $principalId --assignee-principal-type User --role 'Cognitive Services Speech User' --scope $speechId
+```
+
+Alternatively set `Speech:UseManagedIdentity=false` and store `Speech:ApiKey` in .NET user secrets or an environment variable; the endpoint is still required. No app registration is needed for CLI credentials or API keys. `Speech:ResourceId` is required only for managed identity/Entra authentication. See the [Speech REST API](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech) and [Speech roles](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/role-based-access-control).

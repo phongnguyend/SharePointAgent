@@ -78,6 +78,13 @@ param allowDocumentIntelligenceApiKeyAuth bool = true
 @description('Deploy Azure AI Content Safety.')
 param deployContentSafety bool = true
 
+@description('Deploy Azure Speech for the text-to-speech playground.')
+param deploySpeech bool = true
+param speechLocation string = location
+
+@description('Allow Speech API keys for local development.')
+param allowSpeechApiKeyAuth bool = true
+
 @description('Content Safety region. Override if it is unavailable in the shared resource region.')
 param contentSafetyLocation string = location
 
@@ -549,6 +556,8 @@ resource projectPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 output contentSafetyEndpoint string = contentSafetyAccount.?properties.endpoint ?? ''
+output speechEndpoint string = speechAccount.?properties.endpoint ?? ''
+output speechResourceId string = speechAccount.?id ?? ''
 output contentSafetyResourceId string = contentSafetyAccount.?id ?? ''
 output serviceBusFullyQualifiedNamespace string = '${serviceBusNamespace.name}.servicebus.windows.net'
 output serviceBusTopicName string = serviceBusTopic.name
@@ -768,6 +777,30 @@ resource apiBlob 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
     principalId: apiIdentity.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+  }
+}
+
+resource speechAccount 'Microsoft.CognitiveServices/accounts@2024-10-01' = if (deploySpeech) {
+  name: take(toLower('${namePrefix}-speech-${uniqueSuffix}'), 64)
+  location: speechLocation
+  tags: resourceTags
+  kind: 'SpeechServices'
+  sku: { name: 'S0' }
+  properties: {
+    customSubDomainName: take(toLower('${namePrefix}-speech-${uniqueSuffix}'), 64)
+    disableLocalAuth: !allowSpeechApiKeyAuth
+    publicNetworkAccess: 'Enabled'
+  }
+}
+
+// Cognitive Services Speech User: synthesize speech and list voices.
+resource apiSpeech 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deploySpeech) {
+  name: guid(speechAccount.id, apiIdentity.id, 'f2dc8367-1007-4938-bd23-fe263f013447')
+  scope: speechAccount
+  properties: {
+    principalId: apiIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f2dc8367-1007-4938-bd23-fe263f013447')
   }
 }
 

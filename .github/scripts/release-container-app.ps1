@@ -72,6 +72,9 @@ if ($Component -eq 'Api') {
     ContentSafety__Enabled = ([bool]$settings.deployContentSafety.value).ToString().ToLowerInvariant()
     ContentSafety__Endpoint = [string]$outputs.contentSafetyEndpoint.value
     ContentSafety__UseManagedIdentity = 'true'
+    Speech__Endpoint = [string]$outputs.speechEndpoint.value
+    Speech__ResourceId = [string]$outputs.speechResourceId.value
+    Speech__UseManagedIdentity = 'true'
   }
   $apiEnvironment = $commonEnvironment + @($apiValues.GetEnumerator() | ForEach-Object { @{ name = $_.Key; value = [string]$_.Value } })
   # Optional; when unset, the current values are kept.

@@ -6,7 +6,7 @@ import { CopyButton, ErrorBanner } from '../components/ui'
 
 const audioTypes: Record<string, string> = { webm: 'audio/webm', ogg: 'audio/ogg', mp4: 'audio/mp4', m4a: 'audio/mp4', mp3: 'audio/mpeg', wav: 'audio/wav' }
 
-export default function VoicePlaygroundPage({ active }: { active: boolean }) {
+export default function SpeechToTextPlaygroundPage({ active }: { active: boolean }) {
   const [options, setOptions] = useState<TranscriptionOptions | null>(null)
   const [retry, setRetry] = useState(0)
   const [file, setFile] = useState<File | null>(null)
@@ -85,7 +85,7 @@ export default function VoicePlaygroundPage({ active }: { active: boolean }) {
   }
 
   return <section className="card voice-playground">
-    <div className="card-head decision-toolbar"><h2><Mic size={18} />Voice</h2><div className="row">
+    <div className="card-head decision-toolbar"><h2><Mic size={18} />Speech to text</h2><div className="row">
       <button type="button" className="primary" disabled={busy || !file || !options?.enabled} onClick={() => void run()}><Play size={15} />Transcribe</button>
       {running && <button type="button" onClick={() => request.current?.abort()}><Square size={15} />Cancel</button>}
       <button type="button" disabled={busy} onClick={() => { setFile(null); setText(null); setError('') }}><RotateCcw size={15} />Reset</button>

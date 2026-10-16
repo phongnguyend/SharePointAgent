@@ -304,6 +304,9 @@ resource api 'Microsoft.App/containerApps@2025-01-01' = {
           { name: 'ContentSafety__Enabled', value: string(!empty(infrastructure.contentSafetyEndpoint)) }
           { name: 'ContentSafety__Endpoint', value: infrastructure.contentSafetyEndpoint }
           { name: 'ContentSafety__UseManagedIdentity', value: 'true' }
+          { name: 'Speech__Endpoint', value: infrastructure.?speechEndpoint ?? '' }
+          { name: 'Speech__ResourceId', value: infrastructure.?speechResourceId ?? '' }
+          { name: 'Speech__UseManagedIdentity', value: 'true' }
         ]) : []
         resources: { cpu: json('2.0'), memory: '4Gi' }
         probes: [{ type: 'Readiness', httpGet: { path: deployApplicationImages ? '/health' : '/', port: deployApplicationImages ? 8080 : 80 }, periodSeconds: 10 }]

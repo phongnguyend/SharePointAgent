@@ -339,6 +339,12 @@ public static class DependencyInjection
     {
         services.AddLocalWorkingDirectory(configuration);
         services.AddContentSafety(configuration);
+        services.Configure<SpeechOptions>(configuration.GetSection("Speech"));
+        services.AddHttpClient("Speech", client => client.Timeout = TimeSpan.FromSeconds(120))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+        services.AddTransient(sp => new SpeechPlaygroundService(
+            sp.GetRequiredService<IHttpClientFactory>().CreateClient("Speech"), new DefaultAzureCredential(),
+            sp.GetRequiredService<IOptions<SpeechOptions>>()));
         services.AddPersistence(configuration);
         AddSearchOptions(services, configuration);
         AddOpenAiOptions(services, configuration);
