@@ -1,0 +1,34 @@
+.orphan-upload-hint {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.orphan-upload-toolbar .attachment-file-filter {
+  margin-left: auto;
+  width: min(260px, 100%);
+}
+
+@media (max-width: 700px) {
+
+  .orphan-upload-toolbar .attachment-file-filter {
+    flex: 1 1 100%;
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
+.orphan-upload {
+  padding: 16px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+}
+
+.orphan-upload.is-dragging {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.orphan-upload .row {
+  flex-wrap: wrap;
+}

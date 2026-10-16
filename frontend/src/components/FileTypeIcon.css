@@ -1,0 +1,48 @@
+/*
+ * File-type marks. The hue is a hint, never the only cue — the content type is written in its own
+ * column beside every one of these — so a reader who cannot separate the hues loses nothing.
+ */
+.file-icon {
+  color: var(--text-muted);
+}
+
+.file-icon-doc {
+  color: var(--file-doc);
+}
+
+.file-icon-sheet {
+  color: var(--file-sheet);
+}
+
+.file-icon-slide {
+  color: var(--file-slide);
+}
+
+.file-icon-pdf {
+  color: var(--file-pdf);
+}
+
+.file-icon-image,
+.file-icon-video,
+.file-icon-audio {
+  color: var(--file-media);
+}
+
+/* A file name preceded by its type mark. The name shrinks; the mark does not. */
+.file-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+/* For a name that can wrap onto a second line, the mark sits on the first line rather than centred
+   against the whole block. */
+.file-name.top {
+  align-items: flex-start;
+}
+
+.file-name.top > .lucide {
+  margin-top: 3px;
+}
+.file-name + .sensitivity-badge { margin-top: 5px; }

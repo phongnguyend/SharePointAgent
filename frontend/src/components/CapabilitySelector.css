@@ -1,0 +1,11 @@
+.agent-capability { padding: 12px 14px; overflow-wrap: anywhere; }
+.agent-capability p { margin: 6px 0 0; color: var(--text-secondary); font-size: 13px; }
+.modal.agent-capabilities-modal { height: min(720px, calc(100dvh - 40px)); }
+.agent-editor-modal > .modal-body.agent-capabilities-body { display: flex; overflow: hidden; min-height: 0; }
+.agent-capabilities-body > .agent-capabilities-layout { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.agent-capabilities-layout > :not(.agent-capability-panel) { flex-shrink: 0; }
+.agent-capabilities-body .agent-capability-panel:not([hidden]),
+.agent-capabilities-body .agent-capability-selector { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.agent-capability-selector > :not(.sub-agent-options):not(.agent-capability-list) { flex-shrink: 0; }
+.agent-capabilities-body .sub-agent-options,
+.agent-capabilities-body .agent-capability-list { flex: 1; min-height: 0; max-height: none; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }

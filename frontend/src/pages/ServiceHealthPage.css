@@ -1,0 +1,40 @@
+.service-health-heading {
+  flex-wrap: wrap;
+}
+
+.service-health-refresh {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: 12px;
+}
+
+.service-health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 16px;
+}
+
+.service-health-item {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.service-health-item h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.service-health-item .badge {
+  margin-left: auto;
+}
+
+.service-health-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+}

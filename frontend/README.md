@@ -15,6 +15,19 @@ Import from the feature client when adding code. `client.ts` re-exports the exis
 API so current imports continue to work. Feature clients should import shared helpers from
 `http.ts`, not through `client.ts`.
 
+## Stylesheets
+
+Page and component styles live beside their TSX files, such as `pages/ChatPage.css`,
+`components/Modal.css`, and `components/Toast.css`. Theme tokens, base elements, and
+shared layout/control utilities live in `styles/shared.css`; application navigation
+and shell rules live in `App.css`. Shared visual components also supply styles used
+by their consumers (for example, usage reports share `EmbeddingUsageReport.css`).
+
+`src/styles.css` is the central import entry point loaded by `main.tsx`. Keep its
+shared-first import order stable so the cascade does not depend on route loading.
+Add new feature styles to the relevant CSS file; register new files in this entry
+point. The workspace playground keeps its existing local CSS import.
+
 ## Dialog components
 
 All application popups use `src/components/Modal.tsx`, also re-exported from `components/ui`.

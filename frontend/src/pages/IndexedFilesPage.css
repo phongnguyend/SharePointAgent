@@ -1,0 +1,90 @@
+tbody tr.clickable {
+  cursor: pointer;
+}
+
+tbody tr.clickable:hover td {
+  background: var(--surface-2);
+}
+
+/*
+ * A table whose columns are sized by a <colgroup> rather than by their content, so a single long value
+ * — a Graph drive path, a 70-character content type — is ellipsised instead of widening the table past
+ * its card. The cells clip; the full value stays in each cell's title attribute.
+ */
+.table-fixed {
+  table-layout: fixed;
+}
+
+.table-fixed th,
+.table-fixed td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table-fixed .truncate {
+  max-width: 100%;
+}
+
+.sensitivity-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+.sensitivity-badge > svg { flex-shrink: 0; }
+.sensitivity-badge > span { overflow-wrap: anywhere; }
+
+/*
+ * Full-width rows for values a two-column grid cannot hold: an ETag, a hash, a fingerprint, a Graph
+ * drive ID. The label and its copy button share a line above the value, so the value has the panel's
+ * whole width to wrap into and the button is never squeezed by it.
+ */
+.detail-blocks {
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.detail-block {
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.detail-block:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.detail-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 22px;
+}
+
+.detail-block-head > span {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.detail-block-head > button {
+  flex: 0 0 auto;
+}
+
+.detail-block code {
+  display: block;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+}

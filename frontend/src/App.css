@@ -1,0 +1,98 @@
+/* ---------- shell ---------- */
+
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding: 0 32px;
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 14px 0;
+  margin-right: 4px;
+}
+
+.brand strong {
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.brand span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.nav {
+  display: flex;
+  gap: 2px;
+  flex: 1;
+}
+
+.nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 16px 12px 14px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.nav a .lucide {
+  color: var(--text-muted);
+}
+
+.nav a.active .lucide {
+  color: var(--accent);
+}
+
+.nav a:hover {
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.nav a.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent);
+}
+
+/* Near full width: the tables and the three-way search comparison both read better wide. The cap only
+   keeps line lengths sane on an ultrawide display. */
+.main {
+  flex: 1;
+  width: 100%;
+  max-width: 2100px;
+  margin: 0 auto;
+  padding: 26px 32px 64px;
+}
+
+@media (max-width: 700px) {
+  .main {
+    padding: 20px 16px 48px;
+  }
+}
+.main > .stack { gap: 14px; }
+
+/* Let the header's actual height determine the space left for chat, including wrapped navigation. */
+@media (min-width: 901px) {
+  .shell:has(.chat-page) { height: 100dvh; min-height: 0; }
+  .shell:has(.chat-page) > .topbar { flex-shrink: 0; }
+  .main:has(> .chat-page) { display: flex; flex-direction: column; min-height: 0; padding-bottom: 26px; }
+}

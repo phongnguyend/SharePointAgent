@@ -1,0 +1,14 @@
+.token-usage-total {
+  display: grid;
+  gap: 6px;
+}
+
+.token-usage-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.token-usage-heading > button { flex-shrink: 0; }

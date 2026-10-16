@@ -49,7 +49,7 @@ export default function PlaygroundsPage() {
       {key === 'dynamic-sessions' || key === 'sandboxes'
         ? <WorkspacePlaygroundPage provider={key} active={selected === key} />
         : key === 'image-description' || key === 'image-text'
-        ? <ImagePlaygroundPage operation={key === 'image-description' ? 'describe' : 'extract'} />
+        ? <ImagePlaygroundPage operation={key === 'image-description' ? 'describe' : 'extract'} active={selected === key} />
         : key !== 'jev' && key !== 'microsoft-decision'
           ? <DocumentPlaygroundPage provider={key} />
           : <DecisionPlaygroundPage provider={key} />}

@@ -223,12 +223,13 @@ export default function WorkspacePlaygroundPage({ provider, active }: { provider
   const dialogTitle = dialog ? ({ mkdir: 'Create folder', new: 'Create text file', edit: 'Edit text file', rename: 'Rename', move: 'Move', copy: 'Copy', delete: 'Delete files and folders', zip: 'Create ZIP archive', unzip: 'Extract ZIP archive', 'stop-instance': 'Stop session', 'stop-sandbox': 'Stop sandbox', 'delete-instance': 'Delete sandbox' })[dialog.kind] : ''
 
   return <section className="card workspace-playground">
-    <div className="card-head"><h2><Terminal size={18} />{title} playground</h2></div>
+    <div className="card-head"><h2><Terminal size={18} />{title} playground</h2><span className="muted workspace-playground-status" role="status" aria-live="polite">{busy || 'Ready'}</span></div>
     <div className="card-body stack">
-      <p className="muted">Manage instances in the configured Azure {provider === 'dynamic-sessions' ? 'session pool' : 'sandbox group'}, including instances used by chats. Changes affect the selected instance immediately and Azure usage may incur charges.</p>
-      {provider === 'dynamic-sessions' && <p className="muted">Session files are temporary and disappear when the session stops or expires. Download files or ZIP archives you want to keep.</p>}
+      <div className="workspace-playground-intro muted">
+        <p>Manage {provider === 'dynamic-sessions' ? 'sessions' : 'sandboxes'}, files, and scripts. Changes apply immediately, including to chat instances; Azure usage may incur charges.</p>
+        {provider === 'dynamic-sessions' && <p>Session files disappear on stop or expiry. Download files you want to keep.</p>}
+      </div>
       {error && !dialog && <ErrorBanner message={error} />}
-      <div role="status" aria-live="polite">{busy || 'Ready'}</div>
       <fieldset disabled={!!busy} className="workspace-playground-controls">
         {listing && !listing.configured && <p role="status">{listing.message}</p>}
         {listing?.truncated && <p role="status">The instance list reached the page limit. Some instances are not shown.</p>}

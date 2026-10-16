@@ -1,0 +1,77 @@
+.modal.signature-pad-modal {
+  width: min(680px, calc(100vw - 32px));
+}
+
+.signature-pad-help {
+  margin: 0 0 8px;
+  color: var(--text-secondary);
+}
+
+.signature-pad-input {
+  border-radius: 6px;
+}
+
+.signature-pad-input.is-dragging {
+  outline: 2px dashed var(--accent, #2563eb);
+  outline-offset: 6px;
+}
+
+.signature-pad-upload {
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.signature-pad-upload span {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.signature-pad-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 3 / 1;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.signature-pad-preview img {
+  max-width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+}
+
+.signature-pad-canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 1;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm, 6px);
+  background: #ffffff;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.signature-pad-surface {
+  position: relative;
+}
+
+.signature-pad-baseline {
+  position: absolute;
+  right: 6%;
+  bottom: 26%;
+  left: 6%;
+  border-bottom: 1px dashed #c4c4bc;
+  pointer-events: none;
+}
+
+.signature-pad-actions {
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.signature-pad-spacer {
+  flex: 1;
+}

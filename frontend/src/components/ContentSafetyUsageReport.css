@@ -1,0 +1,9 @@
+.content-safety-filters {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  align-items: end;
+}
+.content-safety-filters input, .content-safety-filters select { min-height: 36px; }
+.content-safety-filters > button { min-height: 36px; }
+@media (max-width: 900px) {
+  .content-safety-filters > button { grid-column: 1 / -1; justify-self: end; }
+}

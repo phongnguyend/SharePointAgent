@@ -1,0 +1,11 @@
+.document-playground-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.document-playground-drop { min-height: 90px; flex-direction: row; flex-wrap: wrap; gap: 8px 12px; padding: 12px 16px; }
+.document-playground-drop > svg { flex-shrink: 0; }
+.document-playground-drop p { margin: 0; min-width: 0; }
+.document-playground-drop small { flex-basis: 100%; }
+.document-playground-options { padding: 10px 12px; flex-wrap: wrap; }
+.document-playground-options label { display: inline-flex; align-items: center; gap: 6px; }
+.document-playground-options input { width: auto; }
+.document-playground-result { min-height: 360px; max-height: 65dvh; overflow: auto; padding: 12px; }
+.document-playground-result pre { margin: 0; overflow: auto; }
+.document-playground-result .decision-result { height: auto; max-height: none; min-height: 0; overflow: visible; }

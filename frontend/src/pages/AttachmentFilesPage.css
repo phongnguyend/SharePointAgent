@@ -1,0 +1,84 @@
+.attachment-header-storage {
+  display: grid;
+  gap: 4px;
+  flex: 0 1 360px;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.attachment-page-header {
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px 16px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.attachment-page-header > div:first-child {
+  flex: 0 0 auto;
+}
+
+.attachment-page-header .attachment-tabs {
+  border: 0;
+  padding: 0;
+  gap: 4px;
+}
+
+.attachment-page-header .page-tabs {
+  flex: 0 1 auto;
+  max-width: 100%;
+}
+
+.attachment-page-header .attachment-header-storage {
+  margin-left: auto;
+  flex: 0 1 240px;
+}
+
+.attachment-page-header .attachment-storage-usage {
+  gap: 3px;
+}
+
+.attachment-files-page .orphan-upload {
+  padding: 8px 12px;
+  border-width: 1px;
+}
+
+.attachment-filter-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 700px) {
+  .attachment-page-header .attachment-header-storage {
+    flex: 1 1 180px;
+  }
+}
+
+.upload-error {
+  max-width: 440px;
+  margin-top: 4px;
+  color: var(--critical);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 240px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modal.pdf-extracted-text-modal {
+  width: min(1100px, calc(100vw - 32px));
+  height: min(850px, calc(100dvh - 32px));
+}

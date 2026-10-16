@@ -1,0 +1,26 @@
+/* The question that prompted a rated answer, quoted above it. */
+.feedback-question {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.feedback-question > .lucide {
+  margin-top: 3px;
+}
+
+/* Collapsed by default: a long answer would bury the next entry. */
+.feedback-answer {
+  cursor: pointer;
+  max-height: 170px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 120px, transparent);
+  mask-image: linear-gradient(to bottom, #000 120px, transparent);
+}

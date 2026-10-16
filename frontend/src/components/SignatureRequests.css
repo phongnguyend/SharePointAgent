@@ -1,0 +1,120 @@
+.modal.signature-requests-modal {
+  width: min(850px, calc(100vw - 32px));
+}
+
+.signature-form {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.signature-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.signature-provider-field {
+  display: grid;
+  gap: 6px;
+}
+
+.signature-provider-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.signature-provider-options button[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.signature-provider-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  vertical-align: middle;
+}
+
+.signature-provider-icon {
+  flex-shrink: 0;
+}
+
+.signature-provider-icon.docusign {
+  color: #7356d8;
+}
+
+.signature-provider-icon.adobe-sign {
+  color: #e53935;
+}
+
+.signature-recipient {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+}
+
+.signature-recipient label {
+  flex: 1 1 180px;
+}
+
+.signature-request {
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.signature-list-toolbar {
+  justify-content: flex-end;
+}
+
+.signature-request-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  line-height: 20px;
+}
+
+.signature-create-draft {
+  margin-inline-start: auto;
+}
+
+.signature-request .row,
+.signature-form .row {
+  flex-wrap: wrap;
+}
+
+.signature-provider-icon.in-app {
+  color: var(--accent);
+}
+
+.signature-request-details {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 6px 0 10px;
+  font-size: 13px;
+}
+
+.signature-request-details dt {
+  color: var(--text-secondary);
+}
+
+.signature-request-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.signature-request-details ol {
+  margin: 0;
+  padding-left: 18px;
+}

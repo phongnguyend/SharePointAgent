@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Image as ImageIcon, Play, RotateCcw, Square, Upload } from 'lucide-react'
 import { evaluateImage, type ImageEvaluation, type ImageOperation } from '../api/imagePlaygroundClient'
 import { CopyButton, ErrorBanner } from '../components/ui'
@@ -7,8 +7,12 @@ const formats = {
   describe: ['.png', '.jpg', '.jpeg', '.webp', '.gif'],
   extract: ['.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff'],
 }
+const clipboardExtensions: Record<string, string> = {
+  'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/gif': '.gif',
+  'image/bmp': '.bmp', 'image/tiff': '.tiff',
+}
 
-export default function ImagePlaygroundPage({ operation }: { operation: ImageOperation }) {
+export default function ImagePlaygroundPage({ operation, active = true }: { operation: ImageOperation; active?: boolean }) {
   const [file, setFile] = useState<File | null>(null)
   const [url, setUrl] = useState<string | null>(null)
   const [previewFailed, setPreviewFailed] = useState(false)
@@ -32,7 +36,7 @@ export default function ImagePlaygroundPage({ operation }: { operation: ImageOpe
     setUrl(objectUrl)
     return () => URL.revokeObjectURL(objectUrl)
   }, [file])
-  const select = (files: FileList | null) => {
+  const select = useCallback((files: FileList | File[] | null) => {
     if (running || !files?.length) {
       return
     }
@@ -43,7 +47,32 @@ export default function ImagePlaygroundPage({ operation }: { operation: ImageOpe
     setFile(files[0])
     setResult(null)
     setError('')
-  }
+  }, [operation, running])
+  useEffect(() => {
+    if (!active) {
+      return
+    }
+    const paste = (event: ClipboardEvent) => {
+      if (running || event.defaultPrevented || document.querySelector('dialog[open]') ||
+        (event.target instanceof Element && event.target.closest('input, textarea, [contenteditable="true"]'))) {
+        return
+      }
+      const images = Array.from(event.clipboardData?.files ?? []).filter(image => image.type.startsWith('image/'))
+      if (images.length === 0) {
+        return
+      }
+      event.preventDefault()
+      select(images.map(image => {
+        const extension = clipboardExtensions[image.type]
+        if (extension && !/\.[a-z0-9]+$/i.test(image.name)) {
+          return new File([image], `${image.name || 'pasted-image'}${extension}`, { type: image.type, lastModified: image.lastModified })
+        }
+        return image
+      }))
+    }
+    document.addEventListener('paste', paste)
+    return () => document.removeEventListener('paste', paste)
+  }, [active, running, select])
   const run = async () => {
     if (!file || controller.current) {
       return
@@ -95,7 +124,7 @@ export default function ImagePlaygroundPage({ operation }: { operation: ImageOpe
             select(event.target.files)
             event.target.value = ''
           }} />
-          <div className={`image-playground-drop${dragging ? ' is-dragging' : ''}`} aria-busy={running}
+          <div className={`image-playground-drop${dragging ? ' is-dragging' : ''}`} aria-busy={running} tabIndex={0} aria-label="Image upload area. Paste an image with Ctrl+V or Command+V."
             onDragEnter={event => {
               if (event.dataTransfer.types.includes('Files')) {
                 event.preventDefault()
@@ -118,7 +147,8 @@ export default function ImagePlaygroundPage({ operation }: { operation: ImageOpe
               select(event.dataTransfer.files)
             }}>
             {url && !previewFailed ? <img src={url} alt={file?.name ?? 'Selected image'} onError={() => setPreviewFailed(true)} /> : <ImageIcon size={36} aria-hidden="true" />}
-            <p>{dragging ? 'Drop image here' : file ? file.name : 'Drag an image here or select a file'}</p>
+            <p>{dragging ? 'Drop image here' : file ? file.name : 'Drop an image, paste from clipboard, or select a file'}</p>
+            <small className="hint">Paste an image with Ctrl+V or Command+V.</small>
             {previewFailed ? <p className="hint">Browser preview is unavailable for this image. You can still submit it.</p> : null}
             <small className="hint">{formats[operation].join(', ')} · Maximum 10 MB</small>
           </div>

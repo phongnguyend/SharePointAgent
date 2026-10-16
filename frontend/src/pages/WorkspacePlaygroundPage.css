@@ -1,4 +1,10 @@
 .workspace-playground-controls { border: 0; padding: 0; margin: 0; min-width: 0; }
+.workspace-playground > .card-head { flex-wrap: wrap; gap: .5rem; }
+.workspace-playground-status { margin-left: auto; font-size: .75rem; }
+.workspace-playground-intro { font-size: .8rem; line-height: 1.5; }
+.workspace-playground-intro p { margin: 0; }
+.workspace-playground-intro p + p { margin-top: .25rem; }
+.workspace-playground > .card-body { gap: 12px; }
 .workspace-playground-controls > .row { margin-bottom: 1rem; }
 .workspace-playground-layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 1.25rem; align-items: start; }
 .workspace-instance-list { min-width: 0; padding: 0; overflow: hidden; }

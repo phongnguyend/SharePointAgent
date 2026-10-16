@@ -1,0 +1,16 @@
+/* A single-hue proportion bar inside a table row: anchored to the row's baseline edge, rounded only
+   at the data end, 2px of surface between it and the track. */
+.bar-track {
+  width: 100%;
+  min-width: 90px;
+  height: 8px;
+  background: var(--surface-2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 0 4px 4px 0;
+}

@@ -1,0 +1,10 @@
+.source-code { color: var(--text-primary); background: var(--surface-1); tab-size: 4; }
+.source-code code { font: inherit; background: none; padding: 0; }
+.source-code .hljs-keyword, .source-code .hljs-selector-tag, .source-code .hljs-literal { color: var(--file-pdf); }
+.source-code .hljs-title, .source-code .hljs-section, .source-code .hljs-attr, .source-code .hljs-name { color: var(--accent-text); }
+.source-code .hljs-string, .source-code .hljs-regexp, .source-code .hljs-addition { color: var(--good); }
+.source-code .hljs-number, .source-code .hljs-symbol, .source-code .hljs-variable, .source-code .hljs-built_in { color: var(--file-slide); }
+.source-code .hljs-comment, .source-code .hljs-quote, .source-code .hljs-meta { color: var(--text-secondary); }
+.source-code .hljs-section, .source-code .hljs-strong { font-weight: 700; }
+.source-code .hljs-emphasis { font-style: italic; }
+.source-code .hljs-link { color: var(--accent-text); text-decoration: underline; }

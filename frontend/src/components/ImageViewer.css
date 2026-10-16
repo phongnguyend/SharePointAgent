@@ -1,0 +1,11 @@
+.image-preview-content {
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+.image-preview-content > img {
+  display: block;
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+}

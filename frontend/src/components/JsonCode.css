@@ -1,0 +1,63 @@
+.json-editor {
+  position: relative;
+  min-width: 0;
+  background: var(--surface-1);
+  border-radius: var(--radius-sm);
+}
+
+.json-editor textarea,
+.json-editor-highlight {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid transparent;
+  font: 13px/1.6 monospace;
+  letter-spacing: normal;
+  tab-size: 2;
+  white-space: pre;
+  overflow-wrap: normal;
+}
+
+.json-editor-highlight {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--text-primary);
+  background: transparent;
+}
+
+.json-editor textarea {
+  position: relative;
+  display: block;
+  min-height: 360px;
+  resize: vertical;
+  overflow: auto;
+  border-color: var(--border);
+  background: transparent;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  caret-color: var(--text-primary);
+}
+
+.json-editor textarea::selection {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  -webkit-text-fill-color: var(--text-primary);
+}
+
+.json-key { color: var(--accent-text); }
+.json-string { color: var(--good); }
+.json-number { color: var(--file-slide); }
+.json-literal { color: var(--file-pdf); }
+.json-punctuation { color: var(--text-secondary); }
+
+@media (forced-colors: active) {
+  .json-editor-highlight { visibility: hidden; }
+  .json-editor textarea {
+    color: CanvasText;
+    -webkit-text-fill-color: CanvasText;
+  }
+}
