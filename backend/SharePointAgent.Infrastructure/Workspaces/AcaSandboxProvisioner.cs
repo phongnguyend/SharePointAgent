@@ -33,7 +33,7 @@ public interface ISandboxProvisioner
 /// Requests mirror the Sandboxes data plane as the official <c>azure-containerapps-sandbox</c> SDK sends
 /// them. The token is for <c>https://dynamicsessions.io</c>, and the identity needs SandboxGroup Data Owner.
 /// </summary>
-public sealed class AcaSandboxProvisioner(
+public sealed partial class AcaSandboxProvisioner(
     IHttpClientFactory httpClientFactory,
     TokenCredential credential,
     ISandboxRegistry registry,
@@ -335,7 +335,8 @@ public sealed class AcaSandboxProvisioner(
 
     private static string Base64Url(byte[] bytes) => Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
-    internal sealed record SandboxResource(string Id, string? State, SandboxStateDetails? StateDetails, IReadOnlyList<SandboxPortResource>? Ports);
+    internal sealed record SandboxResource(string Id, string? State, SandboxStateDetails? StateDetails, IReadOnlyList<SandboxPortResource>? Ports,
+        IReadOnlyDictionary<string, string>? Labels = null);
 
     internal sealed record SandboxStateDetails(string? StoppedReason);
 

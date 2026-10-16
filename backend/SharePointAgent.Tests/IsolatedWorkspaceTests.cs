@@ -118,7 +118,7 @@ public sealed class IsolatedWorkspaceTests : IAsyncLifetime
     public async Task TheFileBrowserKeepsItsStricterRules()
     {
         var workspace = Workspace();
-        await workspace.ManageAsync(new WorkspaceFileChange("mkdir", "Reports"), default);
+        Assert.Equal("Reports", (await workspace.ManageAsync(new WorkspaceFileChange("mkdir", "./Reports"), default)).Path);
         await workspace.ManageAsync(new WorkspaceFileChange("upload", "Reports/a.txt", Content: "a"u8.ToArray()), default);
 
         await Assert.ThrowsAsync<ArgumentException>(() => workspace.ManageAsync(new WorkspaceFileChange("mkdir", "Reports"), default));
@@ -126,7 +126,7 @@ public sealed class IsolatedWorkspaceTests : IAsyncLifetime
         await Assert.ThrowsAsync<ArgumentException>(() => workspace.ManageAsync(new WorkspaceFileChange("upload", "Reports/big.bin", Content: new byte[AgentFileSystem.MaxUploadBytes + 1]), default));
         await Assert.ThrowsAsync<ArgumentException>(() => workspace.ManageAsync(new WorkspaceFileChange("rename", "Reports/a.txt", "b.txt"), default));
         await Assert.ThrowsAsync<ArgumentException>(() => workspace.ManageAsync(new WorkspaceFileChange("move", "Reports", "Reports/inner"), default));
-        Assert.Equal("Reports/b.txt", (await workspace.ManageAsync(new WorkspaceFileChange("rename", "Reports/a.txt", "Reports/b.txt"), default)).Path);
+        Assert.Equal("Reports/b.txt", (await workspace.ManageAsync(new WorkspaceFileChange("rename", "./Reports/a.txt", "./Reports/b.txt"), default)).Path);
         Assert.Equal("Reports", (await workspace.ManageAsync(new WorkspaceFileChange("delete", "Reports"), default)).Path);
         Assert.Null(await workspace.FindAsync("Reports", default));
     }

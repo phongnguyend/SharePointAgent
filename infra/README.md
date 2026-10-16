@@ -476,6 +476,51 @@ Dynamic Sessions and sandbox provisioning always use `DefaultAzureCredential`. F
 
 Snapshot storage uses `DefaultAzureCredential` with `ServiceUri` when `Snapshots:UsedManagedIdentity=true`, or `ConnectionString` when `false`. The local settings use `UseDevelopmentStorage=true`, which requires Azurite. To use Azure Blob Storage locally instead, supply its connection string through user secrets or an environment variable.
 
+### Local workspace role assignments
+
+The infrastructure templates grant workspace roles to the API managed identity and the deploying identity. A developer signed in through `az login` needs a separate assignment if they are not that deploying identity. **Owner** on the resource group does not grant Dynamic Sessions data-plane access; without **Azure ContainerApps Session Executor**, the playground can return `Azure workspace request failed (HTTP 403)`.
+
+Run these PowerShell commands with an Azure identity allowed to assign roles. Replace `<subscription-id>` and `<resource-group-name>` with your environment's values, and update the resource names as needed. `az ad signed-in-user show` selects the current CLI user's object ID, not an application client ID.
+
+```powershell
+az login
+az account set --subscription "<subscription-id>"
+$subscriptionId = az account show --query id -o tsv
+$developerObjectId = az ad signed-in-user show --query id -o tsv
+$resourceGroup = "<resource-group-name>"
+$poolName = "sharepointagentlocalsessionshllc"
+$sandboxGroupName = "sharepointagent-local-sbx-hllchs"
+$poolScope = "/subscriptions/$subscriptionId/resourceGroups/$resourceGroup/providers/Microsoft.App/sessionPools/$poolName"
+$sandboxScope = "/subscriptions/$subscriptionId/resourceGroups/$resourceGroup/providers/Microsoft.App/sandboxGroups/$sandboxGroupName"
+
+# Dynamic Sessions: grant access only to this session pool.
+az role assignment create --assignee-object-id $developerObjectId --assignee-principal-type User --role "Azure ContainerApps Session Executor" --scope $poolScope
+
+# Sandboxes: grant access only to this sandbox group when testing sandboxes.
+az role assignment create --assignee-object-id $developerObjectId --assignee-principal-type User --role "Container Apps SandboxGroup Data Owner" --scope $sandboxScope
+```
+
+Verify the effective pool assignments and make a read-only session-list request using the configured `AgentWorkspace:DynamicSessions:PoolManagementEndpoint`:
+
+```powershell
+az role assignment list --assignee $developerObjectId --include-groups --include-inherited --scope $poolScope --query "[].{role:roleDefinitionName,scope:scope}" -o table
+$poolEndpoint = "https://sharepointagentlocalsessionshllc.nicewater-6296685e.eastus.azurecontainerapps.io"
+az rest --method post --url "$poolEndpoint/.management/listSessions?api-version=2025-02-02-preview" --resource "https://dynamicsessions.io" --query "value[].identifier" -o json
+```
+
+An empty array is a successful response when no sessions exist. Allow time for a new assignment to propagate, then refresh the playground. If the CLI succeeds but the backend still returns 403, restart the backend and check which identity `DefaultAzureCredential` selects: environment or IDE credentials can take precedence over Azure CLI credentials. Assign the role to the identity actually used by the backend.
+
+### Workspace playgrounds
+
+Global administrators can use **Administration → Playgrounds → ACA Dynamic Sessions** and **ACA Sandboxes**. Each tab keeps its own selected instance, script inputs, and results. Both use the existing `AgentWorkspace` settings and `DefaultAzureCredential`; local testing uses `az login` with Session Executor on the pool and SandboxGroup Data Owner on the sandbox group.
+
+- **ACA Dynamic Sessions:** list active sessions, create a session, select one, or stop it. The pool must run the application's SandboxHost custom container. Playground files are not snapshotted: stopping or expiry destroys them, so download anything to retain. Listing uses the [custom-container management API](https://learn.microsoft.com/en-us/azure/container-apps/sessions-custom-container#retrieve-session-information).
+- **ACA Sandboxes:** list the configured group's sandboxes, create from the configured disk image, stop (preserving disk), resume, or delete. File access and scripts require a running SandboxHost with a matching binding in `AgentWorkspace:Snapshots` storage. Unbound sandboxes remain visible for lifecycle management. Shared-endpoint mode is not used by this playground.
+- **Files:** browse directories; create folders and text files; edit UTF-8 text up to 1 MB; upload files (including ZIPs) up to 5 MB each; download; rename, move, copy, and delete; ZIP selected files/folders and unzip to a destination. Archive operations retain the workspace's traversal, reserved-name, extraction-size, and overwrite protections.
+- **Scripts and terminals:** **Open terminal here** opens a popup with the file browser's current folder captured as its working directory. Select one supported script file (`.py`, `.js`, `.mjs`, `.cjs`, `.ps1`, `.sh`, or `.bash`) to enable **Execute script**; its popup detects the language and asks for parameters as a JSON array of strings before execution. Both popups support a 1–220 second timeout and show exit code, timeout, stdout, and stderr (up to 100,000 characters per output stream). Each run starts a new process; shell variables and `cd` changes do not persist. Ctrl+Enter (Command+Enter on macOS) runs inline commands. Closing or cancelling stops waiting; remote work may still finish. Refresh files after execution to see changes.
+
+The list includes chat-owned instances as well as playground-created instances. Operations affect the selected instance immediately. Stop/delete and file deletion require confirmation; credentials are kept server-side and never included in list or execution responses. Opening an expired session returns an error instead of intentionally recreating it. The pool can still expire a session between its metadata check and a file request. Refresh to recover from a timeout before retrying a mutation.
+
 ### Chat dictation
 
 Set `deployTranscription=true` in the parameter file to deploy `gpt-4o-transcribe` (GlobalStandard, `transcriptionDeploymentCapacity`, default 10) on the Azure OpenAI account. It is `false` in the supplied files because the model is not offered in every region; check model availability for the account's region first. The deployment name is output as `transcriptionDeploymentName` and set as `AzureOpenAI__TranscriptionDeployment` on the API by provisioning and by **Release services**. When the flag is false the setting is empty and the chat microphone is hidden. The existing API identity role on the account covers transcription.

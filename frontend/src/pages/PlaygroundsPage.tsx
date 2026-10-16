@@ -4,6 +4,7 @@ import { BrainCircuit, GitBranch, Image, ScanText, FileDown, ListTree, FileType,
 import DecisionPlaygroundPage from './DecisionPlaygroundPage'
 import ImagePlaygroundPage from './ImagePlaygroundPage'
 import DocumentPlaygroundPage from './DocumentPlaygroundPage'
+import WorkspacePlaygroundPage from './WorkspacePlaygroundPage'
 
 const providers = [
   { key: 'jev', label: 'Jev', Icon: BrainCircuit },
@@ -16,6 +17,8 @@ const providers = [
   { key: 'docx', label: 'DOCX', Icon: FileText },
   { key: 'xlsx', label: 'XLSX', Icon: Sheet },
   { key: 'pptx', label: 'PPTX', Icon: Presentation },
+  { key: 'dynamic-sessions', label: 'ACA Dynamic Sessions', Icon: ListTree },
+  { key: 'sandboxes', label: 'ACA Sandboxes', Icon: FileType },
 ] as const
 
 export default function PlaygroundsPage() {
@@ -43,7 +46,9 @@ export default function PlaygroundsPage() {
     {/* Keep all playgrounds mounted so switching preserves inputs, results, and pending requests. */}
     {providers.map(({ key }) => <div key={key} role="tabpanel" id={`${id}-${key}-panel`}
       aria-labelledby={`${id}-${key}`} hidden={selected !== key}>
-      {key === 'image-description' || key === 'image-text'
+      {key === 'dynamic-sessions' || key === 'sandboxes'
+        ? <WorkspacePlaygroundPage provider={key} active={selected === key} />
+        : key === 'image-description' || key === 'image-text'
         ? <ImagePlaygroundPage operation={key === 'image-description' ? 'describe' : 'extract'} />
         : key !== 'jev' && key !== 'microsoft-decision'
           ? <DocumentPlaygroundPage provider={key} />

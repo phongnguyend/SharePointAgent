@@ -152,6 +152,12 @@ public sealed partial class AgentFileSystem
     /// </summary>
     public static string ValidateManagedPath(string? path)
     {
+        // Accept the current-directory prefix without relaxing traversal or root protections.
+        while (path?.StartsWith("./", StringComparison.Ordinal) == true)
+        {
+            path = path[2..];
+        }
+
         if (string.IsNullOrWhiteSpace(path) || System.IO.Path.IsPathRooted(path)
             || path.Split('/').Any(part => string.IsNullOrWhiteSpace(part) || part is "." or ".."
                 || part != part.Trim() || part.EndsWith('.') || part.Any(c => char.IsControl(c) || "\\:*?\"<>|".Contains(c))))

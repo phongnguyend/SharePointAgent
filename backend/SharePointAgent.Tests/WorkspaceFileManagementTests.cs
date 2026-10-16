@@ -39,6 +39,23 @@ public sealed class WorkspaceFileManagementTests : IDisposable
     }
 
     [Theory]
+    [InlineData("./test")]
+    [InlineData("././test")]
+    public async Task ManagementAcceptsCurrentDirectoryPrefix(string path)
+    {
+        var result = await files.ManageAsync(new("mkdir", path), default);
+        Assert.Equal("test", result.Path);
+        Assert.True(Directory.Exists(Path.Combine(root, "test")));
+        await files.ManageAsync(new("copy", path, "./copy"), default);
+        Assert.True(Directory.Exists(Path.Combine(root, "copy")));
+    }
+
+    [Theory]
+    [InlineData("./")]
+    [InlineData("./.")]
+    [InlineData("./../escape")]
+    [InlineData(".//outside")]
+    [InlineData("./C:/outside")]
     [InlineData("../escape")]
     [InlineData(".")]
     [InlineData("/")]
