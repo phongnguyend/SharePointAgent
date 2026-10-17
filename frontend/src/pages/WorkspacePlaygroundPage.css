@@ -29,6 +29,16 @@
 .workspace-path input { flex: 1; min-width: 100px; }
 .workspace-file-toolbar { gap: .4rem; padding: .75rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); }
 .workspace-file-toolbar button { font-size: .8rem; }
+.workspace-playground-dropzone { position: relative; min-height: 200px; }
+.workspace-playground-drop-overlay {
+  position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .6rem;
+  padding: 1.25rem; border: 2px dashed var(--accent, #2563eb); border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-1) 96%, var(--accent, #2563eb));
+  color: var(--text-primary); text-align: center; overflow-wrap: anywhere;
+}
+.workspace-playground-drop-overlay > svg { color: var(--accent, #2563eb); }
+.workspace-playground-drop-overlay small { color: var(--text-secondary); }
 .workspace-file-table { overflow: auto; max-height: 400px; }
 .workspace-file-table table { width: 100%; min-width: 540px; }
 .workspace-file-table td { overflow-wrap: anywhere; }
@@ -56,3 +66,5 @@
 .workspace-execution-dialog label { display: flex; flex-direction: column; gap: .4rem; }
 .workspace-execution-dialog input { width: 100%; min-height: 36px; box-sizing: border-box; padding: .5rem .65rem; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-1); color: var(--text-primary); font: inherit; }
 .workspace-execution-dialog .workspace-code { min-height: 130px; }
+.workspace-orphan { align-self: flex-start; padding: 2px 7px; border: 1px solid var(--border-strong); border-radius: 999px; color: var(--text-secondary); font-size: 11px; }
+.workspace-orphan-note { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }

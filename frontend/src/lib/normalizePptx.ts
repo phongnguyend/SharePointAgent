@@ -15,7 +15,7 @@ export async function normalizePptxXml(bytes: ArrayBuffer, signal: AbortSignal):
 
   let declaredTotal = 0
   for (const entry of entries) {
-    // JSZip keeps the ZIP directory's uncompressed sizes here. Check them before inflating any XML;
+    // JSZip keeps the Zip directory's uncompressed sizes here. Check them before inflating any XML;
     // the renderer applies the same limits when it parses the normalized archive.
     const declaredSize = (entry as unknown as { _data?: { uncompressedSize?: number } })._data?.uncompressedSize
     if (declaredSize !== undefined) {

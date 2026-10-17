@@ -49,7 +49,7 @@ Each format project owns its options: `PdfParserOptions`, `DocxParserOptions`,
 `PptxParserOptions`, and `XlsxParserOptions`. Replace former `ParserOptions`
 constructor arguments with the matching type. Common limit defaults are unchanged.
 Only PDF options expose `PdfReadingOrder` (the enum also lives in the PDF project);
-only XLSX options expose `MarkdownRowsPerRegion`. ZIP limits apply only to Office formats.
+only XLSX options expose `MarkdownRowsPerRegion`. Zip limits apply only to Office formats.
 The demo binds separate `PdfParser`, `DocxParser`, `PptxParser`, and `XlsxParser`
 configuration sections; migrate settings from the former shared `Parser` section.
 SDK packages used by shared helpers/services are referenced by Shared and flow transitively.
@@ -174,8 +174,8 @@ Omitting the optional processor produces Markdown using existing image captions/
   wide worksheets cannot produce blank rows in split tables. Formulas are shown when
   their cached values are blank, so retained formula rows have visible content.
   Images follow their corresponding row region with their cell reference retained.
-- Input bytes, expanded ZIP bytes/entry count, table cells, extracted image count and total image
-  bytes have configurable limits in each parser's options. ZIP contents are validated before SDK parsing.
+- Input bytes, expanded Zip bytes/entry count, table cells, extracted image count and total image
+  bytes have configurable limits in each parser's options. Zip contents are validated before SDK parsing.
   Image resizing and decorative-image detection are not implemented yet; the image provider may
   reject unsupported or oversized images, resulting in per-operation warnings.
 

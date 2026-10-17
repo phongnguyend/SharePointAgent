@@ -1,7 +1,13 @@
 namespace SharePointAgent.Application;
 
 public sealed record WorkspacePlaygroundInstance(
-    string Id, string State, bool CanAccessFiles, DateTimeOffset? CreatedAt = null, DateTimeOffset? ExpiresAt = null);
+    string Id, string State, bool CanAccessFiles, DateTimeOffset? CreatedAt = null, DateTimeOffset? ExpiresAt = null,
+    bool? IsOrphan = null);
+
+public interface IWorkspaceInstanceLinks
+{
+    Task<IReadOnlySet<string>> FindLinkedAsync(string provider, string[] ids, CancellationToken cancellationToken);
+}
 
 public sealed record WorkspacePlaygroundListing(
     bool Configured, string? Message, IReadOnlyList<WorkspacePlaygroundInstance> Instances, bool Truncated = false);

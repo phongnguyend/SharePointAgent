@@ -73,6 +73,7 @@ import type {
 import { CopyButton, Empty, ErrorBanner, Field, LoadingBar, Modal } from '../components/ui'
 import { FileTypeIcon } from '../components/FileTypeIcon'
 import { useWorkspaceFileManagement } from '../components/WorkspaceFileManagement'
+import { WorkspaceFileTools } from '../components/WorkspaceFileTools'
 import { AttachmentDownload } from '../components/AttachmentDownload'
 import { MonthlyTokenUsage } from '../components/MonthlyTokenUsage'
 import { DictationButton, dictationSupported } from '../components/DictationButton'
@@ -793,7 +794,7 @@ export default function ChatPage() {
           <div id="conversation-workspace-panel" role="tabpanel" aria-labelledby="conversation-workspace-tab"
             className="conversation-workspace-panel" hidden={conversationTab !== 'workspace'}>
             {conversationTab === 'workspace' && (activeId ? <>
-              <Modal open={workspaceDetailsOpen} title="Workspace details" icon={<Folder size={16} />}
+              <Modal open={workspaceDetailsOpen} title="Workspace settings" icon={<Folder size={16} />}
                 onClose={() => setWorkspaceDetailsOpen(false)}
                 footer={<>
                   <button onClick={() => {
@@ -825,7 +826,7 @@ export default function ChatPage() {
                 <div className="row" style={{ justifyContent: 'space-between' }}>
                   <h3><FolderOpen size={16} />Workspace files</h3>
                   <div className="row" style={{ gap: 6 }}>
-                    <button onClick={() => setWorkspaceDetailsOpen(true)} aria-haspopup="dialog"><Folder size={14} />Workspace details</button>
+                    <button onClick={() => setWorkspaceDetailsOpen(true)} aria-haspopup="dialog"><Folder size={14} />Workspace settings</button>
                     <button onClick={workspaceFiles.reload} disabled={workspaceFiles.loading}><RefreshCw size={14} />Refresh files</button>
                   </div>
                 </div>
@@ -833,6 +834,7 @@ export default function ChatPage() {
                   key={activeId ?? 'none'}
                   conversationId={activeId ?? ''}
                   writable={!readOnly && !!activeId}
+                  canExecute={session.data?.conversationId === activeId && (session.data.value.mode === 'Foundry' || session.data.value.workspaceMode === 'DynamicSessions' || session.data.value.workspaceMode === 'Sandboxes')}
                   onReload={workspaceFiles.reload}
                   path={filesPath}
                   listing={workspaceFiles.data?.conversationId === activeId ? workspaceFiles.data.value : null}
@@ -1141,6 +1143,7 @@ function breadcrumbs(path: string): { name: string; path: string }[] {
 export function WorkspaceFiles({
   conversationId,
   writable,
+  canExecute = false,
   onReload,
   path,
   listing,
@@ -1154,6 +1157,7 @@ export function WorkspaceFiles({
 }: {
   conversationId: string
   writable: boolean
+  canExecute?: boolean
   onReload: () => void
   path: string
   listing: { path: string; entries: FileSystemEntry[]; truncated: boolean; sandboxStarted: boolean; startsOnFirstChange?: boolean } | null
@@ -1168,6 +1172,12 @@ export function WorkspaceFiles({
   const currentPath = !loading && !error && listing ? listing.path : path
   const [address, setAddress] = useState(currentPath)
   const [editingAddress, setEditingAddress] = useState(false)
+  const [selectedFiles, setSelectedFiles] = useState<string[]>([])
+  const [editFileRequest, setEditFileRequest] = useState<{ entry: FileSystemEntry; operation: 'edit' | 'unzip' | 'execute' } | null>(null)
+  useEffect(() => {
+    setSelectedFiles([])
+    setEditFileRequest(null)
+  }, [currentPath, listing])
   // An environment the first upload or new folder will start can be managed already; one that only a turn
   // starts, as in Foundry, cannot.
   const ready = !!listing && (listing.sandboxStarted || !!listing.startsOnFirstChange)
@@ -1219,7 +1229,13 @@ export function WorkspaceFiles({
   return (
     <div className={`workspace-files-explorer${management.dragging ? ' workspace-files-dragging' : ''}`} {...management.dropHandlers}>
       {management.dragging && <div className="workspace-files-drop-overlay" role="status"><Upload size={24} /><strong>Drop files to upload</strong><span>Into {currentPath === '.' ? 'the working directory' : currentPath}</span></div>}
-      {management.toolbar}
+      {writable && <WorkspaceFileTools key={`${conversationId}:${currentPath}`} conversationId={conversationId} path={currentPath}
+        leadingActions={management.toolbarActions}
+        editRequest={editFileRequest}
+        entries={listing?.entries ?? []} selected={selectedFiles} setSelected={setSelectedFiles}
+        enabled={writable && ready && !loading && !error && !management.busy} canExecute={canExecute}
+        reload={onReload} />}
+      {management.toolbarStatus}
       {listing && !listing.sandboxStarted ? (
         <span className="hint">Nothing here yet. Uploading a file or creating a folder starts this workspace's environment.</span>
       ) : null}
@@ -1340,7 +1356,11 @@ export function WorkspaceFiles({
                 return (
                   <div className="workspace-files-row" role="row" key={entry.path}>
                     <button type="button" className="workspace-files-open" onClick={() => onOpen(entry.path)}>{cells}</button>
-                    <div className="workspace-files-actions">{management.actions(entry)}</div>
+                    <div className="workspace-files-actions">
+                      {writable && <input type="checkbox" aria-label={`Select ${name}`} checked={selectedFiles.includes(entry.path)}
+                        onChange={event => setSelectedFiles(current => event.target.checked ? [...current, entry.path] : current.filter(path => path !== entry.path))} />}
+                      {management.actions(entry, operation => setEditFileRequest({ entry, operation }), canExecute)}
+                    </div>
                   </div>
                 )
               }
@@ -1360,7 +1380,9 @@ export function WorkspaceFiles({
                     cells
                   )}
                   <div className="workspace-files-actions">
-                    {management.actions(entry)}
+                    {writable && <input type="checkbox" aria-label={`Select ${name}`} checked={selectedFiles.includes(entry.path)}
+                      onChange={event => setSelectedFiles(current => event.target.checked ? [...current, entry.path] : current.filter(path => path !== entry.path))} />}
+                    {management.actions(entry, operation => setEditFileRequest({ entry, operation }), canExecute)}
                     {isSandboxPreviewable(name) ? (
                       <button
                         type="button"

@@ -38,7 +38,7 @@ Each concrete parser accepts its own optional options record, defined in its
 format project: `PdfParserOptions`, `DocxParserOptions`, `PptxParserOptions`,
 or `XlsxParserOptions`. Do not use a shared options class or options base class.
 All four expose input size, image count/bytes, and table-cell limits. Office
-options additionally expose ZIP entry/expanded-byte limits. Only PDF options
+options additionally expose Zip entry/expanded-byte limits. Only PDF options
 expose `PdfReadingOrder`; only XLSX options expose `MarkdownRowsPerRegion`.
 Each type validates its own settings. Shared helpers receive primitive limit
 values, keeping Shared independent of format-specific option types.
@@ -722,7 +722,7 @@ All parsers must:
 -   reject unsupported/corrupt files with clear exceptions;
 -   enforce configurable maximum input size;
 -   limit extracted image count and total image bytes;
--   protect against ZIP bombs in OpenXML packages;
+-   protect against Zip bombs in OpenXML packages;
 -   avoid unbounded allocation;
 -   never execute macros, formulas, embedded objects or external links;
 -   not fetch external resources referenced by a document;

@@ -96,7 +96,7 @@ export default function AgentSkillHistory({ skill, scope, readOnly, onClose, onI
           <div className="card-head"><h2>Version {version.version} {version.isActive ? <span className="badge">Active</span> : null}</h2>
             <div className="row">
               <button disabled={busy} title="Browse version files" aria-label={`Inspect version ${version.version}`} onClick={() => onInspect(version.version)}><Eye size={14} /></button>
-              <button disabled={busy} title="Download version ZIP" aria-label={`Download version ${version.version}`} onClick={() => void download(version.version)}><Download size={14} /></button>
+              <button disabled={busy} title="Download version Zip" aria-label={`Download version ${version.version}`} onClick={() => void download(version.version)}><Download size={14} /></button>
               {canManage && !version.isActive ? <button disabled={busy} title="Make this version active" aria-label={`Make version ${version.version} active`} onClick={() => {
                 setError(null)
                 setPromoting(version)

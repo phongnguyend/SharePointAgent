@@ -4,6 +4,13 @@ using SharePointAgent.Application;
 using SharePointAgent.Domain;
 using SharePointAgent.Infrastructure;
 using Xunit;
+using System.Net;
+using System.Net.Http.Json;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using NSubstitute;
 
 namespace SharePointAgent.Tests;
 
@@ -36,6 +43,53 @@ public sealed class WorkspaceFileManagementTests : IDisposable
         await browser.ManageAsync(id, new("delete", "Folder/renamed.bin"), default);
         await browser.ManageAsync(id, new("delete", "Folder"), default);
         Assert.Empty(files.List(".", true).Entries);
+    }
+
+    [Fact]
+    public async Task WorkspaceOperationsCreateEditArchiveAndRejectLocalExecution()
+    {
+        var id = Guid.NewGuid();
+        var chats = Substitute.For<IChatRepository>();
+        chats.GetConversationAsync(id, Arg.Any<CancellationToken>()).Returns(
+            new ChatConversation(id, "Test", null, null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, 0, 0, 0, 0));
+        var modes = Substitute.For<IChatAgentModeSelector>();
+        modes.ResolveAsync(id, Arg.Any<CancellationToken>()).Returns(new ChatAgentModeChoice(ChatAgentExecutionMode.Local, true));
+        var provider = Substitute.For<IAgentWorkspaceProvider>();
+        provider.GetAsync(id, Arg.Any<CancellationToken>()).Returns((IAgentWorkspace)files);
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseTestServer();
+        builder.Services.AddSingleton(chats);
+        builder.Services.AddSingleton(modes);
+        builder.Services.AddSingleton(provider);
+        builder.Services.AddSingleton(Substitute.For<IFoundrySessionRepository>());
+        builder.Services.AddSingleton(Substitute.For<IAgentFileBrowser>());
+        builder.Services.Configure<ChatAgentHostingOptions>(_ => { });
+        await using var app = builder.Build();
+        app.MapWorkspaceFileEndpoints();
+        await app.StartAsync();
+        using var http = app.GetTestClient();
+        var url = $"/api/chat/conversations/{id}/files/operations";
+        (await http.PostAsJsonAsync(url, new FoundryWorkspaceRequest("text", Path: "test.txt", Content: "before"))).EnsureSuccessStatusCode();
+        (await http.PostAsJsonAsync(url, new FoundryWorkspaceRequest("text", Path: "test.txt", Content: "after", Overwrite: true))).EnsureSuccessStatusCode();
+        (await http.PostAsJsonAsync(url, new FoundryWorkspaceRequest("zip", Destination: "files.zip", Paths: ["test.txt"]))).EnsureSuccessStatusCode();
+        (await http.PostAsJsonAsync(url, new FoundryWorkspaceRequest("unzip", Destination: "expanded", Paths: ["files.zip"]))).EnsureSuccessStatusCode();
+        Assert.Equal("after", await File.ReadAllTextAsync(Path.Combine(root, "expanded", "test.txt")));
+        var execution = new WorkspaceExecution("python", "print('test')", null, [], ".", 60);
+        Assert.Equal(HttpStatusCode.Conflict, (await http.PostAsJsonAsync(url, new FoundryWorkspaceRequest("execute", Execution: execution))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await http.PostAsJsonAsync(url, new FoundryWorkspaceRequest("text", Path: "../escape", Content: "bad"))).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await http.PostAsJsonAsync($"/api/chat/conversations/{Guid.NewGuid()}/files/operations", new FoundryWorkspaceRequest("text", Path: "test"))).StatusCode);
+        var isolated = Substitute.For<IAgentWorkspace>();
+        isolated.IsIsolated.Returns(true);
+        isolated.ExecuteAsync(Arg.Any<WorkspaceExecution>(), Arg.Any<CancellationToken>())
+            .Returns(new WorkspaceExecutionResult(0, false, "test", ""));
+        provider.GetAsync(id, Arg.Any<CancellationToken>()).Returns(isolated);
+        var result = await http.PostAsJsonAsync(url, new FoundryWorkspaceRequest("execute", Execution: execution));
+        result.EnsureSuccessStatusCode();
+        Assert.Equal("test", (await result.Content.ReadFromJsonAsync<WorkspaceExecutionResult>())!.Stdout);
+        await isolated.Received(1).SaveAsync(Arg.Any<CancellationToken>());
+        var invalidExecution = execution with { TimeoutSeconds = 221 };
+        Assert.Equal(HttpStatusCode.BadRequest, (await http.PostAsJsonAsync(url, new FoundryWorkspaceRequest("execute", Execution: invalidExecution))).StatusCode);
+        await isolated.Received(1).ExecuteAsync(Arg.Any<WorkspaceExecution>(), Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -127,6 +181,7 @@ public sealed class WorkspaceFileManagementTests : IDisposable
     public void MutationsUseConversationOwnershipAndRejectReadOnlyRoles(string role, bool allowed, bool ownership)
     {
         Assert.Equal(allowed, AppAccess.Allows([role], "POST", "/api/chat/conversations/123/files/manage"));
+        Assert.Equal(allowed, AppAccess.Allows([role], "POST", "/api/chat/conversations/123/files/operations"));
         Assert.Equal(ownership, AppAccess.RequiresOwnership([role], "POST"));
     }
 

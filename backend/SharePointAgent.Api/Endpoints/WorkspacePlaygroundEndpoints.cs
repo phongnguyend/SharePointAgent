@@ -59,11 +59,18 @@ public static class WorkspacePlaygroundEndpoints
             }
         });
 
-        group.MapGet("/instances", async (string provider, IWorkspacePlayground playground, CancellationToken ct) =>
-            Results.Ok(await playground.ListAsync(provider, ct)));
+        group.MapGet("/instances", async (string provider, IWorkspacePlayground playground, IWorkspaceInstanceLinks links, CancellationToken ct) =>
+        {
+            var listing = await playground.ListAsync(provider, ct);
+            var linked = await links.FindLinkedAsync(provider, listing.Instances.Select(instance => instance.Id).ToArray(), ct);
+            return Results.Ok(listing with
+            {
+                Instances = listing.Instances.Select(instance => instance with { IsOrphan = !linked.Contains(instance.Id) }).ToArray()
+            });
+        });
 
         group.MapPost("/instances", async (string provider, IWorkspacePlayground playground, CancellationToken ct) =>
-            Results.Ok(await playground.CreateAsync(provider, ct)));
+            Results.Ok((await playground.CreateAsync(provider, ct)) with { IsOrphan = true }));
 
         group.MapPost("/instances/{id}/actions/{action}", async (string provider, string id, string action,
             IWorkspacePlayground playground, CancellationToken ct) =>
@@ -113,7 +120,7 @@ public static class WorkspacePlaygroundEndpoints
                 archive.Paths.Any(string.IsNullOrWhiteSpace) || string.IsNullOrWhiteSpace(archive.Destination) ||
                 archive.Operation is not ("zip" or "unzip") || (archive.Operation == "unzip" && archive.Paths.Count != 1))
             {
-                return Results.BadRequest(new { error = "Choose 1–100 paths to zip, or one ZIP file to extract, and a destination path." });
+                return Results.BadRequest(new { error = "Choose 1–100 paths to zip, or one Zip file to extract, and a destination path." });
             }
             var workspace = await playground.OpenAsync(provider, id, ct);
             var result = archive.Operation == "zip"

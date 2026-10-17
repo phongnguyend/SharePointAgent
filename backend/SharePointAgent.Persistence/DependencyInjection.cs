@@ -49,6 +49,7 @@ public static class DependencyInjection
         services.AddSingleton<IDeltaStateRepository, DeltaStateRepository>();
         services.AddSingleton<IFileMetadataRepository, FileMetadataRepository>();
         services.AddSingleton<IFoundrySessionRepository, FoundrySessionRepository>();
+        services.AddSingleton<IWorkspaceInstanceLinks, WorkspaceInstanceLinks>();
         services.AddSingleton<IIndexStateRepository, IndexStateRepository>();
         services.AddSingleton<IWebhookSubscriptionRepository, WebhookSubscriptionRepository>();
 

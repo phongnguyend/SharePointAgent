@@ -231,6 +231,10 @@ public sealed class WorkspacePlaygroundTests
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
         builder.Services.AddSingleton(playground);
+        var links = Substitute.For<IWorkspaceInstanceLinks>();
+        links.FindLinkedAsync(Arg.Any<string>(), Arg.Any<string[]>(), Arg.Any<CancellationToken>())
+            .Returns(new HashSet<string>());
+        builder.Services.AddSingleton(links);
         var app = builder.Build();
         app.Use((context, next) =>
         {

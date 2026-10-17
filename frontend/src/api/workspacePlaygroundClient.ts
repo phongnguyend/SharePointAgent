@@ -1,7 +1,7 @@
 import { downloadBlob, query, request } from './http'
 
 export type WorkspacePlaygroundProvider = 'dynamic-sessions' | 'sandboxes' | 'foundry-sessions'
-export type PlaygroundInstance = { id: string; state: string; canAccessFiles: boolean; createdAt: string | null; expiresAt: string | null }
+export type PlaygroundInstance = { id: string; state: string; canAccessFiles: boolean; createdAt: string | null; expiresAt: string | null; isOrphan: boolean | null }
 export type PlaygroundListing = { configured: boolean; message: string | null; instances: PlaygroundInstance[]; truncated: boolean }
 export type PlaygroundFile = { path: string; isDirectory: boolean; sizeBytes: number | null; modifiedUtc: string }
 export type PlaygroundFiles = { path: string; entries: PlaygroundFile[]; truncated: boolean }

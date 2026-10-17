@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Copy, Play, Square, Terminal } from 'lucide-react'
-import { executePlaygroundScript, type PlaygroundExecutionResult, type WorkspacePlaygroundProvider } from '../api/workspacePlaygroundClient'
+import { executePlaygroundScript, type PlaygroundExecution, type PlaygroundExecutionResult, type WorkspacePlaygroundProvider } from '../api/workspacePlaygroundClient'
 import { Modal } from '../components/Modal'
 import { ErrorBanner } from '../components/ui'
 import { useCopy } from '../lib/useCopy'
@@ -9,6 +9,7 @@ export type OpenTerminalRequest = { id: string; instanceId: string; folder: stri
 type Props = {
   provider: WorkspacePlaygroundProvider; instanceId: string; enabled: boolean
   request: OpenTerminalRequest; onClose: () => void
+  executeRequest?: (execution: PlaygroundExecution, signal: AbortSignal) => Promise<PlaygroundExecutionResult>
 }
 
 export const scriptLanguage = (path: string) => {
@@ -17,7 +18,7 @@ export const scriptLanguage = (path: string) => {
 }
 const boundedOutput = (text: string) => text.length > 100_000 ? `${text.slice(0, 100_000)}\n[Display truncated at 100,000 characters]` : text
 
-export default function WorkspaceExecutionPanel({ provider, instanceId, enabled, request, onClose }: Props) {
+export default function WorkspaceExecutionPanel({ provider, instanceId, enabled, request, onClose, executeRequest }: Props) {
   const copy = useCopy()
   const [language, setLanguage] = useState(request.scriptPath ? scriptLanguage(request.scriptPath) ?? 'bash' : 'bash')
   const [code, setCode] = useState('')
@@ -56,7 +57,8 @@ export default function WorkspaceExecutionPanel({ provider, instanceId, enabled,
     setError('')
     setResult(null)
     try {
-      const response = await executePlaygroundScript(provider, instanceId, {
+      const executeCommand = executeRequest ?? ((execution: PlaygroundExecution, signal: AbortSignal) => executePlaygroundScript(provider, instanceId, execution, signal))
+      const response = await executeCommand({
         language, code: request.scriptPath ? null : code, scriptPath: request.scriptPath ?? null,
         arguments: parameters as string[], workingDirectory: request.folder || '.', timeoutSeconds: timeout,
       }, controller.signal)

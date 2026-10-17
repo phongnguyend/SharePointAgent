@@ -1,6 +1,7 @@
 import { useToast } from './Toast'
 import { useEffect, useId, useRef, useState, type DragEvent } from 'react'
-import { Copy, FolderPlus, MoreHorizontal, Move, Pencil, Trash2, Upload, X, Folder, ArrowUp, ChevronRight } from 'lucide-react'
+import { ArchiveRestore, Play, Copy, FolderPlus, MoreHorizontal, Move, Pencil, Trash2, Upload, X, Folder, ArrowUp, ChevronRight } from 'lucide-react'
+import { scriptLanguage } from '../pages/WorkspaceExecutionPanel'
 import { listConversationFiles, manageWorkspaceFile, uploadWorkspaceFile, type WorkspaceFileOperation } from '../api/client'
 import type { FileSystemEntry } from '../api/types'
 import { ErrorBanner, Modal } from './ui'
@@ -164,20 +165,20 @@ export function useWorkspaceFileManagement(conversationId: string, path: string,
         }
       },
     },
-    toolbar: <>
-      {enabled && <div className="workspace-files-management-toolbar">
+    toolbarActions: enabled ? <>
         <button disabled={busy} onClick={() => open('mkdir')}><FolderPlus size={15} />New folder</button>
         <button disabled={busy} onClick={() => input.current?.click()}><Upload size={15} />Upload files</button>
-        <span className="hint">Drop files here · Up to 5 MB each · Changes affect everyone sharing this sandbox</span>
         <input type="file" hidden multiple ref={input} onChange={event => {
           void upload(Array.from(event.target.files ?? []))
           event.target.value = ''
         }} />
-      </div>}
+      </> : null,
+    toolbarStatus: <>
+      {enabled && <p className="hint">Drop files here · Up to 5 MB each · Changes affect everyone sharing this sandbox</p>}
       {error && <ErrorBanner message={error} />}
       {progress && <p className="hint" role="status">{progress}</p>}
     </>,
-    actions: (entry: FileSystemEntry) => enabled ? <WorkspaceFileActionMenu entry={entry} disabled={busy} onSelect={operation => open(operation, entry)} /> : null,
+    actions: (entry: FileSystemEntry, onEdit?: (operation: 'edit' | 'unzip' | 'execute') => void, canExecute = false) => enabled ? <WorkspaceFileActionMenu entry={entry} disabled={busy} onEdit={onEdit} canExecute={canExecute} onSelect={operation => open(operation, entry)} /> : null,
     dialog: <Modal open={!!action} title={action ? labels[action.operation] : 'Manage file'} icon={<Icon size={17} />}
       onClose={() => {
         if (!busy) {
@@ -268,10 +269,12 @@ function WorkspaceFolderPicker({ conversationId, path, source, disabled, onReady
   </div>
 }
 
-function WorkspaceFileActionMenu({ entry, disabled, onSelect }: {
-  entry: FileSystemEntry
+export function WorkspaceFileActionMenu({ entry, disabled, onSelect, onEdit, canExecute }: {
+  entry: Pick<FileSystemEntry, 'path' | 'isDirectory'>
   disabled: boolean
   onSelect: (operation: Operation) => void
+  onEdit?: (operation: 'edit' | 'unzip' | 'execute') => void
+  canExecute: boolean
 }) {
   const id = useId()
   const menu = useRef<HTMLDivElement>(null)
@@ -332,6 +335,24 @@ function WorkspaceFileActionMenu({ entry, disabled, onSelect }: {
           buttons[next]?.focus()
         }
       }}>
+      {!entry.isDirectory && onEdit && <button type="button" role="menuitem" tabIndex={-1} disabled={disabled}
+        onClick={() => {
+          menu.current?.hidePopover()
+          trigger.current?.focus()
+          onEdit('edit')
+        }}><Pencil size={15} aria-hidden="true" />Edit text</button>}
+      {!entry.isDirectory && onEdit && entry.path.toLowerCase().endsWith('.zip') && <button type="button" role="menuitem" tabIndex={-1} disabled={disabled}
+        onClick={() => {
+          menu.current?.hidePopover()
+          trigger.current?.focus()
+          onEdit('unzip')
+        }}><ArchiveRestore size={15} aria-hidden="true" />Unzip</button>}
+      {!entry.isDirectory && onEdit && canExecute && scriptLanguage(entry.path) && <button type="button" role="menuitem" tabIndex={-1} disabled={disabled}
+        onClick={() => {
+          menu.current?.hidePopover()
+          trigger.current?.focus()
+          onEdit('execute')
+        }}><Play size={15} aria-hidden="true" />Execute script</button>}
       {(['rename', 'copy', 'move', 'delete'] as const).map(operation => {
         const Icon = icons[operation]
         return <button key={operation} type="button" role="menuitem" tabIndex={-1} disabled={disabled}

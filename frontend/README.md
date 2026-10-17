@@ -75,7 +75,7 @@ persistent page state inline; transient operation feedback uses toasts.
 
 ## Pages
 
-**Agents → Global skills** opens the skill library. Global Admins can upload a ZIP
+**Agents → Global skills** opens the skill library. Global Admins can upload a Zip
 and delete uploaded global skills; Global Reader Admins can inspect them. Skills
 deployed in the `skills` folder are default global skills and cannot be deleted or
 overwritten through the application.
@@ -88,12 +88,12 @@ select it and save the agent. Uploads/deletions are immediate and are not undone
 cancelling the agent editor. Deletion also removes saved assignments.
 
 Use the eye action to browse the extracted file paths and inspect `SKILL.md`, scripts,
-and resources. Upload using the file picker or drag one ZIP onto the upload area
+and resources. Upload using the file picker or drag one Zip onto the upload area
 (maximum 10 MB). Both methods use the same validation and are disabled while busy.
 Read-only views do not show the upload area.
 
 Use the Update skill icon on an uploaded skill to open a separate popup. Choose or
-drop its replacement ZIP, then select Replace skill to apply it. Cancel leaves the
+drop its replacement Zip, then select Replace skill to apply it. Cancel leaves the
 skill unchanged; the new-skill upload area always creates a new skill.
 The `name` in `SKILL.md` must exactly match the existing name; renaming is rejected
 by the server. Replacement preserves the skill ID, creation date, and agent assignments,
@@ -123,7 +123,7 @@ uses `PUT /api/agents/skills/{id}/versions/{version}/active`. Apply
 `RenameAgentSkillCurrentVersionToActiveVersion` to rename the existing database column
 without changing the selected version, and deploy the API and frontend together.
 
-The Download ZIP action on each skill card exports all files with their
+The Download Zip action on each skill card exports all files with their
 relative paths preserved, including read-only default skills. Deploy/restart the API
 to enable the `/api/agents/skills/{id}/archive` endpoint. Use the inspector for individual files
 and previews. Text files up to 512 KB are previewed as source with syntax highlighting
@@ -136,7 +136,7 @@ files and files too large to preview download their original bytes through the A
 restart/redeploy the API after adding the `/api/agents/skills/{id}/download` endpoint.
 View dialogs expose inspection only.
 
-A ZIP must contain exactly one `SKILL.md`, either at its root or within a single
+A Zip must contain exactly one `SKILL.md`, either at its root or within a single
 skill folder, plus any scripts/resources under that folder. The YAML frontmatter
 requires `name` (a single-line lowercase name with digits/single hyphens, up to 64
 characters) and `description`. Names must be unique across default and uploaded
@@ -423,7 +423,7 @@ The Subscriptions page additionally uses, and these **change tenant state**:
 
 For HTTP 403, check the **API caller's** Azure identity, not the hosted agent's identity. The API release grants Foundry User (`53ca6127-db72-4b80-b1b0-d745d6d5456d`, formerly Azure AI User) to the deployed API managed identity. Local API runs use the identity selected by `DefaultAzureCredential` (for example, Azure CLI or Visual Studio), which needs its own project-scoped role assignment. In the project's **Access control (IAM)**, check that identity's access and assign Foundry User when cross-user session administration is intended. Restart the local API after correcting credentials and allow role propagation before retrying. Application GlobalAdmin access is separate from Azure RBAC; deploying AgentHost does not grant the developer account session access. If the role is already effective, inspect the Foundry response/network restrictions and confirm the configured endpoint belongs to that project.
 
-Under **Playgrounds → Workspace → Foundry Sessions**, global administrators can list, create, stop, and delete sessions for the agent configured by `ChatAgent:Foundry:Endpoint`. Refresh after creating a session until it becomes active, then select it to browse its working directory. The shared file actions support folders, upload/download, text editing, rename/move/copy/delete, ZIP/unzip, and script execution with arguments and a selected working directory. Execution is an individual command/script, with copyable stdout and stderr.
+Under **Playgrounds → Workspace → Foundry Sessions**, global administrators can list, create, stop, and delete sessions for the agent configured by `ChatAgent:Foundry:Endpoint`. Refresh after creating a session until it becomes active, then select it to browse its working directory. The shared file actions support folders, upload/download, text editing, rename/move/copy/delete, Zip/unzip, and script execution with arguments and a selected working directory. Execution is an individual command/script, with copyable stdout and stderr.
 
 Deploy the updated **API and AgentHost** first. Existing sessions remain bound to their original agent version; create a new session to use the new workspace handler. File operations use the hosted agent's working directory, not all of `$HOME`, and never invoke an LLM. Scripts run with AgentHost's identity and access, so access is limited to global administrators. Stopping retains the session's files; deleting removes them and can affect chats using that session. Only active sessions expose workspace actions in this playground.
 

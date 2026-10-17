@@ -38,14 +38,14 @@ public static class AgentSkillEndpoints
         {
             if (!request.HasFormContentType)
             {
-                return Results.BadRequest(new { error = "Upload a ZIP using multipart form field 'file'." });
+                return Results.BadRequest(new { error = "Upload a Zip using multipart form field 'file'." });
             }
             var form = await request.ReadFormAsync(cancellationToken);
             var file = form.Files.GetFile("file");
             if (file is null || form.Files.Count != 1 || file.Length > AgentSkillStore.MaxArchiveBytes ||
                 !file.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             {
-                return Results.BadRequest(new { error = "Select one ZIP file no larger than 10 MB." });
+                return Results.BadRequest(new { error = "Select one Zip file no larger than 10 MB." });
             }
             using var content = new MemoryStream();
             await file.CopyToAsync(content, cancellationToken);
@@ -58,14 +58,14 @@ public static class AgentSkillEndpoints
         {
             if (!request.HasFormContentType)
             {
-                return Results.BadRequest(new { error = "Upload a ZIP using multipart form field 'file'." });
+                return Results.BadRequest(new { error = "Upload a Zip using multipart form field 'file'." });
             }
             var form = await request.ReadFormAsync(cancellationToken);
             var file = form.Files.GetFile("file");
             if (file is null || form.Files.Count != 1 || file.Length > AgentSkillStore.MaxArchiveBytes ||
                 !file.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             {
-                return Results.BadRequest(new { error = "Select one ZIP file no larger than 10 MB." });
+                return Results.BadRequest(new { error = "Select one Zip file no larger than 10 MB." });
             }
             using var content = new MemoryStream();
             await file.CopyToAsync(content, cancellationToken);

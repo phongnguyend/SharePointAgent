@@ -84,6 +84,34 @@ public sealed class ChatWorkspaceTests : IAsyncLifetime
     }
 
     [Theory]
+    [InlineData("foundry-sessions")]
+    [InlineData("dynamic-sessions")]
+    [InlineData("sandboxes")]
+    public async Task InstanceLinksIncludeConversationAndEmptyWorkspaceReferences(string provider)
+    {
+        var workspace = await new ChatWorkspaceRepository(_factory).CreateAsync("Empty workspace", null, default);
+        var conversation = await new ChatRepository(_factory).CreateConversationAsync("Standalone", null, _agentId, null, default);
+        await using (var db = new SharePointIndexDbContext(_options))
+        {
+            var chat = await db.ChatConversations.SingleAsync(c => c.Id == conversation.Id);
+            var group = await db.ChatWorkspaces.SingleAsync(w => w.Id == workspace.Id);
+            chat.FoundrySessionId = provider == "foundry-sessions" ? "chat" : "other-provider";
+            chat.DynamicSessionId = provider == "dynamic-sessions" ? "chat" : "other-provider";
+            chat.SandboxId = provider == "sandboxes" ? "chat" : "other-provider";
+            group.FoundrySessionId = provider == "foundry-sessions" ? "workspace" : null;
+            group.DynamicSessionId = provider == "dynamic-sessions" ? "workspace" : null;
+            group.SandboxId = provider == "sandboxes" ? "workspace" : null;
+            await db.SaveChangesAsync();
+        }
+
+        var linked = await new WorkspaceInstanceLinks(_factory).FindLinkedAsync(provider,
+            ["chat", "workspace", "orphan", "other-provider"], default);
+        Assert.Equal(2, linked.Count);
+        Assert.Contains("chat", linked);
+        Assert.Contains("workspace", linked);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task ResetClearsOnlyTheSelectedScopeAndAllowsANewSession(bool shared)

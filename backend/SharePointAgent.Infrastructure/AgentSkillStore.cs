@@ -91,7 +91,7 @@ public sealed class AgentSkillStore(IDbContextFactory<SharePointIndexDbContext> 
         if (catalog.Count != 1 || string.IsNullOrWhiteSpace(catalog[0].Description) ||
             catalog[0].Name.Length > 100 || catalog[0].Description.Length > 4000)
         {
-            throw new InvalidDataException("The ZIP must contain one valid SKILL.md with a name (up to 100 characters) and description (up to 4000 characters).");
+            throw new InvalidDataException("The Zip must contain one valid SKILL.md with a name (up to 100 characters) and description (up to 4000 characters).");
         }
         var skill = catalog[0];
         try
@@ -385,12 +385,12 @@ public sealed class AgentSkillStore(IDbContextFactory<SharePointIndexDbContext> 
     {
         if (bytes.Length > MaxArchiveBytes)
         {
-            throw new InvalidDataException("The ZIP must be no larger than 10 MB.");
+            throw new InvalidDataException("The Zip must be no larger than 10 MB.");
         }
         using var zip = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read);
         if (zip.Entries.Count > 200)
         {
-            throw new InvalidDataException("The ZIP must contain at most 200 entries.");
+            throw new InvalidDataException("The Zip must contain at most 200 entries.");
         }
         var files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         long total = 0;
@@ -401,7 +401,7 @@ public sealed class AgentSkillStore(IDbContextFactory<SharePointIndexDbContext> 
             if (path.Length > 240 || path.StartsWith('/') || segments.Any(x => !IsSafeSegment(x)) ||
                 ((entry.ExternalAttributes >> 16) & 0xF000) == 0xA000)
             {
-                throw new InvalidDataException("ZIP entries must be regular files with safe relative paths; links and traversal are not allowed.");
+                throw new InvalidDataException("Zip entries must be regular files with safe relative paths; links and traversal are not allowed.");
             }
             if (path.EndsWith('/'))
             {
@@ -410,7 +410,7 @@ public sealed class AgentSkillStore(IDbContextFactory<SharePointIndexDbContext> 
             total += entry.Length;
             if (total > MaxExpandedBytes || entry.Length > MaxExpandedBytes)
             {
-                throw new InvalidDataException("The extracted ZIP must be no larger than 20 MB.");
+                throw new InvalidDataException("The extracted Zip must be no larger than 20 MB.");
             }
             using var stream = entry.Open();
             using var output = new MemoryStream();
@@ -420,19 +420,19 @@ public sealed class AgentSkillStore(IDbContextFactory<SharePointIndexDbContext> 
             {
                 if (output.Length + read > entry.Length)
                 {
-                    throw new InvalidDataException("The ZIP has invalid entry sizes.");
+                    throw new InvalidDataException("The Zip has invalid entry sizes.");
                 }
                 output.Write(buffer, 0, read);
             }
             if (!files.TryAdd(path, output.ToArray()))
             {
-                throw new InvalidDataException("The ZIP contains duplicate file paths.");
+                throw new InvalidDataException("The Zip contains duplicate file paths.");
             }
         }
         var manifests = files.Keys.Where(x => System.IO.Path.GetFileName(x) == "SKILL.md").ToArray();
         if (manifests.Length != 1)
         {
-            throw new InvalidDataException("Include exactly one SKILL.md at the ZIP root or inside a single skill folder.");
+            throw new InvalidDataException("Include exactly one SKILL.md at the Zip root or inside a single skill folder.");
         }
         var prefix = manifests[0][..^"SKILL.md".Length];
         if (files.Keys.Any(x => !x.StartsWith(prefix, StringComparison.Ordinal)))
@@ -446,7 +446,7 @@ public sealed class AgentSkillStore(IDbContextFactory<SharePointIndexDbContext> 
             {
                 if (files.ContainsKey(file[..parent]))
                 {
-                    throw new InvalidDataException("A ZIP path cannot be both a file and a directory.");
+                    throw new InvalidDataException("A Zip path cannot be both a file and a directory.");
                 }
                 parent = file.LastIndexOf('/', parent - 1);
             }

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { Archive, ArchiveRestore, ArrowRight, ArrowUp, Copy, Download, File, Folder, FolderInput, FolderPlus, Pencil, Play, Plus, RefreshCw, Square, Terminal, Trash2, Type, Upload } from 'lucide-react'
+import { Archive, ArrowRight, ArrowUp, Download, File, Folder, FolderPlus, Play, Plus, RefreshCw, Square, Terminal, Trash2, Upload } from 'lucide-react'
 import {
   archivePlaygroundFiles, changePlaygroundInstance, createPlaygroundInstance, downloadPlaygroundFile,
   listPlaygroundFiles, listPlaygroundInstances, managePlaygroundFile, writePlaygroundText,
@@ -9,7 +9,9 @@ import {
 import { Modal } from '../components/Modal'
 import { useToast } from '../components/Toast'
 import { ErrorBanner } from '../components/ui'
-import WorkspaceExecutionPanel, { scriptLanguage, type OpenTerminalRequest } from './WorkspaceExecutionPanel'
+import WorkspaceExecutionPanel, { type OpenTerminalRequest } from './WorkspaceExecutionPanel'
+import { WorkspaceFileActionMenu } from '../components/WorkspaceFileManagement'
+import '../components/WorkspaceFileManagement.css'
 import './WorkspacePlaygroundPage.css'
 
 type FileAction = 'mkdir' | 'new' | 'edit' | 'rename' | 'move' | 'copy' | 'delete' | 'zip' | 'unzip'
@@ -36,11 +38,39 @@ export default function WorkspacePlaygroundPage({ provider, active }: { provider
   const operation = useRef<AbortController | null>(null)
   const initialized = useRef(false)
   const upload = useRef<HTMLInputElement | null>(null)
+  const dragDepth = useRef(0)
+  const [dragging, setDragging] = useState(false)
   const title = provider === 'foundry-sessions' ? 'Foundry Sessions' : provider === 'dynamic-sessions' ? 'ACA Dynamic Sessions' : 'ACA Sandboxes'
   const canBrowse = selected?.canAccessFiles && selected.state.toLowerCase() === 'running'
-  const single = checked.length === 1 ? files?.entries.find(file => file.path === checked[0]) : undefined
+  const canUpload = active && !!canBrowse && !busy && !dialog && !terminalRequest && !!files
 
   useEffect(() => () => operation.current?.abort(), [])
+
+  const clearDrag = () => {
+    dragDepth.current = 0
+    setDragging(false)
+  }
+
+  useEffect(clearDrag, [canUpload, selected?.id, folder])
+
+  useEffect(() => {
+    if (!dragging) {
+      return
+    }
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        clearDrag()
+      }
+    }
+    window.addEventListener('dragend', clearDrag)
+    window.addEventListener('drop', clearDrag)
+    window.addEventListener('keydown', escape)
+    return () => {
+      window.removeEventListener('dragend', clearDrag)
+      window.removeEventListener('drop', clearDrag)
+      window.removeEventListener('keydown', escape)
+    }
+  }, [dragging])
 
   const run = async (label: string, task: (signal: AbortSignal) => Promise<void>) => {
     if (operation.current) {
@@ -112,13 +142,13 @@ export default function WorkspacePlaygroundPage({ provider, active }: { provider
     }
   })
 
-  const openDialog = (kind: FileAction) => {
+  const openDialog = (kind: FileAction, paths = checked) => {
     setError('')
     setText('')
-    setDialog({ kind, paths: [...checked] })
-    setDestination(kind === 'rename' || kind === 'move' || kind === 'copy' ? checked[0]
+    setDialog({ kind, paths: [...paths] })
+    setDestination(kind === 'rename' || kind === 'move' || kind === 'copy' ? paths[0]
       : kind === 'zip' ? join(folder, 'archive.zip')
-        : kind === 'unzip' ? join(folder, name(checked[0]).replace(/\.zip$/i, '')) : join(folder, ''))
+        : kind === 'unzip' ? join(folder, name(paths[0]).replace(/\.zip$/i, '')) : join(folder, ''))
   }
 
   const editFile = (file: PlaygroundFile) => {
@@ -159,12 +189,12 @@ export default function WorkspacePlaygroundPage({ provider, active }: { provider
   }
 
   const uploadFiles = (values: File[]) => {
-    if (!selected || values.length === 0) {
+    if (!selected || !canUpload || values.length === 0) {
       return
     }
     void run('Uploading files', async signal => {
       if (values.some(file => file.size > 5 * 1024 * 1024)) {
-        throw new Error('Each uploaded file must be 5 MB or smaller. ZIP files are supported.')
+        throw new Error('Each uploaded file must be 5 MB or smaller. Zip files are supported.')
       }
       for (const file of values) {
         const content = await new Promise<string>((resolve, reject) => {
@@ -222,7 +252,7 @@ export default function WorkspacePlaygroundPage({ provider, active }: { provider
   }
 
   const destructive = dialog && ['delete', 'stop-instance', 'stop-sandbox', 'delete-instance'].includes(dialog.kind)
-  const dialogTitle = dialog ? ({ mkdir: 'Create folder', new: 'Create text file', edit: 'Edit text file', rename: 'Rename', move: 'Move', copy: 'Copy', delete: 'Delete files and folders', zip: 'Create ZIP archive', unzip: 'Extract ZIP archive', 'stop-instance': 'Stop session', 'stop-sandbox': 'Stop sandbox', 'delete-instance': 'Delete sandbox' })[dialog.kind] : ''
+  const dialogTitle = dialog ? ({ mkdir: 'Create folder', new: 'Create text file', edit: 'Edit text file', rename: 'Rename', move: 'Move', copy: 'Copy', delete: 'Delete files and folders', zip: 'Create Zip archive', unzip: 'Extract Zip archive', 'stop-instance': 'Stop session', 'stop-sandbox': 'Stop sandbox', 'delete-instance': 'Delete sandbox' })[dialog.kind] : ''
 
   return <section className="card workspace-playground">
     <div className="card-head"><h2><Terminal size={18} />{title} playground</h2><span className="muted workspace-playground-status" role="status" aria-live="polite">{busy || 'Ready'}</span></div>
@@ -248,6 +278,7 @@ export default function WorkspacePlaygroundPage({ provider, active }: { provider
             {listing?.configured && listing.instances.length === 0 && <p className="muted">No active instances. Create one to begin.</p>}
             {listing?.instances.map(item => <button type="button" key={item.id} className={`workspace-instance ${selected?.id === item.id ? 'selected' : ''}`} aria-pressed={selected?.id === item.id} onClick={() => selectInstance(item)}>
               <strong title={item.id}>{item.id}</strong><span className="workspace-state" data-running={item.state.toLowerCase() === 'running'}>{item.state}</span>
+              {item.isOrphan && <span className="workspace-orphan" title="No conversation or workspace in this application's database links to this instance.">Orphan</span>}
               {item.expiresAt && <small>Expires {new Date(item.expiresAt).toLocaleString()}</small>}
             </button>)}
             </div>
@@ -256,6 +287,7 @@ export default function WorkspacePlaygroundPage({ provider, active }: { provider
             {!selected ? <p className="workspace-empty">Select an instance to manage its files and execute scripts.</p> : <>
               <div className="stack workspace-instance-header">
                 <h3 className="workspace-instance-id">{selected.id}</h3>
+                {selected.isOrphan && <p className="workspace-orphan-note">Orphan instance — no conversation or workspace in this application's database links to it. Instances created in the playground are unlinked until assigned.</p>}
                 <div className="row workspace-instance-actions"><span className="workspace-state" data-running={selected.state.toLowerCase() === 'running'}>{selected.state}</span>
                   {provider === 'sandboxes' && <button type="button" disabled={selected.state.toLowerCase() === 'running'} onClick={() => void run('Resuming sandbox', async signal => {
                     await changePlaygroundInstance(provider, selected.id, 'resume', signal)
@@ -277,7 +309,43 @@ export default function WorkspacePlaygroundPage({ provider, active }: { provider
                 {selected.canAccessFiles && !canBrowse && <p role="status">Resume the sandbox, then refresh before accessing files or scripts.</p>}
               </div>
               <fieldset disabled={!canBrowse} className="workspace-playground-controls stack">
-                <section className="stack" aria-label="Files and folders">
+                <section className="stack workspace-playground-dropzone" aria-label="Files and folders"
+                  onDragEnter={event => {
+                    event.preventDefault()
+                    if (canUpload && event.dataTransfer.types.includes('Files')) {
+                      dragDepth.current += 1
+                      setDragging(true)
+                    }
+                  }}
+                  onDragOver={event => {
+                    event.preventDefault()
+                    event.dataTransfer.dropEffect = canUpload && event.dataTransfer.types.includes('Files') ? 'copy' : 'none'
+                  }}
+                  onDragLeave={event => {
+                    event.preventDefault()
+                    dragDepth.current = Math.max(0, dragDepth.current - 1)
+                    if (dragDepth.current === 0) {
+                      setDragging(false)
+                    }
+                  }}
+                  onDrop={event => {
+                    event.preventDefault()
+                    clearDrag()
+                    if (!canUpload || operation.current) {
+                      return
+                    }
+                    if (Array.from(event.dataTransfer.items).some(item => item.webkitGetAsEntry?.()?.isDirectory)) {
+                      setError('Folder uploads are not supported. Upload a Zip file, then unzip it here.')
+                      return
+                    }
+                    uploadFiles(Array.from(event.dataTransfer.files))
+                  }}>
+                  {dragging && <div className="workspace-playground-drop-overlay" role="status">
+                    <Upload size={28} aria-hidden="true" />
+                    <strong>Drop files to upload</strong>
+                    <span>{folder || 'Workspace root'}</span>
+                    <small>Up to 5 MB per file</small>
+                  </div>}
                   <h3>Files and folders</h3>
                   <div className="row workspace-path">
                     <button type="button" disabled={!folder} onClick={() => void run('Opening folder', signal => loadFiles(selected, parent(folder), signal))} aria-label="Parent folder"><ArrowUp size={15} /></button>
@@ -292,40 +360,37 @@ export default function WorkspacePlaygroundPage({ provider, active }: { provider
                     <button type="button" onClick={() => void run('Refreshing files', signal => loadFiles(selected, folder, signal))} aria-label="Refresh files"><RefreshCw size={15} /></button>
                   </div>
                   <div className="row workspace-file-toolbar">
-                    <button type="button" onClick={() => setTerminalRequest({ id: crypto.randomUUID(), instanceId: selected.id, folder })}><Terminal size={15} aria-hidden="true" />Open terminal here</button>
-                    <button type="button" disabled={!single || single.isDirectory || !scriptLanguage(single.path)} onClick={() => {
-                      if (single && !single.isDirectory && scriptLanguage(single.path)) {
-                        setTerminalRequest({ id: crypto.randomUUID(), instanceId: selected.id, folder, scriptPath: single.path })
-                      }
-                    }}><Play size={15} aria-hidden="true" />Execute script</button>
                     <button type="button" onClick={() => openDialog('mkdir')}><FolderPlus size={15} />New folder</button>
                     <button type="button" onClick={() => openDialog('new')}><Plus size={15} />New file</button>
                     <button type="button" onClick={() => upload.current?.click()}><Upload size={15} />Upload</button>
                     <input ref={upload} type="file" multiple hidden onChange={event => { uploadFiles(Array.from(event.target.files ?? [])); event.target.value = '' }} />
-                    <button type="button" disabled={!single || single.isDirectory} onClick={() => {
-                      if (single) {
-                        download(single)
-                      }
-                    }}><Download size={15} />Download</button>
-                    <button type="button" disabled={!single || single.isDirectory} onClick={() => {
-                      if (single) {
-                        editFile(single)
-                      }
-                    }}><Pencil size={15} aria-hidden="true" />Edit text</button>
-                    <button type="button" disabled={!single} onClick={() => openDialog('rename')}><Type size={15} aria-hidden="true" />Rename</button>
-                    <button type="button" disabled={!single} onClick={() => openDialog('move')}><FolderInput size={15} aria-hidden="true" />Move</button>
-                    <button type="button" disabled={!single} onClick={() => openDialog('copy')}><Copy size={15} aria-hidden="true" />Copy</button>
-                    <button type="button" disabled={checked.length === 0} onClick={() => openDialog('delete')}><Trash2 size={15} aria-hidden="true" />Delete</button>
-                    <button type="button" disabled={checked.length === 0} onClick={() => openDialog('zip')}><Archive size={15} />ZIP selected</button>
-                    <button type="button" disabled={!single || single.isDirectory || !single.path.toLowerCase().endsWith('.zip')} onClick={() => openDialog('unzip')}><ArchiveRestore size={15} aria-hidden="true" />Unzip</button>
+                    <span className="muted">{checked.length} selected</span>
+                    <button type="button" disabled={checked.length === 0} onClick={() => openDialog('zip')}><Archive size={15} />Zip selected</button>
+                    <button type="button" disabled={checked.length === 0} onClick={() => openDialog('delete')}><Trash2 size={15} aria-hidden="true" />Delete selected</button>
+                    <button type="button" onClick={() => setTerminalRequest({ id: crypto.randomUUID(), instanceId: selected.id, folder })}><Terminal size={15} aria-hidden="true" />Open terminal here</button>
                   </div>
-                  <p className="muted">Upload up to 5 MB per file. Select files or folders to create a ZIP, then download it. Paths are relative to the workspace root.</p>
+                  <p className="muted">Drag files here or choose Upload. Up to 5 MB per file. Select files or folders to create a Zip, then download it. Paths are relative to the workspace root.</p>
                   <div className="workspace-file-table">
-                    <table><thead><tr><th><input type="checkbox" aria-label="Select all files" checked={!!files?.entries.length && checked.length === files.entries.length} onChange={event => setChecked(event.target.checked ? files?.entries.map(file => file.path) ?? [] : [])} /></th><th>Name</th><th>Size</th><th>Modified</th></tr></thead>
+                    <table><thead><tr><th><input type="checkbox" aria-label="Select all files" checked={!!files?.entries.length && checked.length === files.entries.length} onChange={event => setChecked(event.target.checked ? files?.entries.map(file => file.path) ?? [] : [])} /></th><th>Name</th><th>Size</th><th>Modified</th><th>Actions</th></tr></thead>
                       <tbody>{files?.entries.map(file => <tr key={file.path}>
                         <td><input type="checkbox" aria-label={`Select ${name(file.path)}`} checked={checked.includes(file.path)} onChange={event => setChecked(current => event.target.checked ? [...current, file.path] : current.filter(path => path !== file.path))} /></td>
                         <td>{file.isDirectory ? <button type="button" className="ghost" onClick={() => void run('Opening folder', signal => loadFiles(selected, file.path, signal))}><Folder size={15} />{name(file.path)}</button> : <span className="row"><File size={15} />{name(file.path)}</span>}</td>
                         <td>{file.isDirectory ? 'Folder' : `${(file.sizeBytes ?? 0).toLocaleString()} B`}</td><td>{new Date(file.modifiedUtc).toLocaleString()}</td>
+                        <td><div className="workspace-files-actions">
+                          <WorkspaceFileActionMenu entry={file} disabled={!!busy || !canBrowse} canExecute={!!canBrowse}
+                            onSelect={action => openDialog(action, [file.path])}
+                            onEdit={action => {
+                              if (action === 'edit') {
+                                editFile(file)
+                              } else if (action === 'unzip') {
+                                openDialog('unzip', [file.path])
+                              } else {
+                                setTerminalRequest({ id: crypto.randomUUID(), instanceId: selected.id, folder, scriptPath: file.path })
+                              }
+                            }} />
+                          {!file.isDirectory && <button type="button" className="ghost icon-only" title={`Download ${name(file.path)}`}
+                            aria-label={`Download ${name(file.path)}`} onClick={() => download(file)}><Download size={15} /></button>}
+                        </div></td>
                       </tr>)}</tbody>
                     </table>
                     {files && files.entries.length === 0 && <p className="muted">This folder is empty.</p>}

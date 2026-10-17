@@ -41,7 +41,7 @@ export default function AgentSkillManager({ scope = {}, readOnly = false, onChan
       return
     }
     if (!file.name.toLowerCase().endsWith('.zip') || file.size > 10 * 1024 * 1024) {
-      setError('Select a ZIP file no larger than 10 MB.')
+      setError('Select a Zip file no larger than 10 MB.')
       return
     }
     uploadInProgress.current = true
@@ -102,7 +102,7 @@ export default function AgentSkillManager({ scope = {}, readOnly = false, onChan
   return <div className="agent-skill-manager stack">
     <div className="row" style={{ justifyContent: 'space-between' }}>
       <p className="hint">{scope.agentId ? 'Upload skills for this agent only. Global skills are managed from the Agents page.' : 'Global skills are available to all agents. Bundled default skills are read-only.'}</p>
-      <input ref={input} type="file" accept=".zip,application/zip" hidden aria-label="Upload skill ZIP" onChange={event => void upload(event.target.files?.[0])} />
+      <input ref={input} type="file" accept=".zip,application/zip" hidden aria-label="Upload skill Zip" onChange={event => void upload(event.target.files?.[0])} />
     </div>
     {!readOnly ? <div className={`agent-skill-dropzone${dragging ? ' is-dragging' : ''}`} aria-busy={busy}
       onDragEnter={event => {
@@ -137,17 +137,17 @@ export default function AgentSkillManager({ scope = {}, readOnly = false, onChan
           return
         }
         if (event.dataTransfer.files.length !== 1) {
-          setError('Drop one skill ZIP file at a time.')
+          setError('Drop one skill Zip file at a time.')
           return
         }
         void upload(event.dataTransfer.files[0])
       }}>
       <Upload size={20} aria-hidden="true" />
-      <span>{busy ? 'Working...' : dragging ? 'Drop skill ZIP here' : 'Drag a skill ZIP here or choose a file'}
-        <small>One ZIP file, up to 10 MB</small></span>
+      <span>{busy ? 'Working...' : dragging ? 'Drop skill Zip here' : 'Drag a skill Zip here or choose a file'}
+        <small>One Zip file, up to 10 MB</small></span>
       <button className="primary" disabled={busy} onClick={() => input.current?.click()}><Upload size={14} />Upload new skill</button>
     </div> : null}
-    {!readOnly ? <p className="hint">One SKILL.md with name and description, plus optional scripts and resources. Maximum 10 MB ZIP / 20 MB extracted. Uploads and deletions take effect immediately.</p> : null}
+    {!readOnly ? <p className="hint">One SKILL.md with name and description, plus optional scripts and resources. Maximum 10 MB Zip / 20 MB extracted. Uploads and deletions take effect immediately.</p> : null}
     <LoadingBar active={skills.loading || busy} />
     {skills.error ? <ErrorBanner message={skills.error} onRetry={skills.reload} /> : null}
     {error && !removing ? <ErrorBanner message={error} /> : null}
@@ -168,7 +168,7 @@ export default function AgentSkillManager({ scope = {}, readOnly = false, onChan
               setReplacing(skill)
               setError(null)
             }}><FilePenLine size={14} /></button> : null}
-          <button title="Download skill ZIP" aria-label={`Download ${skill.name} ZIP`} disabled={busy || downloadingId !== null}
+          <button title="Download skill Zip" aria-label={`Download ${skill.name} Zip`} disabled={busy || downloadingId !== null}
             onClick={() => void downloadSkill(skill)}><Download size={14} />{downloadingId === skill.id ? 'Downloading...' : null}</button>
           {!readOnly && !skill.isDefault && skill.scope === agentSkillScopeKey(scope) ? <button className="danger" title="Delete skill" aria-label={`Delete ${skill.name}`} disabled={busy} onClick={() => { setError(null); setRemoving(skill) }}><Trash2 size={14} /></button> : null}
         </div></div>
@@ -211,7 +211,7 @@ function ReplaceSkillDialog({ skill, scope, onClose, onChanged, onBusyChange }: 
     }
     if (files.length !== 1 || !files[0].name.toLowerCase().endsWith('.zip') || files[0].size > 10 * 1024 * 1024) {
       setFile(null)
-      setError('Select one ZIP file no larger than 10 MB.')
+      setError('Select one Zip file no larger than 10 MB.')
       return
     }
     setFile(files[0])
@@ -268,9 +268,9 @@ function ReplaceSkillDialog({ skill, scope, onClose, onChanged, onBusyChange }: 
         select(event.dataTransfer.files)
       }}>
       <Upload size={20} aria-hidden="true" />
-      <span>{dragging ? 'Drop replacement ZIP here' : 'Drag a replacement ZIP here'}<small>One ZIP file, up to 10 MB</small></span>
+      <span>{dragging ? 'Drop replacement Zip here' : 'Drag a replacement Zip here'}<small>One Zip file, up to 10 MB</small></span>
       <button disabled={busy} onClick={() => input.current?.click()}><Upload size={14} />Choose file</button>
-      <input ref={input} type="file" accept=".zip,application/zip" hidden aria-label="Replacement skill ZIP" disabled={busy} onChange={event => {
+      <input ref={input} type="file" accept=".zip,application/zip" hidden aria-label="Replacement skill Zip" disabled={busy} onChange={event => {
         select(event.target.files)
         event.target.value = ''
       }} />
