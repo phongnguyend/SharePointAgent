@@ -1,4 +1,4 @@
-import AgentSkillsPage from './pages/AgentSkillsPage'
+import AgentManagementPage from './pages/AgentManagementPage'
 import { useEffect, useState } from 'react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import {
@@ -25,7 +25,6 @@ import SearchPage from './pages/SearchPage'
 import GraphPage from './pages/GraphPage'
 import ChatPage from './pages/ChatPage'
 import FeedbackPage from './pages/FeedbackPage'
-import AgentsPage from './pages/AgentsPage'
 import AttachmentFilesPage from './pages/AttachmentFilesPage'
 import { AccountMenu } from './components/AuthGate'
 import { useAppUser, canReadAdministration, canManageAdministration } from './components/AppUserContext'
@@ -133,8 +132,8 @@ export default function App() {
           <Route path="/graph" element={<GraphPage />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/feedback" element={canReadAdmin ? <FeedbackPage /> : <Navigate to={home} replace />} />
-          <Route path="/agents/skills" element={canReadAdmin ? <AgentSkillsPage /> : <Navigate to={home} replace />} />
-          <Route path="/agents" element={canReadAdmin ? <AgentsPage /> : <Navigate to={home} replace />} />
+          <Route path="/agents/skills" element={canReadAdmin ? <AgentManagementPage /> : <Navigate to={home} replace />} />
+          <Route path="/agents" element={canReadAdmin ? <AgentManagementPage /> : <Navigate to={home} replace />} />
           <Route path="/users" element={canReadAdmin ? <UsersPage /> : <Navigate to={home} replace />} />
           <Route path="/token-usage" element={canReadAdmin ? <TokenUsagePage /> : <Navigate to={home} replace />} />
           <Route path="/document-signing" element={<Navigate to={canManageAdministration(user) ? '/admin?tab=document-signing-configuration' : home} replace />} />

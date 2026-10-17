@@ -1,8 +1,7 @@
-import { Link } from 'react-router-dom'
 import AgentSkillManagementButton from '../components/AgentSkillManagementButton'
 import { useToast } from '../components/Toast'
 import { useState } from 'react'
-import { Bot, Check, Cloud, Eye, Pencil, Plus, RefreshCw, RotateCcw, Server, X, Wrench, BookOpen, FileText } from 'lucide-react'
+import { Bot, Check, Eye, Pencil, Plus, RefreshCw, RotateCcw, X, Wrench, BookOpen, FileText } from 'lucide-react'
 import {
   createAgent,
   getDefaultAgentInstructions,
@@ -11,7 +10,7 @@ import {
   updateAgent,
 } from '../api/client'
 import type { AgentDefinition } from '../api/types'
-import { CopyButton, Empty, ErrorBanner, Field, LoadingBar, Modal } from '../components/ui'
+import { Empty, ErrorBanner, Field, LoadingBar, Modal } from '../components/ui'
 import { formatDateTime, formatRelative } from '../lib/format'
 import { useAsync } from '../lib/useAsync'
 import SubAgentManager from '../components/SubAgentManager'
@@ -97,16 +96,7 @@ export default function AgentsPage() {
 
   return (
     <div className="stack">
-      <div className="page-head">
-        <div>
-          <h1>
-            <Bot size={20} />
-            Agents
-          </h1>
-          <p>Manage agent instructions, models, and specialist sub-agents.</p>
-        </div>
-        <div className="row" style={{ gap: 8 }}>
-          <Link className="button-link" to="/agents/skills"><BookOpen size={14} />Global skills</Link>
+        <div className="row" style={{ gap: 8, justifyContent: 'flex-end' }}>
           <button onClick={() => {
             agents.reload()
             defaults.reload()
@@ -119,37 +109,11 @@ export default function AgentsPage() {
             New agent
           </button>
         </div>
-      </div>
 
       <LoadingBar active={agents.loading || defaults.loading} />
       {agents.error ? <ErrorBanner message={agents.error} onRetry={agents.reload} /> : null}
       {defaults.error ? <ErrorBanner message={defaults.error} onRetry={defaults.reload} /> : null}
       {capabilities.error ? <ErrorBanner message={capabilities.error} onRetry={capabilities.reload} /> : null}
-      {defaults.data ? (
-        <section className="card agent-hosting-summary" aria-label="Agent hosting configuration">
-          <div className="agent-hosting-mode">
-            <span className="agent-hosting-icon" aria-hidden="true">
-              {defaults.data.mode === 'Foundry' ? <Cloud size={20} /> : <Server size={20} />}
-            </span>
-            <div>
-              <div className="agent-hosting-label">Agent mode · All agents</div>
-              <strong>{defaults.data.mode}</strong>
-              <div className="agent-hosting-description">
-                {defaults.data.mode === 'Foundry' ? 'Hosted in Microsoft Foundry' : 'Runs within the API'}
-              </div>
-            </div>
-          </div>
-          <div className="agent-hosting-endpoint">
-            <span className="agent-hosting-label">
-              {defaults.data.mode === 'Foundry' ? 'Foundry endpoint' : 'Azure OpenAI endpoint'}
-            </span>
-            <div className="agent-hosting-endpoint-value">
-              <code>{defaults.data.endpoint || 'Not configured'}</code>
-              {defaults.data.endpoint ? <CopyButton value={defaults.data.endpoint} label="Copy endpoint" /> : null}
-            </div>
-          </div>
-        </section>
-      ) : null}
 
 
       {agents.data && agents.data.length > 0 ? (
