@@ -291,7 +291,6 @@ resource api 'Microsoft.App/containerApps@2025-01-01' = {
           { name: 'AgentWorkspace__Sandboxes__SubscriptionId', value: subscription().subscriptionId }
           { name: 'AgentWorkspace__Sandboxes__ResourceGroup', value: resourceGroup().name }
           { name: 'ChatAgent__Foundry__Endpoint', value: foundryEndpoint }
-          { name: 'ChatAgent__Foundry__ManagedIdentityClientId', value: hosting.apiClientId }
           { name: 'Uploads__UseManagedIdentity', value: 'true' }
           { name: 'Uploads__ServiceUri', value: infrastructure.uploadStorageServiceUri }
           { name: 'Uploads__ContainerName', value: infrastructure.uploadContainerName }

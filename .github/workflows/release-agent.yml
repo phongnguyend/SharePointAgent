@@ -8,13 +8,14 @@ run-name: Release AgentHost (${{ inputs.environment }})
         required: true
         type: choice
         options:
+          - local
           - dev
           - test
         default: dev
   workflow_call:
     inputs:
       environment:
-        description: Target environment (dev or test)
+        description: Target environment (local, dev or test)
         required: true
         type: string
       orchestrated:
@@ -51,6 +52,9 @@ jobs:
           persist-credentials: false
       - name: Check deployment settings
         run: |
+          if ($env:DEPLOY_ENVIRONMENT -notin @('local', 'dev', 'test')) {
+            throw 'Select local, dev or test for the AgentHost release.'
+          }
           $parametersFile = "infra/parameters.$env:DEPLOY_ENVIRONMENT.json"
           $settings = (Get-Content $parametersFile -Raw | ConvertFrom-Json).parameters
           if ($settings.environmentName.value -ne $env:DEPLOY_ENVIRONMENT) {
@@ -73,9 +77,6 @@ jobs:
           JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
           OLLAYA_API_KEY: ${{ secrets.OLLAYA_API_KEY }}
         run: |
-          if ($env:DEPLOY_ENVIRONMENT -eq 'local') {
-            throw 'Use dev or test for a release.'
-          }
           foreach ($name in @('SHAREPOINT_TENANT_ID', 'SHAREPOINT_CLIENT_ID', 'SHAREPOINT_CLIENT_SECRET', 'SHAREPOINT_SITE_HOSTNAME', 'SHAREPOINT_SITE_PATH', 'SHAREPOINT_DOCUMENT_LIBRARY_NAME')) {
             if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
               throw "Set $name in the selected GitHub environment."

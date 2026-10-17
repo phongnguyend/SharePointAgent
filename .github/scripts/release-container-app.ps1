@@ -63,7 +63,6 @@ if ($Component -eq 'Api') {
     SqlServer__ConnectionString = "Server=tcp:$($hosting.sqlServerFqdn),1433;Database=$($hosting.sqlDatabaseName);Authentication=Active Directory Managed Identity;User Id=$($hosting.apiClientId);Encrypt=True;TrustServerCertificate=False;"
     ChatAgent__Mode = 'Foundry'
     ChatAgent__Foundry__Endpoint = "$($hosting.foundryProjectEndpoint)/agents/sharepoint-agent/endpoint/protocols/invocations?api-version=v1"
-    ChatAgent__Foundry__ManagedIdentityClientId = $hosting.apiClientId
     Uploads__UseManagedIdentity = 'true'
     Uploads__ServiceUri = $outputs.uploadStorageServiceUri.value
     Uploads__ContainerName = $outputs.uploadContainerName.value

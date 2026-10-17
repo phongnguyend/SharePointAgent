@@ -67,14 +67,13 @@ Configure the API:
     "Foundry": {
       "Endpoint": "https://ACCOUNT.services.ai.azure.com/api/projects/PROJECT/agents/AGENT/endpoint/protocols/invocations?api-version=v1",
       "TimeoutSeconds": 600,
-      "AllowUnauthenticatedLocalhost": false,
-      "ManagedIdentityClientId": null
+      "AllowUnauthenticatedLocalhost": false
     }
   }
 }
 ```
 
-The API uses `DefaultAzureCredential` and the `https://ai.azure.com/.default` scope. Grant its identity permission to invoke the endpoint. `ManagedIdentityClientId` is optional for a user-assigned identity. Use the default **Entra** endpoint authorization scheme; header-based isolation is not configured by this client. Session IDs are managed by the application and must not be included in the configured URL.
+The API uses `DefaultAzureCredential` and the `https://ai.azure.com/.default` scope, like the other Azure services. Locally it can use your `az login` credentials. Azure deployments select the user-assigned identity through the shared `AZURE_CLIENT_ID` environment variable. Grant the selected identity permission to invoke the endpoint. Use the default **Entra** endpoint authorization scheme; header-based isolation is not configured by this client. Session IDs are managed by the application and must not be included in the configured URL.
 
 Configure the hosted container with environment variables or a secret-backed configuration provider:
 

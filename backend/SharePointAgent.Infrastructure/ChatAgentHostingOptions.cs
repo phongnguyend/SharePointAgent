@@ -65,7 +65,8 @@ public sealed class FoundryChatAgentOptions
 {
     /// <summary>Full Invocations URL, including api-version, or http://localhost:8088/invocations.</summary>
     public string Endpoint { get; set; } = "";
+
     public int TimeoutSeconds { get; set; } = 600;
+
     public bool AllowUnauthenticatedLocalhost { get; set; }
-    public string? ManagedIdentityClientId { get; set; }
 }

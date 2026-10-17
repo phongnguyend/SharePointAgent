@@ -49,7 +49,6 @@ $environment = @{
   SharePoint__SitePath = $env:SHAREPOINT_SITE_PATH
   SharePoint__DocumentLibraryName = $env:SHAREPOINT_DOCUMENT_LIBRARY_NAME
   SharePoint__SubscriptionRenewalEnabled = 'false'
-  SharePoint__NotificationUrl = "$($outputs.apiUrl.value.TrimEnd('/'))/api/sharepoint/webhook"
   AzureOpenAI__UseManagedIdentity = 'true'
   AzureOpenAI__Endpoint = $outputs.openAiEndpoint.value
   AzureOpenAI__EmbeddingDeployment = $outputs.embeddingDeploymentName.value

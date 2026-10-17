@@ -151,10 +151,7 @@ public static class DependencyInjection
         var hosting = configuration.GetSection(ChatAgentHostingOptions.SectionName).Get<ChatAgentHostingOptions>() ?? new ChatAgentHostingOptions();
         if (hosting.IsFoundryConfigured)
         {
-            services.AddSingleton<TokenCredential>(sp => new DefaultAzureCredential(new DefaultAzureCredentialOptions
-            {
-                ManagedIdentityClientId = sp.GetRequiredService<IOptions<ChatAgentHostingOptions>>().Value.Foundry.ManagedIdentityClientId,
-            }));
+            services.AddSingleton<TokenCredential>(_ => CreateDefaultAzureCredential());
             services.AddHttpClient("FoundryChatAgent", client => client.Timeout = Timeout.InfiniteTimeSpan)
                 .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
             services.AddKeyedTransient<IChatAgentExecutor>(ChatAgentExecutionMode.Foundry, (sp, _) =>
