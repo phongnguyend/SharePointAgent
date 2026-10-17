@@ -286,12 +286,20 @@ public static class ChatEndpoints
         app.MapPost("/api/chat/conversations/{id:guid}/session/reset", async (
             Guid id,
             IFoundrySessionRepository sessions,
+            IChatAgentModeSelector agentModes,
             IServiceProvider services,
             CancellationToken cancellationToken) =>
         {
             if (await sessions.DescribeAsync(id, cancellationToken) is null)
             {
                 return Results.NotFound();
+            }
+
+            if ((await agentModes.ResolveAsync(id, cancellationToken)).Mode == ChatAgentExecutionMode.Foundry)
+            {
+                return await sessions.ResetAsync(id, cancellationToken)
+                    ? Results.Ok(new { reset = id })
+                    : Results.NotFound();
             }
 
             if (services.GetService<IAgentWorkspaceProvider>() is not { } workspaces)

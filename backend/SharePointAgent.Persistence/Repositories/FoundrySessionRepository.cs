@@ -11,6 +11,28 @@ namespace SharePointAgent.Persistence.Repositories;
 /// </summary>
 public sealed class FoundrySessionRepository(IDbContextFactory<SharePointIndexDbContext> factory) : IFoundrySessionRepository
 {
+    public async Task<bool> ResetAsync(Guid conversationId, CancellationToken cancellationToken)
+    {
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+        var scope = await db.ChatConversations.Where(c => c.Id == conversationId)
+            .Select(c => new { c.WorkspaceId }).SingleOrDefaultAsync(cancellationToken);
+        if (scope is null)
+        {
+            return false;
+        }
+
+        if (scope.WorkspaceId is { } workspaceId)
+        {
+            return await db.ChatWorkspaces.Where(w => w.Id == workspaceId)
+                .ExecuteUpdateAsync(s => s.SetProperty(w => w.FoundryEndpoint, (string?)null)
+                    .SetProperty(w => w.FoundrySessionId, (string?)null), cancellationToken) == 1;
+        }
+
+        return await db.ChatConversations.Where(c => c.Id == conversationId)
+            .ExecuteUpdateAsync(s => s.SetProperty(c => c.FoundryEndpoint, (string?)null)
+                .SetProperty(c => c.FoundrySessionId, (string?)null), cancellationToken) == 1;
+    }
+
     public async Task<string?> GetAsync(Guid conversationId, string endpoint, CancellationToken cancellationToken)
     {
         await using var db = await factory.CreateDbContextAsync(cancellationToken);

@@ -804,10 +804,10 @@ export default function ChatPage() {
                 </>}>
               <div className="conversation-workspace-info">
                 <div className="conversation-workspace-heading">
-                  <h3><Folder size={16} />{activeWorkspace?.name ?? 'No workspace'}</h3>
+                  <h3><Folder size={16} />{activeWorkspace?.name ?? 'Conversation workspace'}</h3>
                   <span className="hint">{activeWorkspace
                     ? 'Shared workspace rules and sandbox files.'
-                    : 'This conversation is not assigned to a workspace.'}</span>
+                    : 'Settings and files for this conversation.'}</span>
                 </div>
                 {activeWorkspace && <details className="chat-workspace-rules" open>
                   <summary><ScrollText size={13} />Workspace instructions</summary>
@@ -1463,7 +1463,9 @@ function SandboxDetails({
   const environmentKind = session?.workspaceMode === 'Sandboxes' ? 'sandbox' : 'dynamic session'
   const shownId = isolated ? session?.environmentId ?? null : session?.sessionId ?? null
   const reset = async () => {
-    if (!onReset) return
+    if (!onReset) {
+      return
+    }
     setResetting(true)
     try {
       await onReset()
@@ -1475,12 +1477,13 @@ function SandboxDetails({
   return (
     <div className="chat-sandbox">
       <span className="chat-agent-menu-label">
-        <HardDrive size={12} aria-hidden="true" /> Sandbox
+        <HardDrive size={14} aria-hidden="true" /> Execution environment
       </span>
       {error ? <span className="hint">{error}</span> : null}
       {!error && (loading || !session) ? <span className="hint">Reading the binding…</span> : null}
       {session ? (
         <>
+          <div className="chat-sandbox-settings">
           {agentModes.length > 1 ? (
             <label className="chat-sandbox-mode">
               <span className="hint">Agent runs in</span>
@@ -1509,7 +1512,8 @@ function SandboxDetails({
               </select>
             </label>
           ) : null}
-          <span className="hint">
+          </div>
+          <span className="hint chat-sandbox-description">
             {session.mode === 'Local' && !isolated
               ? 'Running in the API, which uses one local directory for every conversation.'
               : `${isolated ? `Running in the API, in its own ${environmentKind}. ` : ''}${session.scope === 'Workspace'
@@ -1518,7 +1522,9 @@ function SandboxDetails({
           </span>
           {session.mode === 'Foundry' || isolated ? (
             shownId ? (
-              <div className="chat-sandbox-id">
+              <div className="chat-sandbox-session">
+                <span className="hint">{isolated ? `${workspaceModeLabel(session.workspaceMode)} ID` : 'Session ID'}</span>
+                <div className="chat-sandbox-id">
                 <code title={shownId}>{shownId}</code>
                 <button
                   className="ghost icon-only"
@@ -1528,6 +1534,7 @@ function SandboxDetails({
                 >
                   {copied ? <Check size={13} /> : <Copy size={13} />}
                 </button>
+                </div>
               </div>
             ) : (
               <span className="hint">
@@ -1535,34 +1542,36 @@ function SandboxDetails({
               </span>
             )
           ) : null}
-          {isolated && onReset && shownId ? (
+          {(isolated || session.mode === 'Foundry') && onReset && shownId ? (
             confirmingReset ? (
               <span className="chat-sandbox-stale">
                 <TriangleAlert size={13} aria-hidden="true" />
-                {`Delete this ${environmentKind} and its files${session.scope === 'Workspace' ? ' for every conversation in the workspace' : ''}?`}
+                {session.mode === 'Foundry'
+                  ? `Start a fresh Foundry session on the next message${session.scope === 'Workspace' ? ' for every conversation in this workspace' : ''}? Chat history is kept. Files stay in the old session, which remains available in the playground.`
+                  : `Delete this ${environmentKind} and its files${session.scope === 'Workspace' ? ' for every conversation in the workspace' : ''}?`}
                 <button className="danger" onClick={reset} disabled={resetting}>{resetting ? 'Resetting…' : 'Reset'}</button>
                 <button className="ghost" onClick={() => setConfirmingReset(false)} disabled={resetting}>Cancel</button>
               </span>
             ) : (
               <button className="ghost" onClick={() => setConfirmingReset(true)}>
-                <RotateCcw size={13} />Reset {environmentKind}
+                <RotateCcw size={13} />Reset {session.mode === 'Foundry' ? 'Foundry session' : environmentKind}
               </button>
             )
           ) : null}
-          {session.sessionId && !session.reusedOnNextTurn ? (
+          {session.mode === 'Foundry' && session.sessionId && !session.reusedOnNextTurn ? (
             <span className="chat-sandbox-stale">
               <TriangleAlert size={13} aria-hidden="true" />
               Recorded against another endpoint, so the next turn starts a new sandbox and these files
               will not be there.
             </span>
           ) : null}
-          {session.boundEndpoint ? (
-            <span className="hint" title={session.boundEndpoint}>Bound: {session.boundEndpoint}</span>
-          ) : null}
-          {session.configuredEndpoint && session.configuredEndpoint !== session.boundEndpoint ? (
-            <span className="hint" title={session.configuredEndpoint}>
-              Configured: {session.configuredEndpoint}
-            </span>
+          {session.mode === 'Foundry' && (session.boundEndpoint || session.configuredEndpoint) ? (
+            <details className="chat-sandbox-endpoints">
+              <summary>Connection details</summary>
+              {session.boundEndpoint ? <div><span className="hint">Session endpoint</span><code>{session.boundEndpoint}</code></div> : null}
+              {session.configuredEndpoint && session.configuredEndpoint !== session.boundEndpoint
+                ? <div><span className="hint">Configured endpoint</span><code>{session.configuredEndpoint}</code></div> : null}
+            </details>
           ) : null}
 
         </>

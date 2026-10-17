@@ -123,6 +123,9 @@ public interface IChatWorkspaceRepository
 /// </summary>
 public interface IFoundrySessionRepository
 {
+    /// <summary>Clears the scope's binding while preserving messages and the remote session.</summary>
+    Task<bool> ResetAsync(Guid conversationId, CancellationToken cancellationToken);
+
     Task<string?> GetAsync(Guid conversationId, string endpoint, CancellationToken cancellationToken);
     Task SaveAsync(Guid conversationId, string endpoint, string sessionId, CancellationToken cancellationToken);
 

@@ -17,10 +17,12 @@ namespace SharePointAgent.Persistence.Migrations
                 nullable: false,
                 defaultValue: 1);
 
+            // Defer compilation until the column exists, including in idempotent scripts.
+            // CurrentVersion may also have been renamed when an applied migration is skipped.
             migrationBuilder.Sql("""
-                UPDATE d SET [LastVersion] = CASE WHEN v.[MaxVersion] > d.[CurrentVersion] THEN v.[MaxVersion] ELSE d.[CurrentVersion] END
+                EXEC(N'UPDATE d SET [LastVersion] = CASE WHEN v.[MaxVersion] > d.[CurrentVersion] THEN v.[MaxVersion] ELSE d.[CurrentVersion] END
                 FROM [AgentSkillDefinitions] d
-                OUTER APPLY (SELECT MAX([Version]) AS [MaxVersion] FROM [AgentSkillVersions] WHERE [AgentSkillDefinitionId] = d.[Id]) v;
+                OUTER APPLY (SELECT MAX([Version]) AS [MaxVersion] FROM [AgentSkillVersions] WHERE [AgentSkillDefinitionId] = d.[Id]) v;');
                 """);
         }
 

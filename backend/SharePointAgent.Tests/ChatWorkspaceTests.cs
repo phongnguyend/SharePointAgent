@@ -83,6 +83,35 @@ public sealed class ChatWorkspaceTests : IAsyncLifetime
         Assert.Equal("sandbox-1", await sessions.GetAsync(first.Id, Endpoint, default));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ResetClearsOnlyTheSelectedScopeAndAllowsANewSession(bool shared)
+    {
+        var workspaces = new ChatWorkspaceRepository(_factory);
+        var chats = new ChatRepository(_factory);
+        var sessions = new FoundrySessionRepository(_factory);
+        var workspace = await workspaces.CreateAsync("Shared", null, default);
+        var first = await chats.CreateConversationAsync("First", null, _agentId, shared ? workspace.Id : null, default);
+        var second = await chats.CreateConversationAsync("Second", null, _agentId, shared ? workspace.Id : null, default);
+        await sessions.SaveAsync(first.Id, Endpoint, "old-session", default);
+        if (!shared)
+        {
+            await sessions.SaveAsync(second.Id, Endpoint, "other-session", default);
+        }
+
+        Assert.True(await sessions.ResetAsync(first.Id, default));
+        var binding = await sessions.DescribeAsync(first.Id, default);
+        Assert.NotNull(binding);
+        Assert.Null(binding.SessionId);
+        Assert.Null(binding.Endpoint);
+        Assert.Equal(shared ? null : "other-session", await sessions.GetAsync(second.Id, Endpoint, default));
+        Assert.NotNull(await chats.GetConversationAsync(first.Id, default));
+        await sessions.SaveAsync(first.Id, Endpoint, "new-session", default);
+        Assert.Equal("new-session", await sessions.GetAsync(first.Id, Endpoint, default));
+        Assert.False(await sessions.ResetAsync(Guid.NewGuid(), default));
+    }
+
     [Fact]
     public async Task AConversationOutsideAWorkspaceKeepsItsOwnSandbox()
     {
