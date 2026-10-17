@@ -12,6 +12,26 @@ namespace SharePointAgent.Tests;
 
 public sealed class TelemetryTests
 {
+    [Theory]
+    [InlineData(null)]
+    [InlineData(";IngestionEndpoint=https://example.com/")]
+    public async Task AgentHostTelemetryPreservesApplicationConnectionString(string? platformConnectionString)
+    {
+        const string connectionString = "InstrumentationKey=11111111-1111-1111-1111-111111111111";
+        var builder = Azure.AI.AgentServer.Core.AgentHost.CreateBuilder([]);
+        builder.Configuration["Monitoring:OpenTelemetry:Exporter"] = "AzureMonitor";
+        builder.Configuration["Monitoring:OpenTelemetry:AzureMonitor:ConnectionString"] = connectionString;
+        builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"] = platformConnectionString;
+        builder.WebApplicationBuilder.AddApplicationTelemetry("test-agent");
+        var agent = builder.Build();
+        await using var app = agent.App;
+        var options = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Azure.Monitor.OpenTelemetry.Exporter.AzureMonitorExporterOptions>>().CurrentValue;
+        Assert.Equal(connectionString, options.ConnectionString);
+        Assert.Null(options.TracesPerSecond);
+        Assert.Equal(1.0f, options.SamplingRatio);
+        Assert.NotNull(app.Services.GetRequiredService<OpenTelemetry.Metrics.MeterProvider>());
+    }
+
     [Fact]
     public void LocalTelemetryPreservesTraceContextAndServiceIdentity()
     {

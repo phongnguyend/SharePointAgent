@@ -66,7 +66,10 @@ public static class Telemetry
 
         if (azure)
         {
-            telemetry.UseAzureMonitorExporter(options =>
+            telemetry.UseAzureMonitorExporter();
+            // AgentHost adds its telemetry distro during Build(), after this registration.
+            // Apply our explicit settings after its Configure callbacks so they cannot be cleared.
+            builder.Services.PostConfigure<AzureMonitorExporterOptions>(options =>
             {
                 options.ConnectionString = connectionString;
                 options.TracesPerSecond = null;
