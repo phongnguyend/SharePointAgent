@@ -27,26 +27,26 @@ public sealed class ChatWorkspaceEntity
 
     /// <summary>
     /// Where the API's own agent keeps this workspace's files, as chosen by its users; null uses the
-    /// configured default (AgentWorkspace:Mode). Each mode keeps its own environment, so switching back
+    /// configured default (AgentWorkspace:DefaultMode). Each mode keeps its own environment, so switching back
     /// finds the files that were left there.
     /// </summary>
     public AgentWorkspaceMode? WorkspaceMode { get; set; }
 
     /// <summary>
     /// Where this workspace's agent runs, as chosen by its users: in the API or as the Foundry hosted agent.
-    /// Null uses the configured default (ChatAgent:Mode). The Foundry session and the API's environment are
+    /// Null uses the configured default (ChatAgent:DefaultMode). The Foundry session and the API's environment are
     /// kept apart, so switching back finds each one's files.
     /// </summary>
     public ChatAgentExecutionMode? AgentMode { get; set; }
 
     /// <summary>
-    /// The dynamic session the API's own agent uses for this workspace (AgentWorkspace:Mode
+    /// The dynamic session the API's own agent uses for this workspace (AgentWorkspace:DefaultMode
     /// DynamicSessions). Independent of the Foundry session; cleared to start a fresh environment.
     /// </summary>
     public string? DynamicSessionId { get; set; }
 
     /// <summary>
-    /// The sandbox the API's own agent uses for this workspace (AgentWorkspace:Mode Sandboxes). Its
+    /// The sandbox the API's own agent uses for this workspace (AgentWorkspace:DefaultMode Sandboxes). Its
     /// address and key stay in the private workspace storage; this records which sandbox it is.
     /// </summary>
     public string? SandboxId { get; set; }

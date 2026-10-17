@@ -26,7 +26,7 @@ public sealed class SandboxProvisionerTests
     {
         var options = new AgentWorkspaceOptions
         {
-            Mode = AgentWorkspaceMode.Sandboxes,
+            DefaultMode = AgentWorkspaceMode.Sandboxes,
             Sandboxes = new SandboxesWorkspaceOptions
             {
                 SubscriptionId = "sub-1",

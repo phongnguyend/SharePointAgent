@@ -138,7 +138,7 @@ public static class DependencyInjection
         services.AddOptions<ChatAgentHostingOptions>().Bind(configuration.GetSection(ChatAgentHostingOptions.SectionName))
             .ValidateDataAnnotations().ValidateOnStart();
 
-        // ChatAgent:Mode is only the default: each workspace or conversation chooses where its agent runs, so
+        // ChatAgent:DefaultMode is only the default: each workspace or conversation chooses where its agent runs, so
         // the API's own agent is always registered and the Foundry one whenever its endpoint is configured.
         // Each mode's executor and file browser are keyed by mode, and the routers pick per conversation.
         services.AddLocalChatAgent(configuration);
@@ -238,7 +238,7 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Where the agent's working directory lives (<c>AgentWorkspace:Mode</c>). Local is the default and
+    /// Where the agent's working directory lives (<c>AgentWorkspace:DefaultMode</c>). Local is the default and
     /// changes nothing. The isolated modes reach SharePointAgent.SandboxHost in an Azure Container Apps
     /// dynamic session or sandbox, one per chat workspace or conversation, with snapshots in Blob Storage
     /// keeping a dynamic session's files across its cooldown.
@@ -248,19 +248,19 @@ public static class DependencyInjection
         services.AddSingleton<AgentFileSystem>();
         var mode = hostedSession
             ? AgentWorkspaceMode.Local
-            : configuration.GetValue($"{AgentWorkspaceOptions.SectionName}:{nameof(AgentWorkspaceOptions.Mode)}", AgentWorkspaceMode.Local);
+            : configuration.GetValue($"{AgentWorkspaceOptions.SectionName}:{nameof(AgentWorkspaceOptions.DefaultMode)}", AgentWorkspaceMode.Local);
 
-        // Mode is only the default: a workspace or conversation may choose any mode configured here. A
+        // DefaultMode is only the default: a workspace or conversation may choose any mode configured here. A
         // dynamic session pool keeps files only through snapshots, and created sandboxes are bound through
         // the same storage, so either one being choosable requires it.
         services.AddOptions<AgentWorkspaceOptions>().Bind(configuration.GetSection(AgentWorkspaceOptions.SectionName))
-            .Configure(options => options.Mode = mode)
+            .Configure(options => options.DefaultMode = mode)
             .ValidateDataAnnotations()
-            .Validate(o => o.Mode != AgentWorkspaceMode.DynamicSessions || o.DynamicSessions.IsConfigured,
+            .Validate(o => o.DefaultMode != AgentWorkspaceMode.DynamicSessions || o.DynamicSessions.IsConfigured,
                 "AgentWorkspace:DynamicSessions:PoolManagementEndpoint must be the pool's HTTPS management endpoint.")
             .Validate(o => !o.DynamicSessions.IsConfigured || o.Snapshots.IsConfigured,
                 "AgentWorkspace:Snapshots:ServiceUri (managed identity) or ConnectionString is required for dynamic sessions, whose files are otherwise lost after the cooldown.")
-            .Validate(o => o.Mode != AgentWorkspaceMode.Sandboxes || o.Sandboxes.IsConfigured,
+            .Validate(o => o.DefaultMode != AgentWorkspaceMode.Sandboxes || o.Sandboxes.IsConfigured,
                 "AgentWorkspace:Sandboxes needs SubscriptionId, ResourceGroup, SandboxGroup, and DiskImageId to create a sandbox per workspace.")
             .Validate(o => !o.Sandboxes.IsConfigured || o.Sandboxes.UsesSharedSandbox || o.Snapshots.IsConfigured,
                 "AgentWorkspace:Snapshots storage holds the per-workspace sandbox bindings; configure ServiceUri (managed identity) or ConnectionString.")

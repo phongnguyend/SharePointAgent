@@ -67,7 +67,7 @@ public sealed class ChatAgentStreamingTests
         var sessions = EmptySessions();
         var proxy = new FoundryChatAgentExecutor(http, new TestCredential(), sessions, Options.Create(new ChatAgentHostingOptions
         {
-            Mode = ChatAgentExecutionMode.Foundry,
+            DefaultMode = ChatAgentExecutionMode.Foundry,
             Foundry = new() { Endpoint = "http://localhost/invocations" },
         }));
         var textReceived = new StringBuilder();
@@ -204,7 +204,7 @@ public sealed class ChatAgentStreamingTests
         var browser = new FoundryAgentFileBrowser(http, new TestCredential(), sessions,
             Options.Create(new ChatAgentHostingOptions
             {
-                Mode = ChatAgentExecutionMode.Foundry,
+                DefaultMode = ChatAgentExecutionMode.Foundry,
                 Foundry = new() { Endpoint = "http://localhost/invocations" },
             }));
 
@@ -270,7 +270,7 @@ public sealed class ChatAgentStreamingTests
         var browser = new FoundryAgentFileBrowser(http, new TestCredential(), sessions,
             Options.Create(new ChatAgentHostingOptions
             {
-                Mode = ChatAgentExecutionMode.Foundry,
+                DefaultMode = ChatAgentExecutionMode.Foundry,
                 Foundry = new() { Endpoint = "http://localhost/invocations" },
             }));
 
@@ -295,7 +295,7 @@ public sealed class ChatAgentStreamingTests
         var browser = new FoundryAgentFileBrowser(http, new TestCredential(), EmptySessions(),
             Options.Create(new ChatAgentHostingOptions
             {
-                Mode = ChatAgentExecutionMode.Foundry,
+                DefaultMode = ChatAgentExecutionMode.Foundry,
                 Foundry = new() { Endpoint = "https://example.com/invocations" },
             }));
 
@@ -318,7 +318,7 @@ public sealed class ChatAgentStreamingTests
             var browser = new FoundryAgentFileBrowser(http, new TestCredential(), sessions,
                 Options.Create(new ChatAgentHostingOptions
                 {
-                    Mode = ChatAgentExecutionMode.Foundry,
+                    DefaultMode = ChatAgentExecutionMode.Foundry,
                     Foundry = new() { Endpoint = "http://localhost/invocations" }
                 }));
             var conversation = Guid.NewGuid();
@@ -346,7 +346,7 @@ public sealed class ChatAgentStreamingTests
         var browser = new FoundryAgentFileBrowser(http, new TestCredential(), EmptySessions(),
             Options.Create(new ChatAgentHostingOptions
             {
-                Mode = ChatAgentExecutionMode.Foundry,
+                DefaultMode = ChatAgentExecutionMode.Foundry,
                 Foundry = new() { Endpoint = "https://example.com/invocations" }
             }));
         await Assert.ThrowsAsync<InvalidOperationException>(() => browser.ManageAsync(Guid.NewGuid(), new("mkdir", "folder"), default));
@@ -374,7 +374,7 @@ public sealed class ChatAgentStreamingTests
         var browser = new FoundryAgentFileBrowser(http, new TestCredential(), sessions,
             Options.Create(new ChatAgentHostingOptions
             {
-                Mode = ChatAgentExecutionMode.Foundry,
+                DefaultMode = ChatAgentExecutionMode.Foundry,
                 Foundry = new() { Endpoint = "https://example.com/invocations" }
             }));
         await Assert.ThrowsAsync<InvalidDataException>(() => browser.ManageAsync(Guid.NewGuid(), new("mkdir", "folder"), default));
@@ -388,7 +388,7 @@ public sealed class ChatAgentStreamingTests
         var browser = new FoundryAgentFileBrowser(http, new TestCredential(), EmptySessions(),
             Options.Create(new ChatAgentHostingOptions
             {
-                Mode = ChatAgentExecutionMode.Foundry,
+                DefaultMode = ChatAgentExecutionMode.Foundry,
                 Foundry = new() { Endpoint = "https://example.com/invocations" },
             }));
 
@@ -454,7 +454,7 @@ public sealed class ChatAgentStreamingTests
     private static FoundryChatAgentExecutor Proxy(HttpClient http, IFoundrySessionRepository? sessions = null,
         string endpoint = "https://example.com/invocations", TestCredential? credential = null) =>
         new(http, credential ?? new TestCredential(), sessions ?? EmptySessions(),
-            Options.Create(new ChatAgentHostingOptions { Mode = ChatAgentExecutionMode.Foundry, Foundry = new() { Endpoint = endpoint } }));
+            Options.Create(new ChatAgentHostingOptions { DefaultMode = ChatAgentExecutionMode.Foundry, Foundry = new() { Endpoint = endpoint } }));
 
     private static HttpResponseMessage Response(ChatAgentEvent item, string session)
     {

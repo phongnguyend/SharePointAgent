@@ -10,7 +10,7 @@ namespace SharePointAgent.Infrastructure;
 
 /// <summary>
 /// Where each conversation's agent runs, stored on its workspace (so all of the workspace's conversations move
-/// together) or on the conversation outside one, defaulting to <see cref="ChatAgentHostingOptions.Mode"/>.
+/// together) or on the conversation outside one, defaulting to <see cref="ChatAgentHostingOptions.DefaultMode"/>.
 /// A chosen mode that is no longer configured falls back to the default rather than failing every turn.
 /// </summary>
 public sealed class ChatAgentModeSelector(
@@ -29,7 +29,7 @@ public sealed class ChatAgentModeSelector(
         var chosen = await context.ChatConversations.Where(conversation => conversation.Id == conversationId)
             .Select(conversation => conversation.Workspace == null ? conversation.AgentMode : conversation.Workspace.AgentMode)
             .SingleOrDefaultAsync(cancellationToken);
-        var fallback = options.Value.Mode;
+        var fallback = options.Value.DefaultMode;
         if (chosen is { } mode && !AvailableModes.Contains(mode))
         {
             logger.LogWarning("Conversation {ConversationId} chose to run its agent in {Mode}, which is not configured; using {Default}.", conversationId, mode, fallback);

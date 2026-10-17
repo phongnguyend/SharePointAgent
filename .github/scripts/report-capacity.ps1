@@ -149,7 +149,7 @@ try {
                 $apiSettings[$variable.name] = $variable.value
             }
         }
-        $mode = $apiSettings['AgentWorkspace__Mode']
+        $mode = $apiSettings['AgentWorkspace__DefaultMode']
         $cpu = $apiSettings['AgentWorkspace__Sandboxes__Cpu']
         $memory = $apiSettings['AgentWorkspace__Sandboxes__Memory']
         $suspend = $apiSettings['AgentWorkspace__Sandboxes__AutoSuspendSeconds']

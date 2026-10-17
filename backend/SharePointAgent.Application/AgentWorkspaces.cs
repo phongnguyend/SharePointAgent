@@ -151,7 +151,7 @@ public sealed class AgentWorkspaceOptions
     /// The default for a workspace or conversation that has not chosen a mode. Every isolated mode that is
     /// configured below can be chosen as well, whatever the default is.
     /// </summary>
-    public AgentWorkspaceMode Mode { get; set; } = AgentWorkspaceMode.Local;
+    public AgentWorkspaceMode DefaultMode { get; set; } = AgentWorkspaceMode.Local;
 
     /// <summary>Per request to the isolated environment; executions get their own timeout on top.</summary>
     [Range(5, 600)] public int RequestTimeoutSeconds { get; set; } = 120;

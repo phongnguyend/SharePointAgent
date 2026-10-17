@@ -274,7 +274,7 @@ public sealed class IsolatedWorkspaceTests : IAsyncLifetime
         var http = Substitute.For<IHttpClientFactory>();
         http.CreateClient(Arg.Any<string>()).Returns(new HttpClient());
         var provider = new IsolatedAgentWorkspaceProvider(http, factory,
-            Options.Create(new AgentWorkspaceOptions { Mode = AgentWorkspaceMode.Sandboxes }), Options.Create(new LocalWorkingDirectoryOptions()),
+            Options.Create(new AgentWorkspaceOptions { DefaultMode = AgentWorkspaceMode.Sandboxes }), Options.Create(new LocalWorkingDirectoryOptions()),
             NullLogger<SandboxHostWorkspace>.Instance, sandboxes: provisioner);
 
         await provider.GetAsync(inWorkspace, default);
@@ -299,7 +299,7 @@ public sealed class IsolatedWorkspaceTests : IAsyncLifetime
             return db;
         });
         IAgentWorkspaceProvider Provider(AgentWorkspaceMode mode) => new IsolatedAgentWorkspaceProvider(
-            Substitute.For<IHttpClientFactory>(), factory, Options.Create(new AgentWorkspaceOptions { Mode = mode }),
+            Substitute.For<IHttpClientFactory>(), factory, Options.Create(new AgentWorkspaceOptions { DefaultMode = mode }),
             Options.Create(new LocalWorkingDirectoryOptions()), NullLogger<SandboxHostWorkspace>.Instance,
             Substitute.For<TokenCredential>(), _snapshots, provisioner, bindings);
         var browser = new WorkspaceAgentFileBrowser(Provider(AgentWorkspaceMode.Sandboxes));
@@ -429,7 +429,7 @@ public sealed class IsolatedWorkspaceTests : IAsyncLifetime
         var shared = new IsolatedAgentWorkspaceProvider(Substitute.For<IHttpClientFactory>(), database.Factory,
             Options.Create(new AgentWorkspaceOptions
             {
-                Mode = AgentWorkspaceMode.Sandboxes,
+                DefaultMode = AgentWorkspaceMode.Sandboxes,
                 Sandboxes = new SandboxesWorkspaceOptions { SharedEndpoint = "https://shared.example/", SharedApiKey = "key" }
             }),
             Options.Create(new LocalWorkingDirectoryOptions()), NullLogger<SandboxHostWorkspace>.Instance, sandboxes: provisioner);
@@ -526,7 +526,7 @@ public sealed class IsolatedWorkspaceTests : IAsyncLifetime
         var provider = new IsolatedAgentWorkspaceProvider(http, database.Factory,
             Options.Create(new AgentWorkspaceOptions
             {
-                Mode = AgentWorkspaceMode.Local,
+                DefaultMode = AgentWorkspaceMode.Local,
                 DynamicSessions = new DynamicSessionsWorkspaceOptions { PoolManagementEndpoint = "https://pool.example/" }
             }),
             Options.Create(new LocalWorkingDirectoryOptions()), NullLogger<SandboxHostWorkspace>.Instance, credential, _snapshots, local: local);
@@ -560,7 +560,7 @@ public sealed class IsolatedWorkspaceTests : IAsyncLifetime
         return new IsolatedAgentWorkspaceProvider(http, factory,
             Options.Create(new AgentWorkspaceOptions
             {
-                Mode = AgentWorkspaceMode.DynamicSessions,
+                DefaultMode = AgentWorkspaceMode.DynamicSessions,
                 DynamicSessions = new DynamicSessionsWorkspaceOptions { PoolManagementEndpoint = "https://pool.example/" }
             }),
             Options.Create(new LocalWorkingDirectoryOptions()), NullLogger<SandboxHostWorkspace>.Instance, credential, _snapshots);
@@ -572,7 +572,7 @@ public sealed class IsolatedWorkspaceTests : IAsyncLifetime
         var http = Substitute.For<IHttpClientFactory>();
         http.CreateClient(Arg.Any<string>()).Returns(_ => new HttpClient());
         return new IsolatedAgentWorkspaceProvider(http, factory,
-            Options.Create(new AgentWorkspaceOptions { Mode = AgentWorkspaceMode.Sandboxes }),
+            Options.Create(new AgentWorkspaceOptions { DefaultMode = AgentWorkspaceMode.Sandboxes }),
             Options.Create(new LocalWorkingDirectoryOptions()), NullLogger<SandboxHostWorkspace>.Instance, sandboxes: provisioner, local: local);
     }
 

@@ -309,7 +309,7 @@ resource graphContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
 }]
 
 // Snapshots of dynamic-session working directories, and sandbox bindings, for isolated agent workspaces
-// (agentWorkspaceMode in infra/ContainerApps). Kept even in Local mode, where it stays empty.
+// (agentWorkspaceDefaultMode in infra/ContainerApps). Kept even in Local mode, where it stays empty.
 resource agentWorkspacesContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
   parent: uploadBlobService
   name: 'agent-workspaces'

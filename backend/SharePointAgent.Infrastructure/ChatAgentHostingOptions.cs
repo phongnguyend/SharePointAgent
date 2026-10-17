@@ -12,18 +12,18 @@ public sealed class ChatAgentHostingOptions : IValidatableObject
     /// The default for a workspace or conversation that has not chosen where its agent runs. Foundry can be
     /// chosen whenever <see cref="FoundryChatAgentOptions.Endpoint"/> is configured, whatever the default is.
     /// </summary>
-    public ChatAgentExecutionMode Mode { get; set; } = ChatAgentExecutionMode.Local;
+    public ChatAgentExecutionMode DefaultMode { get; set; } = ChatAgentExecutionMode.Local;
 
     public FoundryChatAgentOptions Foundry { get; set; } = new();
 
     /// <summary>True when Foundry can be chosen: it is the default, or its endpoint is configured.</summary>
-    public bool IsFoundryConfigured => Mode == ChatAgentExecutionMode.Foundry || !string.IsNullOrWhiteSpace(Foundry.Endpoint);
+    public bool IsFoundryConfigured => DefaultMode == ChatAgentExecutionMode.Foundry || !string.IsNullOrWhiteSpace(Foundry.Endpoint);
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
-        if (!Enum.IsDefined(Mode))
+        if (!Enum.IsDefined(DefaultMode))
         {
-            yield return new("ChatAgent:Mode must be Local or Foundry.");
+            yield return new("ChatAgent:DefaultMode must be Local or Foundry.");
         }
 
         // A configured endpoint is validated even when Foundry is not the default, because it can be chosen.

@@ -49,6 +49,7 @@ public sealed class ChatAgentRegistrationTests
     {
         await using var provider = BuildServices(defaultMode, "https://example.com/invocations?api-version=v1");
 
+        Assert.Equal(Enum.Parse<ChatAgentExecutionMode>(defaultMode), provider.GetRequiredService<IOptions<ChatAgentHostingOptions>>().Value.DefaultMode);
         Assert.IsType<RoutingChatAgentExecutor>(provider.GetRequiredService<IChatAgentExecutor>());
         Assert.IsType<RoutingAgentFileBrowser>(provider.GetRequiredService<IAgentFileBrowser>());
         Assert.IsType<ChatAgentService>(provider.GetRequiredKeyedService<IChatAgentExecutor>(ChatAgentExecutionMode.Local));
@@ -77,7 +78,7 @@ public sealed class ChatAgentRegistrationTests
     {
         var options = new ChatAgentHostingOptions
         {
-            Mode = ChatAgentExecutionMode.Foundry,
+            DefaultMode = ChatAgentExecutionMode.Foundry,
             Foundry = new() { Endpoint = endpoint, AllowUnauthenticatedLocalhost = unauthenticated },
         };
         Assert.Equal(valid, Validator.TryValidateObject(options, new(options), [], validateAllProperties: true));
@@ -156,7 +157,7 @@ public sealed class ChatAgentRegistrationTests
     {
         var settings = new Dictionary<string, string?>
         {
-            ["ChatAgent:Mode"] = defaultMode,
+            ["ChatAgent:DefaultMode"] = defaultMode,
             ["ChatAgent:Foundry:Endpoint"] = foundryEndpoint,
             ["SqlServer:ConnectionString"] = "Server=unused;Database=unused;Integrated Security=true",
             ["SqlServer:AutoMigrate"] = "false",

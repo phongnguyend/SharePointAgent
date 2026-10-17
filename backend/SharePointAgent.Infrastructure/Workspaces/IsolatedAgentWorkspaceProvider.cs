@@ -15,7 +15,7 @@ namespace SharePointAgent.Infrastructure.Workspaces;
 /// database ID, never something a user supplies, and it is the only thing that selects an environment.
 /// <para>
 /// Each scope chooses where its files live — this host's disk, a dynamic session, or a sandbox — and the
-/// choice is stored on its row, defaulting to <see cref="AgentWorkspaceOptions.Mode"/>. The dynamic session
+/// choice is stored on its row, defaulting to <see cref="AgentWorkspaceOptions.DefaultMode"/>. The dynamic session
 /// or sandbox serving a scope is recorded on the same row, apart from any Foundry session, and each mode
 /// keeps its own environment, so switching back finds the files left there.
 /// </para>
@@ -176,16 +176,16 @@ public sealed class IsolatedAgentWorkspaceProvider(
     {
         if (owner.Mode is { } chosen && !IsAvailable(chosen))
         {
-            logger.LogWarning("Workspace {Scope} chose {Mode}, which is not configured; using {Default}.", owner.Scope, chosen, options.Value.Mode);
-            return options.Value.Mode;
+            logger.LogWarning("Workspace {Scope} chose {Mode}, which is not configured; using {Default}.", owner.Scope, chosen, options.Value.DefaultMode);
+            return options.Value.DefaultMode;
         }
-        return owner.Mode ?? options.Value.Mode;
+        return owner.Mode ?? options.Value.DefaultMode;
     }
 
     private bool IsAvailable(AgentWorkspaceMode mode)
     {
         var settings = options.Value;
-        return mode == settings.Mode || mode switch
+        return mode == settings.DefaultMode || mode switch
         {
             AgentWorkspaceMode.Local => local is not null,
             AgentWorkspaceMode.DynamicSessions => settings.DynamicSessions.IsConfigured && sessionCredential is not null && snapshots is not null,

@@ -23,13 +23,13 @@ param tags object = {}
 @description('Outputs of the infra/main.bicep deployment (infra-<environment>), each output name mapped to its value.')
 param infrastructure object
 
-@description('The default for where the agent working directory lives when the API runs the agent itself (ChatAgent:Mode Local): this host disk, a dynamic session (needs infra/DynamicSessions), or a sandbox bound per workspace (needs infra/Sandboxes). Users can choose any configured mode per chat workspace. Foundry mode already runs the agent in its own session sandbox.')
+@description('The default for where the agent working directory lives when the API runs the agent itself (ChatAgent:DefaultMode Local): this host disk, a dynamic session (needs infra/DynamicSessions), or a sandbox bound per workspace (needs infra/Sandboxes). Users can choose any configured mode per chat workspace. Foundry mode already runs the agent in its own session sandbox.')
 @allowed([
   'Local'
   'DynamicSessions'
   'Sandboxes'
 ])
-param agentWorkspaceMode string = 'Local'
+param agentWorkspaceDefaultMode string = 'Local'
 
 @description('Turn on graph extraction in the worker.')
 param enableKnowledgeGraphIndexing bool = false
@@ -284,8 +284,8 @@ resource api 'Microsoft.App/containerApps@2025-01-01' = {
         env: deployApplicationImages ? concat(commonEnv, knowledgeGraphEnv, [
           { name: 'AZURE_CLIENT_ID', value: hosting.apiClientId }
           { name: 'SqlServer__ConnectionString', value: 'Server=tcp:${hosting.sqlServerFqdn},1433;Database=${hosting.sqlDatabaseName};Authentication=Active Directory Managed Identity;User Id=${hosting.apiClientId};Encrypt=True;TrustServerCertificate=False;' }
-          { name: 'ChatAgent__Mode', value: 'Foundry' }
-          { name: 'AgentWorkspace__Mode', value: agentWorkspaceMode }
+          { name: 'ChatAgent__DefaultMode', value: 'Foundry' }
+          { name: 'AgentWorkspace__DefaultMode', value: agentWorkspaceDefaultMode }
           { name: 'AgentWorkspace__Snapshots__UseManagedIdentity', value: 'true' }
           { name: 'AgentWorkspace__Snapshots__ServiceUri', value: infrastructure.uploadStorageServiceUri }
           { name: 'AgentWorkspace__Sandboxes__SubscriptionId', value: subscription().subscriptionId }

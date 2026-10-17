@@ -30,7 +30,7 @@ builder.AddProject<Projects.SharePointAgent_Api>("api")
     .WithEnvironment("Monitoring__OpenTelemetry__Exporter", "Otlp")
     .WithEnvironment("Monitoring__OpenTelemetry__Environment", "local")
     .WithEnvironment("SqlServer__ConnectionString", database)
-    // Read only when ChatAgent:Mode is Foundry, so it costs nothing in the default local mode and
+    // Read only when ChatAgent:DefaultMode is Foundry, so it costs nothing in the default local mode and
     // makes switching to the hosted agent a one-setting change.
     .WithEnvironment(context => context.EnvironmentVariables["ChatAgent__Foundry__Endpoint"] =
         ReferenceExpression.Create($"{agentHost.GetEndpoint("http")}/invocations"))
