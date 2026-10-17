@@ -4,6 +4,7 @@ import { ListTree, FileType } from 'lucide-react'
 import WorkspacePlaygroundPage from './WorkspacePlaygroundPage'
 
 const tabs = [
+  { key: 'foundry-sessions', label: 'Foundry Sessions', Icon: ListTree },
   { key: 'dynamic-sessions', label: 'ACA Dynamic Sessions', Icon: ListTree },
   { key: 'sandboxes', label: 'ACA Sandboxes', Icon: FileType },
 ] as const
@@ -11,7 +12,7 @@ const tabs = [
 export default function WorkspacePlaygroundsPage({ active }: { active: boolean }) {
   const [params, setParams] = useSearchParams()
   const id = useId()
-  const selected = tabs.find(tab => tab.key === (params.get('workspace') ?? params.get('provider')))?.key ?? 'dynamic-sessions'
+  const selected = tabs.find(tab => tab.key === (params.get('workspace') ?? params.get('provider')))?.key ?? 'foundry-sessions'
   const select = (key: string) => {
     const next = new URLSearchParams(params)
     next.set('tab', 'playgrounds')

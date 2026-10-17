@@ -44,6 +44,10 @@ public sealed class FoundryChatAgentExecutor(
             }
 
             using var response = await http.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, token);
+            if ((int)response.StatusCode == 424)
+            {
+                throw await FailedDependencyAsync(response, token);
+            }
             response.EnsureSuccessStatusCode();
             if (response.Content.Headers.ContentType?.MediaType != "application/x-ndjson")
             {
@@ -104,5 +108,39 @@ public sealed class FoundryChatAgentExecutor(
         {
             throw new TimeoutException("The hosted agent exceeded the configured execution timeout.");
         }
+    }
+
+    private static async Task<HttpRequestException> FailedDependencyAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        var details = new List<string>();
+        // Keep only diagnostic identifiers; upstream messages may contain configuration or document data.
+        static bool IsIdentifier(string? value) => !string.IsNullOrEmpty(value) && value.Length <= 200
+            && value.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.' or ':');
+        try
+        {
+            await using var stream = await response.Content.ReadAsStreamAsync(ct);
+            var buffer = new byte[16 * 1024];
+            var count = await stream.ReadAtLeastAsync(buffer, buffer.Length, throwOnEndOfStream: false, cancellationToken: ct);
+            using var json = JsonDocument.Parse(buffer.AsMemory(0, count));
+            if (json.RootElement.ValueKind == JsonValueKind.Object && json.RootElement.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.Object
+                && error.TryGetProperty("code", out var code) && code.ValueKind == JsonValueKind.String && IsIdentifier(code.GetString()))
+            {
+                details.Add($"Code: {code.GetString()}.");
+            }
+        }
+        catch (Exception ex) when (ex is JsonException or IOException)
+        {
+            // An empty, oversized or non-JSON error must still report the original 424.
+        }
+        foreach (var header in new[] { "x-ms-request-id", "apim-request-id", "x-agent-session-id" })
+        {
+            if (response.Headers.TryGetValues(header, out var values) && values.FirstOrDefault() is { } value && IsIdentifier(value))
+            {
+                details.Add($"{header}: {value}.");
+            }
+        }
+        return new HttpRequestException("Foundry could not invoke the hosted agent (HTTP 424 Failed Dependency). "
+            + string.Join(" ", details) + " Check this session's container logs and AgentHost startup/readiness. "
+            + "An active agent version alone does not confirm that its session container is ready.", null, response.StatusCode);
     }
 }

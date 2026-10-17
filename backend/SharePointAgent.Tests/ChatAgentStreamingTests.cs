@@ -23,6 +23,31 @@ public sealed class ChatAgentStreamingTests
 {
     private static readonly ChatTurn Turn = new("Answer", [new("File", null, "https://example.com/file", 1, 0.9)], new(10, 5, 15, 7), "model");
 
+    [Theory]
+    [InlineData("{\"error\":{\"code\":\"session_not_ready\",\"message\":\"secret configuration\"}}", true)]
+    [InlineData("upstream unavailable", false)]
+    [InlineData("[]", false)]
+    public async Task FailedDependencyPreservesSafeDiagnosticsWithoutRetrying(string body, bool hasCode)
+    {
+        var calls = 0;
+        using var http = new HttpClient(new StubHttpHandler((_, _) =>
+        {
+            calls++;
+            var response = new HttpResponseMessage((HttpStatusCode)424) { Content = new StringContent(body) };
+            response.Headers.Add("x-ms-request-id", "request-123");
+            return Task.FromResult(response);
+        }));
+        var proxy = Proxy(http);
+        var exception = await Assert.ThrowsAsync<HttpRequestException>(() => proxy.RunStreamingAsync(
+            new(Guid.NewGuid(), Guid.NewGuid()), Ignore, Ignore, default));
+        Assert.Equal((HttpStatusCode)424, exception.StatusCode);
+        Assert.Contains("request-123", exception.Message);
+        Assert.Contains("startup/readiness", exception.Message);
+        Assert.Equal(hasCode, exception.Message.Contains("session_not_ready"));
+        Assert.DoesNotContain("secret configuration", exception.Message);
+        Assert.Equal(1, calls);
+    }
+
     [Fact]
     public async Task ActualInvocationsHostStreamsStatusBeforeCompletionAndPreservesTurnMetadata()
     {

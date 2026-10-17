@@ -19,7 +19,8 @@ public sealed class WorkspacePlayground(
     IOptions<LocalWorkingDirectoryOptions> limits,
     TokenCredential credential,
     Func<ISandboxRegistry> registryFactory,
-    ILoggerFactory loggers) : IWorkspacePlayground
+    ILoggerFactory loggers,
+    FoundryWorkspacePlayground? foundry = null) : IWorkspacePlayground
 {
     public const string HttpClientName = "WorkspacePlayground";
 
@@ -36,6 +37,10 @@ public sealed class WorkspacePlayground(
 
     public async Task<WorkspacePlaygroundListing> ListAsync(string provider, CancellationToken cancellationToken)
     {
+        if (provider == "foundry-sessions" && foundry is not null)
+        {
+            return await foundry.ListAsync(cancellationToken);
+        }
         ValidateProvider(provider);
         var configuration = ConfigurationError(provider);
         if (configuration is not null)
@@ -86,6 +91,10 @@ public sealed class WorkspacePlayground(
 
     public async Task<WorkspacePlaygroundInstance> CreateAsync(string provider, CancellationToken cancellationToken)
     {
+        if (provider == "foundry-sessions" && foundry is not null)
+        {
+            return await foundry.CreateAsync(cancellationToken);
+        }
         EnsureConfigured(provider);
         // This is an Azure session identifier / blob scope, not a persistence entity primary key.
         var identifier = "playground-" + Guid.NewGuid().ToString("N");
@@ -106,6 +115,11 @@ public sealed class WorkspacePlayground(
 
     public async Task ChangeStateAsync(string provider, string id, string action, CancellationToken cancellationToken)
     {
+        if (provider == "foundry-sessions" && foundry is not null)
+        {
+            await foundry.ChangeStateAsync(id, action, cancellationToken);
+            return;
+        }
         EnsureConfigured(provider);
         ValidateIdentifier(id);
         if (provider == "dynamic-sessions" && action == "stop")
@@ -137,6 +151,10 @@ public sealed class WorkspacePlayground(
 
     public async Task<IAgentWorkspace> OpenAsync(string provider, string id, CancellationToken cancellationToken)
     {
+        if (provider == "foundry-sessions" && foundry is not null)
+        {
+            return await foundry.OpenAsync(id, cancellationToken);
+        }
         EnsureConfigured(provider);
         ValidateIdentifier(id);
         if (provider == "dynamic-sessions")
@@ -279,7 +297,9 @@ public static class WorkspacePlaygroundRegistration
             return new WorkspacePlayground(sp.GetRequiredService<IHttpClientFactory>(), settings,
                 sp.GetRequiredService<IOptions<LocalWorkingDirectoryOptions>>(), new DefaultAzureCredential(),
                 () => settings.Value.Snapshots.IsConfigured ? new BlobWorkspaceStorage(settings) : new NoSandboxRegistry(),
-                sp.GetRequiredService<ILoggerFactory>());
+                sp.GetRequiredService<ILoggerFactory>(),
+                new FoundryWorkspacePlayground(sp.GetRequiredService<IHttpClientFactory>(), new DefaultAzureCredential(),
+                    sp.GetRequiredService<IOptions<ChatAgentHostingOptions>>()));
         });
         return services;
     }

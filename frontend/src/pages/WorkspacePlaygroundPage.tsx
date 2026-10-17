@@ -36,7 +36,7 @@ export default function WorkspacePlaygroundPage({ provider, active }: { provider
   const operation = useRef<AbortController | null>(null)
   const initialized = useRef(false)
   const upload = useRef<HTMLInputElement | null>(null)
-  const title = provider === 'dynamic-sessions' ? 'ACA Dynamic Sessions' : 'ACA Sandboxes'
+  const title = provider === 'foundry-sessions' ? 'Foundry Sessions' : provider === 'dynamic-sessions' ? 'ACA Dynamic Sessions' : 'ACA Sandboxes'
   const canBrowse = selected?.canAccessFiles && selected.state.toLowerCase() === 'running'
   const single = checked.length === 1 ? files?.entries.find(file => file.path === checked[0]) : undefined
 
@@ -107,7 +107,9 @@ export default function WorkspacePlaygroundPage({ provider, active }: { provider
     setChecked([])
     setListing(current => current ? { ...current, instances: [...current.instances.filter(item => item.id !== created.id), created] } : current)
     toast.success('Instance created.')
-    await loadFiles(created, '', signal)
+    if (created.canAccessFiles && created.state.toLowerCase() === 'running') {
+      await loadFiles(created, '', signal)
+    }
   })
 
   const openDialog = (kind: FileAction) => {
@@ -189,7 +191,7 @@ export default function WorkspacePlaygroundPage({ provider, active }: { provider
         setFiles(null)
         setChecked([])
         setDialog(null)
-        toast.success('Stop requested. Refresh to check the sandbox state.')
+        toast.success('Stop requested. Refresh to check the instance state.')
         return
       }
       if (dialog.kind === 'stop-instance' || dialog.kind === 'delete-instance') {
@@ -226,7 +228,8 @@ export default function WorkspacePlaygroundPage({ provider, active }: { provider
     <div className="card-head"><h2><Terminal size={18} />{title} playground</h2><span className="muted workspace-playground-status" role="status" aria-live="polite">{busy || 'Ready'}</span></div>
     <div className="card-body stack">
       <div className="workspace-playground-intro muted">
-        <p>Manage {provider === 'dynamic-sessions' ? 'sessions' : 'sandboxes'}, files, and scripts. Changes apply immediately, including to chat instances; Azure usage may incur charges.</p>
+        <p>Manage {provider === 'sandboxes' ? 'sandboxes' : 'sessions'}, files, and scripts. Changes apply immediately, including to chat instances; Azure usage may incur charges.</p>
+        {provider === 'foundry-sessions' && <p>Files use the hosted agent’s working directory. Deploy the latest AgentHost to enable workspace operations. Scripts run with the hosted agent’s permissions.</p>}
         {provider === 'dynamic-sessions' && <p>Session files disappear on stop or expiry. Download files you want to keep.</p>}
       </div>
       {error && !dialog && <ErrorBanner message={error} />}
@@ -238,7 +241,7 @@ export default function WorkspacePlaygroundPage({ provider, active }: { provider
             <div className="card-head">
               <h2><Terminal size={15} aria-hidden="true" />Instances</h2>
               <button type="button" className="ghost icon-only" title="Refresh instances" aria-label="Refresh instances" onClick={() => void run('Refreshing instances', refresh)}><RefreshCw size={14} aria-hidden="true" /></button>
-              <button type="button" disabled={!listing?.configured} title={`Create ${provider === 'dynamic-sessions' ? 'session' : 'sandbox'}`} onClick={create}><Plus size={14} aria-hidden="true" />New</button>
+              <button type="button" disabled={!listing?.configured} title={`Create ${provider === 'sandboxes' ? 'sandbox' : 'session'}`} onClick={create}><Plus size={14} aria-hidden="true" />New</button>
             </div>
             <div className="workspace-instance-items">
             <p className="workspace-instance-count muted">{listing?.instances.length ?? 0} instances</p>
@@ -265,9 +268,12 @@ export default function WorkspacePlaygroundPage({ provider, active }: { provider
                     }
                   })}><Play size={15} aria-hidden="true" />Resume</button>}
                   {provider === 'sandboxes' && <button type="button" disabled={selected.state.toLowerCase() !== 'running'} onClick={() => { setError(''); setDialog({ kind: 'stop-sandbox', paths: [] }) }}><Square size={15} aria-hidden="true" />Stop sandbox</button>}
-                  <button type="button" onClick={() => { setError(''); setDialog({ kind: provider === 'dynamic-sessions' ? 'stop-instance' : 'delete-instance', paths: [] }) }}>{provider === 'dynamic-sessions' ? <Square size={15} aria-hidden="true" /> : <Trash2 size={15} aria-hidden="true" />}{provider === 'dynamic-sessions' ? 'Stop session' : 'Delete sandbox'}</button>
+                  {provider === 'foundry-sessions' && <button type="button" disabled={selected.state.toLowerCase() !== 'running'} onClick={() => { setError(''); setDialog({ kind: 'stop-sandbox', paths: [] }) }}><Square size={15} aria-hidden="true" />Stop session</button>}
+                  <button type="button" onClick={() => { setError(''); setDialog({ kind: provider === 'dynamic-sessions' ? 'stop-instance' : 'delete-instance', paths: [] }) }}>{provider === 'dynamic-sessions' ? <Square size={15} aria-hidden="true" /> : <Trash2 size={15} aria-hidden="true" />}{provider === 'dynamic-sessions' ? 'Stop session' : provider === 'foundry-sessions' ? 'Delete session' : 'Delete sandbox'}</button>
                 </div>
-                {!selected.canAccessFiles && <p role="status">File access and scripts require a SandboxHost binding in this application's snapshot storage.</p>}
+                {!selected.canAccessFiles && <p role="status">{provider === 'foundry-sessions'
+                  ? 'Workspace actions are available when the Foundry session is active. Refresh to check its state.'
+                  : "File access and scripts require a SandboxHost binding in this application's snapshot storage."}</p>}
                 {selected.canAccessFiles && !canBrowse && <p role="status">Resume the sandbox, then refresh before accessing files or scripts.</p>}
               </div>
               <fieldset disabled={!canBrowse} className="workspace-playground-controls stack">
@@ -335,7 +341,7 @@ export default function WorkspacePlaygroundPage({ provider, active }: { provider
       {selected && terminalRequest?.instanceId === selected.id && <WorkspaceExecutionPanel key={terminalRequest.id} provider={provider} instanceId={selected.id}
         enabled={!!canBrowse && !busy} request={terminalRequest} onClose={() => setTerminalRequest(null)} />}
     </div>
-    <Modal open={!!dialog} title={dialogTitle} className="workspace-file-dialog" onClose={() => {
+    <Modal open={!!dialog} title={provider === 'foundry-sessions' ? dialogTitle.replace('sandbox', 'session') : dialogTitle} className="workspace-file-dialog" onClose={() => {
       if (!busy) {
         setDialog(null)
       }
@@ -346,8 +352,8 @@ export default function WorkspacePlaygroundPage({ provider, active }: { provider
         <p className="workspace-instance-id">Instance: {selected?.id}</p>
         {dialog?.paths.map(path => <code key={path}>{path}</code>)}
         {destructive ? <p>{dialog?.kind === 'stop-instance' ? 'Stopping destroys the session and its temporary files. Chats using this session may be interrupted.'
-          : dialog?.kind === 'stop-sandbox' ? 'Stop compute while retaining the sandbox disk. Running scripts and chats may be interrupted. Resume it before accessing files again.'
-            : dialog?.kind === 'delete-instance' ? 'Deleting removes this sandbox and its files. Chats using it may be interrupted.' : 'Delete the selected files and folders, including all folder contents? This cannot be undone.'}</p>
+          : dialog?.kind === 'stop-sandbox' ? 'Stop compute while retaining files. Running scripts and chats may be interrupted.'
+            : dialog?.kind === 'delete-instance' ? 'Deleting removes this instance and its files. Chats using it may be interrupted.' : 'Delete the selected files and folders, including all folder contents? This cannot be undone.'}</p>
           : <label>Destination path<input value={destination} disabled={!!busy || dialog?.kind === 'edit'} autoFocus onChange={event => setDestination(event.target.value)} /></label>}
         {(dialog?.kind === 'edit' || dialog?.kind === 'new') && <label>Text content<textarea className="workspace-code" spellCheck={false} value={text} maxLength={1_000_000} disabled={!!busy} onChange={event => setText(event.target.value)} /></label>}
         {dialog?.kind === 'edit' && <p className="muted">Saving replaces this file's current content.</p>}

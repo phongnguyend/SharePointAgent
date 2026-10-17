@@ -20,7 +20,7 @@ public static class WorkspacePlaygroundEndpoints
                 return Results.StatusCode(StatusCodes.Status403Forbidden);
             }
             var provider = context.HttpContext.Request.RouteValues["provider"]?.ToString();
-            if (provider is not ("dynamic-sessions" or "sandboxes"))
+            if (provider is not ("dynamic-sessions" or "sandboxes" or "foundry-sessions"))
             {
                 return Results.NotFound();
             }
@@ -51,7 +51,7 @@ public static class WorkspacePlaygroundEndpoints
             }
             catch (Exception exception) when (exception is HttpRequestException or IOException or RequestFailedException or UnauthorizedAccessException or System.Text.Json.JsonException)
             {
-                return Results.Json(new { error = "The workspace request failed. Check resource permissions and SandboxHost availability, then refresh; a mutation may already have completed." }, statusCode: 502);
+                return Results.Json(new { error = "The workspace request failed. Check resource permissions and workspace host availability, then refresh; a mutation may already have completed." }, statusCode: 502);
             }
             catch (OperationCanceledException)
             {

@@ -12,6 +12,28 @@ public sealed class ChatAgentInvocation(
     public override async Task HandleAsync(HttpRequest httpRequest, HttpResponse response,
         InvocationContext context, CancellationToken token)
     {
+        if (string.Equals(httpRequest.Headers[AgentInvocation.OperationHeader],
+            SharePointAgent.Infrastructure.Workspaces.FoundryWorkspacePlayground.Operation, StringComparison.OrdinalIgnoreCase))
+        {
+            var limit = httpRequest.HttpContext.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();
+            if (limit is { IsReadOnly: false })
+            {
+                limit.MaxRequestBodySize = 8 * 1024 * 1024;
+            }
+            if (httpRequest.ContentLength > 8 * 1024 * 1024)
+            {
+                response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+                return;
+            }
+            await GuardedAsync(response, token, async () =>
+            {
+                var payload = await httpRequest.ReadFromJsonAsync<FoundryWorkspaceRequest>(token)
+                    ?? throw new ArgumentException("A workspace request is required.");
+                var result = await FoundryWorkspaceOperations.RunAsync(workingDirectory, payload, token);
+                await response.WriteAsJsonAsync(result, token);
+            });
+            return;
+        }
         // Several kinds of request arrive at this one endpoint, and the header says which before the
         // body is read. No header is a chat turn, which is what every caller that predates the file
         // operations sends. Neither file operation reaches the model.

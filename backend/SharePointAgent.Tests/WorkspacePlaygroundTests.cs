@@ -38,7 +38,7 @@ public sealed class WorkspacePlaygroundTests
             (HttpMethod.Post, "instances/target/files/archive", new { operation = "zip", paths = new[] { "a" }, destination = "a.zip" }),
             (HttpMethod.Post, "instances/target/executions", Execution())
         };
-        foreach (var provider in new[] { "dynamic-sessions", "sandboxes" })
+        foreach (var provider in new[] { "dynamic-sessions", "sandboxes", "foundry-sessions" })
         {
             foreach (var (method, path, body) in paths)
             {
@@ -58,6 +58,7 @@ public sealed class WorkspacePlaygroundTests
     [Theory]
     [InlineData("dynamic-sessions")]
     [InlineData("sandboxes")]
+    [InlineData("foundry-sessions")]
     public async Task FileArchivesAndExecutionRouteToSelectedInstance(string provider)
     {
         var playground = Substitute.For<IWorkspacePlayground>();
