@@ -2,6 +2,14 @@
 if ([string]::IsNullOrWhiteSpace($outputs.applicationInsightsConnectionString.value)) {
   throw 'Run Deploy infrastructure to provision Application Insights before releasing AgentHost.'
 }
+if ([string]::IsNullOrWhiteSpace($outputs.graphCosmosEndpoint.value)) {
+  throw 'Run Deploy infrastructure to publish graphCosmosEndpoint before releasing AgentHost. Knowledge graph retrieval requires it at startup.'
+}
+$graphCosmosUri = [uri]$outputs.graphCosmosEndpoint.value
+if ($graphCosmosUri.Scheme -ne 'https' -or $graphCosmosUri.Host -notmatch '^([a-z0-9-]+)\.documents\.azure\.com$') {
+  throw 'Expected an Azure Cosmos DB HTTPS endpoint from the infrastructure deployment.'
+}
+$graphCosmosAccount = $Matches[1]
 # Resolve the deployment identity independently of the configured SQL administrator.
 $token = az account get-access-token --query accessToken -o tsv
 $payload = $token.Split('.')[1].Replace('-', '+').Replace('_', '/')
@@ -55,6 +63,10 @@ $environment = @{
   AzureOpenAI__ChatDeployment = $outputs.chatDeploymentName.value
   AzureSearch__UseManagedIdentity = 'true'
   AzureSearch__Endpoint = $outputs.searchEndpoint.value
+  KnowledgeGraph__Cosmos__UseManagedIdentity = 'true'
+  KnowledgeGraph__Cosmos__Endpoint = $outputs.graphCosmosEndpoint.value
+  KnowledgeGraph__Cosmos__DatabaseName = 'graphrag'
+  KnowledgeGraph__Cosmos__CreateIfNotExists = 'false'
   Uploads__UseManagedIdentity = 'true'
   Uploads__ServiceUri = $outputs.uploadStorageServiceUri.value
   Uploads__ContainerName = $outputs.uploadContainerName.value
@@ -117,6 +129,13 @@ Grant-Role $principalId '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd' $outputs.openAiRe
 Grant-Role $principalId '8ebe5a00-799e-43f5-93ac-243d3dce84a7' $outputs.searchResourceId.value
 Grant-Role $principalId '7ca78c08-252a-4471-8644-bb5ff32d4ba0' $outputs.searchResourceId.value
 Grant-Role $principalId 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' $outputs.storageResourceId.value
+# Retrieval needs Cosmos data-plane access; Azure resource roles do not grant document reads.
+# A deterministic ID makes repeat releases update the same assignment.
+$graphRoleHash = [Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes("$graphCosmosAccount/$principalId/graph-reader"))
+$graphRoleAssignmentId = [guid]::new([byte[]]$graphRoleHash[0..15]).ToString()
+az cosmosdb sql role assignment create --resource-group $env:RESOURCE_GROUP --account-name $graphCosmosAccount `
+  --role-assignment-id $graphRoleAssignmentId --principal-id $principalId `
+  --role-definition-id '00000000-0000-0000-0000-000000000001' --scope '/' --output none
 if ($outputs.contentSafetyResourceId.value) {
   Grant-Role $principalId 'a97b65f3-24c7-4388-baec-2e87135dc908' $outputs.contentSafetyResourceId.value
 }

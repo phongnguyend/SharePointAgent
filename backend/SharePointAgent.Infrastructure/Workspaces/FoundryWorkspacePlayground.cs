@@ -153,6 +153,10 @@ public sealed class FoundryWorkspacePlayground(IHttpClientFactory clients, Token
             {
                 throw new KeyNotFoundException();
             }
+            if ((int)status is 424 or 502 or 503)
+            {
+                throw new AgentWorkspaceUnavailableException($"Foundry could not reach a healthy workspace handler (HTTP {(int)status}). Check this session's AgentHost container logs and startup configuration, including KnowledgeGraph:Cosmos:Endpoint. An Active session does not prove that workspace invocations work. After deploying a fix, create a new session to use the new agent version.");
+            }
             throw new AgentWorkspaceUnavailableException($"Foundry workspace request failed (HTTP {(int)status}). Check Foundry permissions and deploy the latest AgentHost for workspace operations.");
         }
         if (sessionId is not null && (!response.Headers.TryGetValues("x-agent-session-id", out var ids) || ids.SingleOrDefault() != sessionId))

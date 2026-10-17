@@ -17,6 +17,32 @@ namespace SharePointAgent.Tests;
 public sealed class ChatAgentRegistrationTests
 {
     [Theory]
+    [InlineData(null, false)]
+    [InlineData("https://example.documents.azure.com:443/", true)]
+    public void HostedGraphRetrievalRequiresDeploymentEndpointEvenWhenIndexingIsDisabled(string? endpoint, bool valid)
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["KnowledgeGraph:IndexingEnabled"] = "false",
+            ["KnowledgeGraph:Cosmos:UseManagedIdentity"] = "true",
+            ["KnowledgeGraph:Cosmos:Endpoint"] = endpoint
+        }).Build();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        SharePointAgent.Infrastructure.KnowledgeGraph.KnowledgeGraphDependencyInjection.AddGraphRetrievalServices(services, configuration);
+        using var provider = services.BuildServiceProvider();
+        if (valid)
+        {
+            Assert.True(provider.GetRequiredService<IOptions<KnowledgeGraphOptions>>().Value.Cosmos.IsConfigured);
+        }
+        else
+        {
+            var error = Assert.Throws<OptionsValidationException>(() => provider.GetRequiredService<IOptions<KnowledgeGraphOptions>>().Value);
+            Assert.Contains("KnowledgeGraph:Cosmos:Endpoint", error.Message);
+        }
+    }
+
+    [Theory]
     [InlineData("Local")]
     [InlineData("Foundry")]
     public async Task RegistersBothAgentsBehindTheRouterWhenFoundryIsConfigured(string defaultMode)
