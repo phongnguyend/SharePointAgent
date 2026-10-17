@@ -483,8 +483,9 @@ export interface ChatUsageTotals {
 }
 export interface ChatUsageRecord {
   id: string
-  questionId: string
-  conversationId: string
+  operation: string | null
+  questionId: string | null
+  conversationId: string | null
   /** Position in the turn's tool-calling loop, or -1 for a whole-turn row. */
   sequence: number
   userId: string | null

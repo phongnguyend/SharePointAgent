@@ -1,10 +1,12 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Network, Play, RotateCcw, Square } from 'lucide-react'
 import { request } from '../api/http'
-import { CopyButton, ErrorBanner } from '../components/ui'
+import { ErrorBanner } from '../components/ui'
+import { GraphUsageSummary, type GraphModelUsage } from '../components/GraphUsageSummary'
+import { JsonCodeBlock } from '../components/JsonCode'
 import './GraphExtractionPlaygroundPage.css'
 
-type ExtractionResult = { chunks: unknown[]; elapsedMs: number }
+type ExtractionResult = { chunks: unknown[]; elapsedMs: number; usage: GraphModelUsage[] }
 
 export default function GraphExtractionPlaygroundPage() {
   const inputId = useId()
@@ -65,12 +67,12 @@ export default function GraphExtractionPlaygroundPage() {
         <section className="decision-panel graph-extraction-result" aria-busy={running}>
           <div className="decision-panel-heading">
             <h3>Extraction results</h3>
-            {result && <CopyButton value={JSON.stringify(result.chunks, null, 2)} />}
           </div>
           {!result ? <div className="decision-response-empty" role="status" aria-live="polite">{running ? 'Extracting?' : 'Enter document text and click Extract.'}</div>
             : <div className="graph-extraction-output">
               <p className="muted">Raw and grounded entities and relationships are shown per chunk, with rejection counts.</p>
-              <pre>{JSON.stringify(result.chunks, null, 2)}</pre>
+              <GraphUsageSummary usage={result.usage} />
+              <JsonCodeBlock value={JSON.stringify(result.chunks, null, 2)} />
               <p className="muted" role="status">Completed in {result.elapsedMs.toLocaleString()} ms</p>
             </div>}
         </section>

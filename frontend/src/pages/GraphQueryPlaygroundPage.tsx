@@ -2,10 +2,12 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { Network, Play, RotateCcw, Square } from 'lucide-react'
 import { request } from '../api/http'
 import type { GraphQueryPlan } from '../api/graphClient'
-import { CopyButton, ErrorBanner } from '../components/ui'
+import { ErrorBanner } from '../components/ui'
+import { GraphUsageSummary, type GraphModelUsage } from '../components/GraphUsageSummary'
+import { JsonCodeBlock } from '../components/JsonCode'
 import './GraphQueryPlaygroundPage.css'
 
-type PlanResult = { plan: GraphQueryPlan; elapsedMs: number }
+type PlanResult = { plan: GraphQueryPlan; elapsedMs: number; usage: GraphModelUsage[] }
 
 export default function GraphQueryPlaygroundPage() {
   const inputId = useId()
@@ -66,13 +68,13 @@ export default function GraphQueryPlaygroundPage() {
         <section className="decision-panel graph-plan-result" aria-busy={running}>
           <div className="decision-panel-heading">
             <h3>Query plan</h3>
-            {result && <CopyButton value={JSON.stringify(result.plan, null, 2)} />}
           </div>
           {!result ? <div className="decision-response-empty" role="status" aria-live="polite">{running ? 'Extracting?' : 'Enter question and click Extract plan.'}</div>
             : <div className="graph-plan-output">
               <p><strong>Entities:</strong> {result.plan.entities.join(', ') || 'None extracted'}</p>
               <p><strong>Relationship types:</strong> {result.plan.relationshipTypes.join(', ') || 'All configured relationship types'}</p>
-              <pre>{JSON.stringify(result.plan, null, 2)}</pre>
+              <GraphUsageSummary usage={result.usage} />
+              <JsonCodeBlock value={JSON.stringify(result.plan, null, 2)} />
               <p className="muted" role="status">Completed in {result.elapsedMs.toLocaleString()} ms</p>
             </div>}
         </section>

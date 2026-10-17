@@ -27,7 +27,8 @@ public static class GraphSearchEndpoints
             {
                 return Results.Conflict(new { error = "Configure KnowledgeGraph:Extraction:Deployment to test indexing extraction." });
             }
-            var stopwatch = Stopwatch.StartNew();
+            using var usage = new GraphModelUsageScope("graph.extraction_playground");
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             try
             {
                 var extractor = context.RequestServices.GetService<IGraphExtractor>()
@@ -45,7 +46,7 @@ public static class GraphSearchEndpoints
                     var grounded = GraphExtractionGrounding.Ground(raw, chunks[index], ontology, options.MaxEntitiesPerChunk, options.MaxRelationsPerChunk);
                     results.Add(new { chunkNumber = index, text = chunks[index], raw, grounded });
                 }
-                return Results.Ok(new { chunks = results, elapsedMs = stopwatch.ElapsedMilliseconds });
+                return Results.Ok(new { chunks = results, usage = usage.Requests, elapsedMs = stopwatch.ElapsedMilliseconds });
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -68,11 +69,12 @@ public static class GraphSearchEndpoints
             {
                 return Results.BadRequest(new { error = "Enter a question between 1 and 2,000 characters." });
             }
-            var stopwatch = Stopwatch.StartNew();
+            using var usage = new GraphModelUsageScope("graph.query_playground");
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             try
             {
                 var plan = await context.RequestServices.GetRequiredService<IGraphQueryPlanner>().PlanAsync(payload.Query.Trim(), ct);
-                return Results.Ok(new { plan, elapsedMs = stopwatch.ElapsedMilliseconds });
+                return Results.Ok(new { plan, usage = usage.Requests, elapsedMs = stopwatch.ElapsedMilliseconds });
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -102,7 +104,8 @@ public static class GraphSearchEndpoints
             {
                 return Results.Conflict(new { error = "Graph search is unavailable. Check the knowledge graph configuration and tenant access." });
             }
-            var stopwatch = Stopwatch.StartNew();
+            using var usage = new GraphModelUsageScope("graph.search_planning");
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             GraphQueryPlan plan;
             try
             {

@@ -1,6 +1,7 @@
 using Azure.AI.OpenAI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 using SharePointAgent.Application;
 using SharePointAgent.Domain;
 
@@ -11,8 +12,10 @@ public sealed class AzureOpenAiGraphQueryPlanner : IGraphQueryPlanner
     private readonly IChatClient _chat;
     private readonly GraphOntology _ontology;
 
-    public AzureOpenAiGraphQueryPlanner(AzureOpenAIClient client, IOptions<OpenAiOptions> options, GraphOntology ontology)
-        : this(client.GetChatClient(options.Value.ChatDeployment).AsIChatClient(), ontology)
+    public AzureOpenAiGraphQueryPlanner(AzureOpenAIClient client, IOptions<OpenAiOptions> options, GraphOntology ontology,
+        GraphChatUsageRecorder recorder, ILogger<AzureOpenAiGraphQueryPlanner> logger)
+        : this(new TrackedChatClient(client.GetChatClient(options.Value.ChatDeployment).AsIChatClient(),
+            (usage, ct) => recorder.RecordAsync(options.Value.ChatDeployment, "graph.query_planning", usage, ct), logger), ontology)
     {
     }
 

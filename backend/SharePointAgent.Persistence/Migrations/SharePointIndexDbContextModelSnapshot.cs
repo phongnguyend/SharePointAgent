@@ -694,7 +694,7 @@ namespace SharePointAgent.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
-                    b.Property<Guid>("ConversationId")
+                    b.Property<Guid?>("ConversationId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")
@@ -713,10 +713,14 @@ namespace SharePointAgent.Persistence.Migrations
                     b.Property<int>("Month")
                         .HasColumnType("int");
 
+                    b.Property<string>("Operation")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<long?>("OutputTokens")
                         .HasColumnType("bigint");
 
-                    b.Property<Guid>("QuestionId")
+                    b.Property<Guid?>("QuestionId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("ScriptNames")

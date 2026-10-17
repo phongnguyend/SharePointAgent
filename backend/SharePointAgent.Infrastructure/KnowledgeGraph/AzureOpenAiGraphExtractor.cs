@@ -26,9 +26,11 @@ public sealed class AzureOpenAiGraphExtractor : IGraphExtractor
         AzureOpenAIClient client,
         IOptions<KnowledgeGraphOptions> options,
         GraphOntology ontology,
-        ILogger<AzureOpenAiGraphExtractor> logger)
+        ILogger<AzureOpenAiGraphExtractor> logger,
+        GraphChatUsageRecorder recorder)
         : this(
-            client.GetChatClient(options.Value.Extraction.Deployment).AsIChatClient(),
+            new TrackedChatClient(client.GetChatClient(options.Value.Extraction.Deployment).AsIChatClient(),
+                (usage, ct) => recorder.RecordAsync(options.Value.Extraction.Deployment, "graph.extraction", usage, ct), logger),
             options.Value.Extraction.Deployment,
             options,
             ontology,

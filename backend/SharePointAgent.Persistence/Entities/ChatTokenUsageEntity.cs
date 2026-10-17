@@ -30,9 +30,11 @@ public sealed class ChatTokenUsageEntity
 
     public Guid? UserId { get; set; }
 
-    public Guid ConversationId { get; set; }
+    public Guid? ConversationId { get; set; }
 
-    public Guid QuestionId { get; set; }
+    public Guid? QuestionId { get; set; }
+
+    public string? Operation { get; set; }
 
     /// <summary>
     /// The position of this request in the turn's tool-calling loop, counted from zero, or

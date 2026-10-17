@@ -135,6 +135,7 @@ public sealed class SharePointIndexDbContext(DbContextOptions<SharePointIndexDbC
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedOnAdd();
             entity.Property(x => x.ModelId).HasMaxLength(200);
+            entity.Property(x => x.Operation).HasMaxLength(100);
             entity.Property(x => x.ToolNames).HasMaxLength(ToolListLength);
             entity.Property(x => x.SkillNames).HasMaxLength(ToolListLength);
             entity.Property(x => x.ScriptNames).HasMaxLength(ToolListLength);

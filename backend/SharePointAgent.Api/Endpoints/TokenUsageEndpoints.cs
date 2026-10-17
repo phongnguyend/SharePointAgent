@@ -50,18 +50,18 @@ public static class TokenUsageEndpoints
         }
         var summary = await query.GroupBy(x => 1).Select(g => new
         {
-            Turns = g.Select(x => x.QuestionId).Distinct().Count(),
+            Turns = g.Where(x => x.QuestionId != null).Select(x => x.QuestionId).Distinct().Count(),
             Requests = g.Count(),
             InputTokens = g.Sum(x => x.InputTokens ?? 0),
             OutputTokens = g.Sum(x => x.OutputTokens ?? 0),
             TotalTokens = g.Sum(x => x.TotalTokens ?? 0),
-            Users = g.Select(x => x.UserId).Distinct().Count(),
-            UnknownModelTurns = g.Where(x => x.ModelId == null).Select(x => x.QuestionId).Distinct().Count()
+            Users = g.Where(x => x.UserId != null).Select(x => x.UserId).Distinct().Count(),
+            UnknownModelTurns = g.Where(x => x.ModelId == null && x.QuestionId != null).Select(x => x.QuestionId).Distinct().Count()
         }).SingleOrDefaultAsync(ct);
         var daily = await query.GroupBy(x => x.Day).Select(g => new
         {
             Day = g.Key,
-            Turns = g.Select(x => x.QuestionId).Distinct().Count(),
+            Turns = g.Where(x => x.QuestionId != null).Select(x => x.QuestionId).Distinct().Count(),
             Requests = g.Count(),
             InputTokens = g.Sum(x => x.InputTokens ?? 0),
             OutputTokens = g.Sum(x => x.OutputTokens ?? 0),
@@ -70,7 +70,7 @@ public static class TokenUsageEndpoints
         var models = await query.GroupBy(x => x.ModelId).Select(g => new
         {
             ModelId = g.Key,
-            Turns = g.Select(x => x.QuestionId).Distinct().Count(),
+            Turns = g.Where(x => x.QuestionId != null).Select(x => x.QuestionId).Distinct().Count(),
             Requests = g.Count(),
             InputTokens = g.Sum(x => x.InputTokens ?? 0),
             OutputTokens = g.Sum(x => x.OutputTokens ?? 0),
@@ -82,7 +82,7 @@ public static class TokenUsageEndpoints
         var users = await query.Where(x => x.UserId != null).GroupBy(x => x.UserId!.Value).Select(g => new
         {
             UserId = g.Key,
-            Turns = g.Select(x => x.QuestionId).Distinct().Count(),
+            Turns = g.Where(x => x.QuestionId != null).Select(x => x.QuestionId).Distinct().Count(),
             Requests = g.Count(),
             InputTokens = g.Sum(x => x.InputTokens ?? 0),
             OutputTokens = g.Sum(x => x.OutputTokens ?? 0),
@@ -101,7 +101,7 @@ public static class TokenUsageEndpoints
             Daily = daily,
             Models = models,
             Users = users.Select(x => new { x.UserId, Name = names.GetValueOrDefault(x.UserId, x.UserId.ToString()), x.Turns, x.Requests, x.InputTokens, x.OutputTokens, x.TotalTokens }),
-            Items = rows.Select(x => new { Usage = x, UserName = x.UserId is { } owner ? names.GetValueOrDefault(owner, owner.ToString()) : "Unknown" }),
+            Items = rows.Select(x => new { Usage = x, UserName = x.UserId is { } owner ? names.GetValueOrDefault(owner, owner.ToString()) : x.Operation != null ? "System" : "Unknown" }),
             ModelOptions = await period.Select(x => x.ModelId).Distinct().OrderBy(x => x).ToListAsync(ct)
         });
     }

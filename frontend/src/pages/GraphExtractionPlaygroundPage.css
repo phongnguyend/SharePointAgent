@@ -4,4 +4,4 @@
 .graph-extraction-playground .graph-extraction-textarea { flex: 1; width: 100%; min-height: 340px; resize: vertical; border: 0; border-radius: 0; padding: 12px; box-sizing: border-box; }
 .graph-extraction-textarea:focus-visible { outline-offset: -2px; }
 .graph-extraction-output { padding: 12px; min-width: 0; max-height: 600px; overflow: auto; overflow-wrap: anywhere; }
-.graph-extraction-output pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.graph-extraction-output .json-code-block > pre { margin: 0; max-height: none; overflow: visible; white-space: pre-wrap; overflow-wrap: anywhere; }

@@ -1,4 +1,5 @@
 import { useMemo, useRef, type ReactNode } from 'react'
+import { CopyButton } from './ui'
 
 // Tokenize without parsing so incomplete JSON remains editable. React escapes all text.
 function highlight(value: string): ReactNode[] {
@@ -23,6 +24,14 @@ function highlight(value: string): ReactNode[] {
 export function JsonCode({ value }: { value: string }) {
   const content = useMemo(() => highlight(value), [value])
   return <pre className="decision-json decision-result" tabIndex={0} aria-label="Response JSON"><code>{content}</code></pre>
+}
+
+export function JsonCodeBlock({ value }: { value: string }) {
+  const content = useMemo(() => highlight(value), [value])
+  return <div className="json-code-block">
+    <div className="json-code-block-copy"><CopyButton value={value} /></div>
+    <pre tabIndex={0} aria-label="Response JSON"><code>{content}</code></pre>
+  </div>
 }
 
 export function JsonEditor({ id, value, onChange, disabled = false }: {

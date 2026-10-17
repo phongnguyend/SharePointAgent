@@ -49,6 +49,10 @@
 }
 
 .json-key { color: var(--accent-text); }
+.json-code-block { position: relative; min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
+.json-code-block-copy { position: absolute; top: 6px; right: 6px; }
+.json-code-block > pre { margin: 0; padding: 40px 12px 12px; max-height: 480px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.6 monospace; }
+.json-code-block code { font: inherit; background: transparent; padding: 0; }
 .json-string { color: var(--good); }
 .json-number { color: var(--file-slide); }
 .json-literal { color: var(--file-pdf); }

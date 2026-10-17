@@ -53,6 +53,7 @@ public static class KnowledgeGraphDependencyInjection
     /// <summary>The worker side: extraction, resolution, archive, projection, and reconciliation.</summary>
     public static IServiceCollection AddGraphIndexingServices(this IServiceCollection services, IConfiguration configuration)
     {
+        services.TryAddSingleton<GraphChatUsageRecorder>();
         if (!configuration.IsGraphIndexingEnabled())
         {
             return services;
@@ -77,6 +78,7 @@ public static class KnowledgeGraphDependencyInjection
     /// <summary>The query side, added to every host that runs the chat agent.</summary>
     public static IServiceCollection AddGraphRetrievalServices(this IServiceCollection services, IConfiguration configuration)
     {
+        services.TryAddSingleton<GraphChatUsageRecorder>();
         AddKnowledgeGraphOptions(services, configuration, requireArchive: false);
         AddGraphStore(services);
         services.TryAddSingleton<IAuthorizedChunkStore, AzureSearchAuthorizedChunkStore>();
