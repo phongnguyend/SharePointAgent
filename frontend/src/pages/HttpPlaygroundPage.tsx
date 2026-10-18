@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useId, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
-import { Braces, Copy, Download, FileText, Globe, GripVertical, KeyRound, List, ListFilter, LoaderCircle, LockKeyhole, Plus, Save, Send, Settings, ShieldOff, Square, Trash2, Upload, UserRound, X } from 'lucide-react'
+import { Braces, Cookie, Copy, Download, FileText, Globe, GripVertical, KeyRound, List, ListFilter, LoaderCircle, LockKeyhole, Plus, Save, Send, Settings, ShieldOff, Square, Trash2, Upload, UserRound, X } from 'lucide-react'
 import { useCopy } from '../lib/useCopy'
 import { request } from '../api/http'
 import { CopyButton, ErrorBanner } from '../components/ui'
-import { JsonCodeBlock } from '../components/JsonCode'
+import { JsonCodeBlock, JsonEditor } from '../components/JsonCode'
 import { useToast } from '../components/Toast'
 import './HttpPlaygroundPage.css'
 
@@ -218,7 +218,8 @@ function HttpRequestEditor({ id, initial, onSummary, onNew, saved, setSaved, his
 }) {
   const [draft, setDraft] = useState<Draft>(() => initial ?? blank())
   const [tab, setTab] = useState('Parameters')
-  const [responseTab, setResponseTab] = useState('Pretty')
+  const [responseTab, setResponseTab] = useState('Body')
+  const [bodyView, setBodyView] = useState('Pretty')
   const [result, setResult] = useState<ResponseData | null>(null)
   const [sent, setSent] = useState('')
   const [error, setError] = useState('')
@@ -356,14 +357,22 @@ function HttpRequestEditor({ id, initial, onSummary, onNew, saved, setSaved, his
                 {([['none', 'None', X], ['json', 'JSON', Braces], ['text', 'Raw text / XML', FileText], ['form', 'Form URL encoded', List]] as const).map(([value, label, Icon]) =>
                   <button key={value} type="button" aria-pressed={draft.bodyType === value} onClick={() => update('bodyType', value)}><Icon size={15} aria-hidden="true" />{label}</button>)}
               </div>
-              {draft.bodyType === 'form' ? <Pairs title="field" rows={draft.form} change={value => update('form', value)} /> : draft.bodyType !== 'none' && <><textarea aria-label="Request body" className="http-code" spellCheck={false} value={draft.body} onChange={event => update('body', event.target.value)} />{draft.bodyType === 'json' && <button type="button" onClick={() => {
-                try {
-                  update('body', JSON.stringify(JSON.parse(draft.body), null, 2))
-                  setError('')
-                } catch {
-                  setError('The body is not valid JSON.')
-                }
-              }}>Format JSON</button>}</>}
+              {draft.bodyType === 'form' ? <Pairs title="field" rows={draft.form} change={value => update('form', value)} /> : draft.bodyType !== 'none' && <>
+                {draft.bodyType === 'json' ? <>
+                  <div className="row http-json-heading">
+                    <label htmlFor={`${id}-json-body`}>Request body</label>
+                    <button type="button" onClick={() => {
+                      try {
+                        update('body', JSON.stringify(JSON.parse(draft.body), null, 2))
+                        setError('')
+                      } catch {
+                        setError('The body is not valid JSON.')
+                      }
+                    }}><Braces size={15} aria-hidden="true" />Beautify</button>
+                  </div>
+                  <JsonEditor id={`${id}-json-body`} value={draft.body} onChange={value => update('body', value)} disabled={busy} maxLength={2 * 1024 * 1024} />
+                </> : <textarea aria-label="Request body" className="http-code" spellCheck={false} value={draft.body} onChange={event => update('body', event.target.value)} />}
+              </>}
             </div>)}
           </fieldset>
         </form>
@@ -372,10 +381,30 @@ function HttpRequestEditor({ id, initial, onSummary, onNew, saved, setSaved, his
         <section className="card stack http-response" aria-label="HTTP response" aria-busy={busy}>
           <div className="row"><strong>Response</strong>{result && <><span className="http-response-status" data-status={Math.floor(result.statusCode / 100)}>{result.statusCode} {result.reason}</span><span>{result.durationMs.toLocaleString()} ms</span><span>{result.sizeBytes.toLocaleString()} bytes</span><span>HTTP/{result.version}</span></>}</div>
           {result ? <><small className="http-sent"><span className="http-history-method" data-method={sent.split(' ')[0]}>{sent.split(' ')[0]}</span>{sent.slice(sent.indexOf(' '))}</small>{result.truncated && <p role="status">Response truncated at 2 MB. Download contains only the captured bytes.</p>}
-            <div className="row http-tabs">{([['Pretty', Braces], ['Raw', FileText], ['Headers', List]] as const).map(([label, Icon]) => <button key={label} type="button" aria-pressed={responseTab === label} onClick={() => setResponseTab(label)}><Icon size={15} aria-hidden="true" />{label}</button>)}
-              <CopyButton value={result.body} label="Copy body" /><button onClick={() => download(new Blob([Uint8Array.from(atob(result.base64), c => c.charCodeAt(0))]), 'response.bin')}><Download size={15} />Download</button>
-            </div>
-            {responseTab === 'Headers' ? <div className="http-response-content"><table><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody>{result.headers.map((h, i) => <tr key={i}><td>{h.name}</td><td>{h.value}</td></tr>)}</tbody></table></div> : <div className="http-response-content">{responseTab === 'Pretty' ? <JsonCodeBlock value={pretty} /> : <pre>{result.body || '(Empty body)'}</pre>}</div>}
+            <div className="row http-tabs">{([['Body', FileText], ['Headers', List], ['Cookies', Cookie]] as const).map(([label, Icon]) => <button key={label} type="button" aria-pressed={responseTab === label} onClick={() => setResponseTab(label)}><Icon size={15} aria-hidden="true" />{label}</button>)}</div>
+            {responseTab === 'Body' && <div className="row http-tabs" role="group" aria-label="Response body format">
+              {([['Pretty', Braces], ['Raw', FileText]] as const).map(([label, Icon]) => <button key={label} type="button" aria-pressed={bodyView === label} onClick={() => setBodyView(label)}><Icon size={15} aria-hidden="true" />{label}</button>)}
+              <CopyButton value={result.body} label="Copy" variant="outlined" /><button onClick={() => download(new Blob([Uint8Array.from(atob(result.base64), c => c.charCodeAt(0))]), 'response.bin')}><Download size={15} />Download</button>
+            </div>}
+            {responseTab === 'Cookies' ? <div className="http-response-content">
+              {result.headers.some(h => h.name.toLowerCase() === 'set-cookie') ? <table>
+                <thead><tr><th>Name</th><th>Value</th><th>Attributes</th></tr></thead>
+                <tbody>{result.headers.filter(h => h.name.toLowerCase() === 'set-cookie').map((header, index) => {
+                  const [pair, ...attributes] = header.value.split(';')
+                  const separator = pair.indexOf('=')
+                  const name = separator < 0 ? pair.trim() : pair.slice(0, separator).trim()
+                  const value = separator < 0 ? '' : pair.slice(separator + 1).trim()
+                  return <tr key={index}>
+                    <td><div className="http-header-cell"><span>{name}</span><button type="button" className="ghost icon-only" title="Copy cookie name" aria-label={`Copy cookie name ${name}`} onClick={() => void copy(name, 'Cookie name')}><Copy size={13} aria-hidden="true" /></button></div></td>
+                    <td><div className="http-header-cell"><span>{value}</span><button type="button" className="ghost icon-only" title="Copy cookie value" aria-label={`Copy value of cookie ${name}`} onClick={() => void copy(value, 'Cookie value')}><Copy size={13} aria-hidden="true" /></button></div></td>
+                    <td><div className="http-header-cell"><span>{attributes.join(';').trim() || '—'}</span><button type="button" className="ghost icon-only" title="Copy full Set-Cookie header" aria-label={`Copy full Set-Cookie header for ${name}`} onClick={() => void copy(header.value, 'Set-Cookie header')}><Copy size={13} aria-hidden="true" /></button></div></td>
+                  </tr>
+                })}</tbody>
+              </table> : <p className="hint">No cookies were set by this response.</p>}
+            </div> : responseTab === 'Headers' ? <div className="http-response-content"><table><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody>{result.headers.map((h, i) => <tr key={i}>
+              <td><div className="http-header-cell"><span>{h.name}</span><button type="button" className="ghost icon-only" title="Copy header name" aria-label={`Copy header name ${h.name}`} onClick={() => void copy(h.name, 'Header name')}><Copy size={13} aria-hidden="true" /></button></div></td>
+              <td><div className="http-header-cell"><span>{h.value}</span><button type="button" className="ghost icon-only" title="Copy header value" aria-label={`Copy value of ${h.name}`} onClick={() => void copy(h.value, 'Header value')}><Copy size={13} aria-hidden="true" /></button></div></td>
+            </tr>)}</tbody></table></div> : <div className="http-response-content">{bodyView === 'Pretty' ? <JsonCodeBlock value={pretty} /> : <pre>{result.body || '(Empty body)'}</pre>}</div>}
           </> : <p className="hint">{busy ? 'Waiting for response…' : 'Send a request to inspect its response.'}</p>}
         </section>
       </div>

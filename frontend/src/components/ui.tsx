@@ -130,25 +130,28 @@ export function Field({
   )
 }
 
-export function CopyButton({ value, label = 'Copy' }: { value: string; label?: string }) {
+export function CopyButton({ value, label = 'Copy', variant = 'ghost' }: { value: string; label?: string; variant?: 'ghost' | 'outlined' }) {
   const copyText = useCopy()
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
-    if (!copied) return
+    if (!copied) {
+      return
+    }
     const timer = setTimeout(() => setCopied(false), 1400)
     return () => clearTimeout(timer)
   }, [copied])
 
   return (
     <button
-      className="ghost"
+      type="button"
+      className={variant === 'ghost' ? 'ghost' : undefined}
       title={`Copy ${value}`}
       onClick={() => {
         void copyText(value).then((ok) => setCopied(ok))
       }}
     >
-      {copied ? <Check size={13} color="var(--good)" /> : <Copy size={13} />}
+      {copied ? <Check size={variant === 'outlined' ? 15 : 13} color="var(--good)" /> : <Copy size={variant === 'outlined' ? 15 : 13} />}
       {copied ? 'Copied' : label}
     </button>
   )

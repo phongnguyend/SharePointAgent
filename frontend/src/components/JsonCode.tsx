@@ -34,17 +34,18 @@ export function JsonCodeBlock({ value }: { value: string }) {
   </div>
 }
 
-export function JsonEditor({ id, value, onChange, disabled = false }: {
+export function JsonEditor({ id, value, onChange, disabled = false, maxLength = 100000 }: {
   id: string
   value: string
   onChange: (value: string) => void
   disabled?: boolean
+  maxLength?: number
 }) {
   const backdrop = useRef<HTMLPreElement>(null)
   const content = useMemo(() => highlight(value), [value])
   return <div className="json-editor">
     <pre ref={backdrop} aria-hidden="true" className="json-editor-highlight">{content}{'\n'}</pre>
-    <textarea id={id} value={value} maxLength={100000} disabled={disabled} wrap="off"
+    <textarea id={id} value={value} maxLength={maxLength} disabled={disabled} wrap="off"
       spellCheck={false} autoCapitalize="off" autoCorrect="off"
       onChange={event => onChange(event.target.value)} onScroll={event => {
         if (backdrop.current) {

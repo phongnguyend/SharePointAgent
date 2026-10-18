@@ -3,6 +3,7 @@
 .http-library { max-height: 800px; overflow: auto; }
 .http-library-heading > button { margin-left: auto; }
 .http-main { min-width: 0; }
+.http-json-heading > button { margin-left: auto; }
 .http-request { --http-action-width: 128px; }
 .http-request-name { display: grid; grid-template-columns: minmax(0, 1fr) var(--http-action-width); align-items: end; gap: 8px; }
 .http-request-name > label { min-width: 0; }
@@ -37,7 +38,7 @@
 .http-history strong, .http-history small, .http-sent { overflow-wrap: anywhere; white-space: normal; }
 .http-history small { color: var(--text-secondary); }
 .http-playground label { display: flex; flex-direction: column; gap: 6px; }
-.http-playground input:not([type=checkbox]), .http-playground select, .http-playground textarea { min-width: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-1); color: var(--text-primary); font: inherit; }
+.http-playground input:not([type=checkbox]), .http-playground select, .http-playground textarea.http-code { min-width: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-1); color: var(--text-primary); font: inherit; }
 .http-url { display: grid; grid-template-columns: 110px minmax(0, 1fr) var(--http-action-width); gap: 8px; }
 .http-editor { border: 0; margin: 0; padding: 0; min-width: 0; }
 .http-pair { display: grid; grid-template-columns: auto auto minmax(80px, 1fr) minmax(100px, 2fr) auto; gap: 8px; align-items: center; }
@@ -53,6 +54,9 @@
 .http-response-content .json-code-block pre { max-height: none; overflow: visible; }
 .http-response-content table { width: 100%; table-layout: fixed; }
 .http-response-content td { overflow-wrap: anywhere; vertical-align: top; }
+.http-header-cell { display: flex; align-items: flex-start; gap: 6px; }
+.http-header-cell > span { min-width: 0; }
+.http-header-cell > button { flex-shrink: 0; width: 24px; height: 24px; padding: 4px; }
 .http-response-status { font-weight: 600; }
 .http-response-status[data-status="1"] { color: var(--accent-text); }
 .http-response-status[data-status="2"] { color: #16804a; }
