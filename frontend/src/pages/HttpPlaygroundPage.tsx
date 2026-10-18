@@ -335,10 +335,24 @@ function HttpRequestEditor({ id, initial, onSummary, onNew, saved, setSaved, his
             <input aria-label="Request URL" placeholder="https://api.example.com/resource" required value={draft.url} disabled={busy} onChange={event => update('url', event.target.value)} />
             {busy ? <button type="button" onClick={() => pending.current?.abort()}><Square size={15} />Cancel</button> : <button className="primary" type="submit"><Send size={15} />Send</button>}
           </div>
-          <div className="row http-tabs">{([
+          <div className="page-tabs page-tabs-secondary" role="tablist" aria-label="Request sections" onKeyDown={event => {
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+              return
+            }
+            event.preventDefault()
+            const sections = ['Parameters', 'Headers', 'Authentication', 'Body', 'Variables', 'Settings']
+            const current = sections.indexOf(tab)
+            const next = event.key === 'Home' ? 0 : event.key === 'End' ? sections.length - 1
+              : (current + (event.key === 'ArrowRight' ? 1 : -1) + sections.length) % sections.length
+            setTab(sections[next])
+            event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus()
+          }}>{([
             ['Parameters', ListFilter], ['Headers', List], ['Authentication', LockKeyhole],
             ['Body', FileText], ['Variables', Braces], ['Settings', Settings],
-          ] as const).map(([label, Icon]) => <button key={label} type="button" aria-pressed={tab === label} onClick={() => setTab(label)}><Icon size={15} aria-hidden="true" />{label}</button>)}</div>
+          ] as const).map(([label, Icon]) => <button key={label} type="button" role="tab"
+            id={`${id}-section-${label}`} aria-controls={`${id}-section-panel`} aria-selected={tab === label}
+            tabIndex={tab === label ? 0 : -1} onClick={() => setTab(label)}><Icon size={15} aria-hidden="true" />{label}</button>)}</div>
+          <div role="tabpanel" id={`${id}-section-panel`} aria-labelledby={`${id}-section-${tab}`}>
           <fieldset disabled={busy} className="http-editor">
             {tab === 'Parameters' && <Pairs title="parameter" rows={draft.params} change={value => update('params', value)} />}
             {tab === 'Headers' && <Pairs title="header" rows={draft.headers} change={value => update('headers', value)} />}
@@ -375,16 +389,35 @@ function HttpRequestEditor({ id, initial, onSummary, onNew, saved, setSaved, his
               </>}
             </div>)}
           </fieldset>
+          </div>
         </form>
         </section>
         {error && <ErrorBanner message={error} />}
         <section className="card stack http-response" aria-label="HTTP response" aria-busy={busy}>
           <div className="row"><strong>Response</strong>{result && <><span className="http-response-status" data-status={Math.floor(result.statusCode / 100)}>{result.statusCode} {result.reason}</span><span>{result.durationMs.toLocaleString()} ms</span><span>{result.sizeBytes.toLocaleString()} bytes</span><span>HTTP/{result.version}</span></>}</div>
           {result ? <><small className="http-sent"><span className="http-history-method" data-method={sent.split(' ')[0]}>{sent.split(' ')[0]}</span>{sent.slice(sent.indexOf(' '))}</small>{result.truncated && <p role="status">Response truncated at 2 MB. Download contains only the captured bytes.</p>}
-            <div className="row http-tabs">{([['Body', FileText], ['Headers', List], ['Cookies', Cookie]] as const).map(([label, Icon]) => <button key={label} type="button" aria-pressed={responseTab === label} onClick={() => setResponseTab(label)}><Icon size={15} aria-hidden="true" />{label}</button>)}</div>
-            {responseTab === 'Body' && <div className="row http-tabs" role="group" aria-label="Response body format">
-              {([['Pretty', Braces], ['Raw', FileText]] as const).map(([label, Icon]) => <button key={label} type="button" aria-pressed={bodyView === label} onClick={() => setBodyView(label)}><Icon size={15} aria-hidden="true" />{label}</button>)}
-              <CopyButton value={result.body} label="Copy" variant="outlined" /><button onClick={() => download(new Blob([Uint8Array.from(atob(result.base64), c => c.charCodeAt(0))]), 'response.bin')}><Download size={15} />Download</button>
+            <div className="page-tabs page-tabs-secondary" role="tablist" aria-label="Response views" onKeyDown={event => {
+              if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+                return
+              }
+              event.preventDefault()
+              const views = ['Body', 'Headers', 'Cookies']
+              const current = views.indexOf(responseTab)
+              const next = event.key === 'Home' ? 0 : event.key === 'End' ? views.length - 1
+                : (current + (event.key === 'ArrowRight' ? 1 : -1) + views.length) % views.length
+              setResponseTab(views[next])
+              event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus()
+            }}>
+              {([['Body', FileText], ['Headers', List], ['Cookies', Cookie]] as const).map(([label, Icon]) => <button key={label} type="button" role="tab"
+                id={`${id}-response-${label}`} aria-controls={`${id}-response-panel`} aria-selected={responseTab === label}
+                tabIndex={responseTab === label ? 0 : -1} onClick={() => setResponseTab(label)}><Icon size={15} aria-hidden="true" />{label}</button>)}
+            </div>
+            <div className="stack" role="tabpanel" id={`${id}-response-panel`} aria-labelledby={`${id}-response-${responseTab}`}>
+            {responseTab === 'Body' && <div className="row http-body-toolbar">
+              <div className="segmented" role="group" aria-label="Response body format">
+                {([['Pretty', Braces], ['Raw', FileText]] as const).map(([label, Icon]) => <button key={label} type="button" aria-pressed={bodyView === label} onClick={() => setBodyView(label)}><Icon size={15} aria-hidden="true" />{label}</button>)}
+              </div>
+              <div className="row http-body-actions"><CopyButton value={result.body} label="Copy" variant="outlined" /><button onClick={() => download(new Blob([Uint8Array.from(atob(result.base64), c => c.charCodeAt(0))]), 'response.bin')}><Download size={15} />Download</button></div>
             </div>}
             {responseTab === 'Cookies' ? <div className="http-response-content">
               {result.headers.some(h => h.name.toLowerCase() === 'set-cookie') ? <table>
@@ -405,6 +438,7 @@ function HttpRequestEditor({ id, initial, onSummary, onNew, saved, setSaved, his
               <td><div className="http-header-cell"><span>{h.name}</span><button type="button" className="ghost icon-only" title="Copy header name" aria-label={`Copy header name ${h.name}`} onClick={() => void copy(h.name, 'Header name')}><Copy size={13} aria-hidden="true" /></button></div></td>
               <td><div className="http-header-cell"><span>{h.value}</span><button type="button" className="ghost icon-only" title="Copy header value" aria-label={`Copy value of ${h.name}`} onClick={() => void copy(h.value, 'Header value')}><Copy size={13} aria-hidden="true" /></button></div></td>
             </tr>)}</tbody></table></div> : <div className="http-response-content">{bodyView === 'Pretty' ? <JsonCodeBlock value={pretty} /> : <pre>{result.body || '(Empty body)'}</pre>}</div>}
+            </div>
           </> : <p className="hint">{busy ? 'Waiting for response…' : 'Send a request to inspect its response.'}</p>}
         </section>
       </div>

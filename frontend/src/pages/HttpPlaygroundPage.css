@@ -3,6 +3,7 @@
 .http-library { max-height: 800px; overflow: auto; }
 .http-library-heading > button { margin-left: auto; }
 .http-main { min-width: 0; }
+.http-body-toolbar { justify-content: flex-end; }
 .http-json-heading > button { margin-left: auto; }
 .http-request { --http-action-width: 128px; }
 .http-request-name { display: grid; grid-template-columns: minmax(0, 1fr) var(--http-action-width); align-items: end; gap: 8px; }
