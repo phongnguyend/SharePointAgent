@@ -57,11 +57,6 @@ function GraphExtractionRequest({ tab }: { tab: PlaygroundRequestTab }) {
   return <section className="card graph-extraction-playground">
     <div className="card-head decision-toolbar">
       <h2><Network size={18} />Entity and relationship extraction</h2>
-      <div className="row">
-        <button type="button" className="primary" disabled={running || !text.trim()} onClick={() => void run()}><Play size={15} />Extract</button>
-        {running && <button type="button" onClick={() => controller.current?.abort()}><Square size={15} />Cancel</button>}
-        <button type="button" disabled={running} onClick={() => { setText(''); setResult(null); setError('') }}><RotateCcw size={15} />Reset</button>
-      </div>
     </div>
     <div className="card-body stack">
       <p className="decision-description">Test indexing extraction on document text, including chunking and grounding. Nothing is saved to the graph.</p>
@@ -71,9 +66,14 @@ function GraphExtractionRequest({ tab }: { tab: PlaygroundRequestTab }) {
           {error && <ErrorBanner message={error} />}
           <div className="decision-playground-grid">
             <div className="decision-panel graph-extraction-editor">
-              <div className="decision-panel-heading">
+              <div className="decision-panel-heading playground-request-heading">
                 <label htmlFor={inputId}>Document text</label>
-                <span className="muted">{text.length.toLocaleString()} / {limit.toLocaleString()}</span>
+                <div className="row">
+                  <button type="button" className="primary" disabled={running || !text.trim()} onClick={() => void run()}><Play size={15} />Extract</button>
+                  {running && <button type="button" onClick={() => controller.current?.abort()}><Square size={15} />Cancel</button>}
+                  <button type="button" disabled={running} onClick={() => { setText(''); setResult(null); setError('') }}><RotateCcw size={15} />Reset</button>
+                  <span className="muted">{text.length.toLocaleString()} / {limit.toLocaleString()}</span>
+                </div>
               </div>
               <textarea id={inputId} className="graph-extraction-textarea" value={text} onChange={event => { setText(event.target.value); setResult(null) }}
                 maxLength={limit} disabled={running} placeholder="The CRM depends on ERP for invoicing." />

@@ -58,11 +58,6 @@ function GraphQueryRequest({ tab }: { tab: PlaygroundRequestTab }) {
   return <section className="card graph-plan-playground">
     <div className="card-head decision-toolbar">
       <h2><Network size={18} />Query plan playground</h2>
-      <div className="row">
-        <button type="button" className="primary" disabled={running || !question.trim()} onClick={() => void run()}><Play size={15} />Extract plan</button>
-        {running && <button type="button" onClick={() => controller.current?.abort()}><Square size={15} />Cancel</button>}
-        <button type="button" disabled={running} onClick={() => { setQuestion(''); setResult(null); setError('') }}><RotateCcw size={15} />Reset</button>
-      </div>
     </div>
     <div className="card-body stack">
       <p className="decision-description">Extract entity names and relationship types from a question without graph retrieval.</p>
@@ -72,9 +67,14 @@ function GraphQueryRequest({ tab }: { tab: PlaygroundRequestTab }) {
           {error && <ErrorBanner message={error} />}
           <div className="decision-playground-grid">
             <div className="decision-panel graph-plan-editor">
-              <div className="decision-panel-heading">
+              <div className="decision-panel-heading playground-request-heading">
                 <label htmlFor={inputId}>Question</label>
-                <span className="muted">{question.length.toLocaleString()} / {limit.toLocaleString()}</span>
+                <div className="row">
+                  <button type="button" className="primary" disabled={running || !question.trim()} onClick={() => void run()}><Play size={15} />Extract plan</button>
+                  {running && <button type="button" onClick={() => controller.current?.abort()}><Square size={15} />Cancel</button>}
+                  <button type="button" disabled={running} onClick={() => { setQuestion(''); setResult(null); setError('') }}><RotateCcw size={15} />Reset</button>
+                  <span className="muted">{question.length.toLocaleString()} / {limit.toLocaleString()}</span>
+                </div>
               </div>
               <textarea id={inputId} className="graph-plan-textarea" value={question} onChange={event => { setQuestion(event.target.value); setResult(null) }}
                 maxLength={limit} disabled={running} placeholder="Which systems depend on the customer portal?" />

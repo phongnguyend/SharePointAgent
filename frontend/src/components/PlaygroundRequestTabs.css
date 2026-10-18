@@ -11,3 +11,6 @@
 .playground-request-loading { animation: playground-request-spin 1s linear infinite; }
 @keyframes playground-request-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .playground-request-loading { animation: none; } }
+
+.playground-request-heading { flex-wrap: wrap; gap: 8px; }
+.playground-request-heading > .row { flex-wrap: wrap; margin-left: auto; }

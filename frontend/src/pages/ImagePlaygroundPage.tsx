@@ -116,18 +116,6 @@ function ImageRequest({ operation, tab }: { operation: ImageOperation; tab: Play
   return <section className="card decision-playground">
     <div className="card-head decision-toolbar">
       <h2><ImageIcon size={18} />{title}</h2>
-      <div className="row">
-        <button className="primary" disabled={running || !file} onClick={() => void run()}><Play size={15} />{running ? 'Processing...' : action}</button>
-        {running ? <button onClick={() => {
-          controller.current?.abort()
-          setError('Request cancelled. The provider may already have processed it.')
-        }}><Square size={15} />Cancel</button> : null}
-        <button disabled={running} onClick={() => {
-          setFile(null)
-          setResult(null)
-          setError('')
-        }}><RotateCcw size={15} />Reset</button>
-      </div>
     </div>
     <div className="card-body stack">
       <p className="decision-description">{operation === 'describe'
@@ -139,7 +127,22 @@ function ImageRequest({ operation, tab }: { operation: ImageOperation; tab: Play
       {error ? <ErrorBanner message={error} /> : null}
       <div className="decision-playground-grid">
         <div className="decision-panel">
-          <div className="decision-panel-heading"><h3>Image</h3><button disabled={running} onClick={() => input.current?.click()}><Upload size={14} />Select file</button></div>
+          <div className="decision-panel-heading playground-request-heading">
+            <h3>Image</h3>
+            <div className="row">
+              <button className="primary" disabled={running || !file} onClick={() => void run()}><Play size={15} />{running ? 'Processing...' : action}</button>
+              {running ? <button onClick={() => {
+                controller.current?.abort()
+                setError('Request cancelled. The provider may already have processed it.')
+              }}><Square size={15} />Cancel</button> : null}
+              <button disabled={running} onClick={() => {
+                setFile(null)
+                setResult(null)
+                setError('')
+              }}><RotateCcw size={15} />Reset</button>
+              <button disabled={running} onClick={() => input.current?.click()}><Upload size={14} />Select file</button>
+            </div>
+          </div>
           <input ref={input} type="file" accept={formats[operation].join(',')} hidden disabled={running} aria-label={`Select image for ${title}`} onChange={event => {
             select(event.target.files)
             event.target.value = ''

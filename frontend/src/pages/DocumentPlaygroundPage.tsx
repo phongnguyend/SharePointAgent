@@ -111,23 +111,9 @@ function DocumentRequest({ provider, tab }: { provider: DocumentPlaygroundProvid
     }
   }
   return <section className="card decision-playground">
-    <div className="card-head decision-toolbar"><h2><FileText size={18} />{name} playground</h2><div className="row">
-      <button className="primary" disabled={running || !file} onClick={() => void run()}><Play size={15} />{running ? 'Processing...' : action}</button>
-      {running ? <button onClick={() => {
-        controller.current?.abort()
-        setError('Request cancelled. The service may already have processed it.')
-      }}><Square size={15} />Cancel</button> : null}
-      <button disabled={running} onClick={() => {
-        setFile(null)
-        setResult(null)
-        setError('')
-        setIncludeText(true)
-        setIncludeSummaries(false)
-        setSkipImages(true)
-        setEnrichImages(false)
-        setPreview(false)
-      }}><RotateCcw size={15} />Reset</button>
-    </div></div>
+    <div className="card-head decision-toolbar">
+      <h2><FileText size={18} />{name} playground</h2>
+    </div>
     <div className="card-body stack">
       <p className="decision-description">{isIndex ? 'Build a document tree from PDF or Markdown. Indexing and summaries may incur model charges. Token usage is returned in the response only.' : isParser ? `Convert a ${provider.toUpperCase()} document to Markdown using DocumentParsers. Enable Enrich images for AI descriptions and OCR; provider charges may apply.` : 'Convert a document to Markdown using the configured MarkItDown service.'}</p>
       <div className="playground-request-boundary">
@@ -136,7 +122,27 @@ function DocumentRequest({ provider, tab }: { provider: DocumentPlaygroundProvid
           {error ? <ErrorBanner message={error} /> : null}
           <div className="document-playground-layout">
             <div className="decision-panel">
-              <div className="decision-panel-heading"><h3>Document</h3><button disabled={running} onClick={() => input.current?.click()}><Upload size={14} />Select file</button></div>
+              <div className="decision-panel-heading playground-request-heading">
+                <h3>Document</h3>
+                <div className="row">
+                  <button className="primary" disabled={running || !file} onClick={() => void run()}><Play size={15} />{running ? 'Processing...' : action}</button>
+                  {running ? <button onClick={() => {
+                    controller.current?.abort()
+                    setError('Request cancelled. The service may already have processed it.')
+                  }}><Square size={15} />Cancel</button> : null}
+                  <button disabled={running} onClick={() => {
+                    setFile(null)
+                    setResult(null)
+                    setError('')
+                    setIncludeText(true)
+                    setIncludeSummaries(false)
+                    setSkipImages(true)
+                    setEnrichImages(false)
+                    setPreview(false)
+                  }}><RotateCcw size={15} />Reset</button>
+                  <button disabled={running} onClick={() => input.current?.click()}><Upload size={14} />Select file</button>
+                </div>
+              </div>
               <input ref={input} type="file" hidden accept={accept} disabled={running} aria-label={`Select document for ${name}`} onChange={event => {
                 select(event.target.files)
                 event.target.value = ''

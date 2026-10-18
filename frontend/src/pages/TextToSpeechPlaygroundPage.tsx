@@ -78,12 +78,9 @@ function TextToSpeechRequest({ tab }: { tab: PlaygroundRequestTab }) {
   }
 
   return <section className="card speech-playground">
-    <div className="card-head decision-toolbar"><h2><Volume2 size={18} />Text to speech</h2><div className="row">
-      <button type="button" className="primary" disabled={running || !options?.configured || !voice || !text.trim()} onClick={() => void run()}><Play size={15} />Generate speech</button>
-      {running && <button type="button" onClick={() => request.current?.abort()}><Square size={15} />Cancel</button>}
-      <button type="button" disabled={running} onClick={() => { setText(''); setResult(null); setError('') }}><RotateCcw size={15} />Reset</button>
-      <button type="button" className="ghost icon-only" disabled={running} aria-label="Refresh Speech voices" onClick={() => setRetry(value => value + 1)}><RefreshCw size={15} /></button>
-    </div></div>
+    <div className="card-head decision-toolbar">
+      <h2><Volume2 size={18} />Text to speech</h2>
+    </div>
     <div className="card-body stack">
       <p className="decision-description">Generate speech with Azure AI Speech. Text and audio are not saved by this app. Azure usage charges apply; audio is limited to 10 minutes.</p>
       <div className="playground-request-boundary">
@@ -101,7 +98,16 @@ function TextToSpeechRequest({ tab }: { tab: PlaygroundRequestTab }) {
           </div>
           <div className="decision-playground-grid">
             <div className="decision-panel speech-playground-editor">
-              <div className="decision-panel-heading"><h3>Text</h3><small>{text.length.toLocaleString()} / {(options?.maxCharacters ?? 3000).toLocaleString()}</small></div>
+              <div className="decision-panel-heading playground-request-heading">
+                <h3>Text</h3>
+                <div className="row">
+                  <button type="button" className="primary" disabled={running || !options?.configured || !voice || !text.trim()} onClick={() => void run()}><Play size={15} />Generate speech</button>
+                  {running && <button type="button" onClick={() => request.current?.abort()}><Square size={15} />Cancel</button>}
+                  <button type="button" disabled={running} onClick={() => { setText(''); setResult(null); setError('') }}><RotateCcw size={15} />Reset</button>
+                  <button type="button" className="ghost icon-only" disabled={running} aria-label="Reload available voices and speech configuration" title="Reload available voices and speech configuration" onClick={() => setRetry(value => value + 1)}><RefreshCw size={15} /></button>
+                  <small>{text.length.toLocaleString()} / {(options?.maxCharacters ?? 3000).toLocaleString()}</small>
+                </div>
+              </div>
               <textarea aria-label="Text to speak" placeholder="Enter text to turn into speech…" value={text} disabled={running} maxLength={options?.maxCharacters ?? 3000} onChange={event => setText(event.target.value)} />
             </div>
             <div className="decision-panel" aria-busy={running}>

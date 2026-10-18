@@ -68,11 +68,6 @@ function DecisionRequest({ provider, tab }: { provider: DecisionProvider; tab: P
   return <section className="card decision-playground">
     <div className="card-head decision-toolbar">
       <h2><FlaskConical size={18} />{name} playground</h2>
-      <div className="row">
-        <button type="button" className="primary" disabled={running || !input.trim()} onClick={() => void run()}><Play size={15} />{running ? 'Evaluating…' : 'Run evaluation'}</button>
-        {running && <button type="button" onClick={() => { controller.current?.abort(); setError('Request cancelled. The provider may already have processed it.') }}><Square size={15} />Cancel</button>}
-        <button type="button" disabled={running} onClick={() => { setInput(sample); setResult(null); setError('') }}><RotateCcw size={15} />Reset example</button>
-      </div>
     </div>
     <div className="card-body stack">
       <p className="decision-description">Test choice, score, or yes/no (noul) with {name}. Runs may incur charges; usage is recorded under your user in SystemOne Usage.</p>
@@ -81,7 +76,22 @@ function DecisionRequest({ provider, tab }: { provider: DecisionProvider; tab: P
       <div className="stack playground-request-content" role="tabpanel" id={panelId} aria-labelledby={tabId}>
       <div className="decision-playground-grid">
         <div className="decision-panel">
-          <div className="decision-panel-heading"><label htmlFor={inputId}>Request JSON</label><CopyButton value={input} /></div>
+          <div className="decision-panel-heading playground-request-heading">
+            <label htmlFor={inputId}>Request JSON</label>
+            <div className="row">
+              <button type="button" className="primary" disabled={running || !input.trim()} onClick={() => void run()}><Play size={15} />{running ? 'Evaluating…' : 'Run evaluation'}</button>
+              {running && <button type="button" onClick={() => {
+                controller.current?.abort()
+                setError('Request cancelled. The provider may already have processed it.')
+              }}><Square size={15} />Cancel</button>}
+              <button type="button" disabled={running} onClick={() => {
+                setInput(sample)
+                setResult(null)
+                setError('')
+              }}><RotateCcw size={15} />Reset example</button>
+              <CopyButton value={input} />
+            </div>
+          </div>
           <JsonEditor id={inputId} value={input} disabled={running}
             onChange={value => { setInput(value); setResult(null) }} />
         </div>

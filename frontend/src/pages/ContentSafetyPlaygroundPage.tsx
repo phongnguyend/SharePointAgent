@@ -64,12 +64,6 @@ function ContentSafetyRequest({ tab }: { tab: PlaygroundRequestTab }) {
   return <section className="card safety-playground">
     <div className="card-head decision-toolbar">
       <h2><ShieldCheck size={18} />Content Safety</h2>
-      <div className="row">
-        <button type="button" className="primary" disabled={running || !options?.configured || !text.trim()} onClick={() => void run()}><Play size={15} />Analyze</button>
-        {running && <button type="button" onClick={() => pending.current?.abort()}><Square size={15} />Cancel</button>}
-        <button type="button" disabled={running} onClick={() => { setText(''); setResult(null); setError('') }}><RotateCcw size={15} />Reset</button>
-        <button type="button" className="ghost icon-only" disabled={running} aria-label="Refresh content safety configuration" onClick={() => setRetry(value => value + 1)}><RefreshCw size={15} /></button>
-      </div>
     </div>
     <div className="card-body stack">
       <p className="decision-description">Analyze text against the configured safety thresholds. Usage is recorded under your user; provider charges may apply.</p>
@@ -80,7 +74,16 @@ function ContentSafetyRequest({ tab }: { tab: PlaygroundRequestTab }) {
           {!options ? <p role="status">Loading configuration…</p> : !options.configured && <p role="status">Configure the ContentSafety endpoint and credentials on the server to analyze text.</p>}
           <div className="decision-playground-grid">
             <div className="decision-panel safety-playground-editor">
-              <div className="decision-panel-heading"><label htmlFor={inputId}>Text to analyze</label><span className="muted">{text.length.toLocaleString()} / {(options?.maxCharacters ?? 10000).toLocaleString()}</span></div>
+              <div className="decision-panel-heading playground-request-heading">
+                <label htmlFor={inputId}>Text to analyze</label>
+                <div className="row">
+                  <button type="button" className="primary" disabled={running || !options?.configured || !text.trim()} onClick={() => void run()}><Play size={15} />Analyze</button>
+                  {running && <button type="button" onClick={() => pending.current?.abort()}><Square size={15} />Cancel</button>}
+                  <button type="button" disabled={running} onClick={() => { setText(''); setResult(null); setError('') }}><RotateCcw size={15} />Reset</button>
+                  <button type="button" className="ghost icon-only" disabled={running} aria-label="Reload content safety availability and text limits" title="Reload content safety availability and text limits" onClick={() => setRetry(value => value + 1)}><RefreshCw size={15} /></button>
+                  <span className="muted">{text.length.toLocaleString()} / {(options?.maxCharacters ?? 10000).toLocaleString()}</span>
+                </div>
+              </div>
               <textarea id={inputId} className="safety-playground-input" placeholder="Enter text to evaluate" value={text} maxLength={options?.maxCharacters ?? 10000} disabled={running}
                 onChange={event => { setText(event.target.value); setResult(null) }} />
             </div>

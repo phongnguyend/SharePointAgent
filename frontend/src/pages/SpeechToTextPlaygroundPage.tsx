@@ -96,12 +96,9 @@ function SpeechToTextRequest({ tab }: { tab: PlaygroundRequestTab }) {
   }
 
   return <section className="card voice-playground">
-    <div className="card-head decision-toolbar"><h2><Mic size={18} />Speech to text</h2><div className="row">
-      <button type="button" className="primary" disabled={busy || !file || !options?.enabled} onClick={() => void run()}><Play size={15} />Transcribe</button>
-      {running && <button type="button" onClick={() => request.current?.abort()}><Square size={15} />Cancel</button>}
-      <button type="button" disabled={busy} onClick={() => { setFile(null); setText(null); setError('') }}><RotateCcw size={15} />Reset</button>
-      <button type="button" className="ghost icon-only" disabled={busy} aria-label="Refresh voice configuration" onClick={() => setRetry(value => value + 1)}><RefreshCw size={15} /></button>
-    </div></div>
+    <div className="card-head decision-toolbar">
+      <h2><Mic size={18} />Speech to text</h2>
+    </div>
     <div className="card-body stack">
       <p className="decision-description">Transcribe speech using the configured voice model. Audio is not stored; usage is recorded under your user and provider charges may apply.</p>
       <div className="playground-request-boundary">
@@ -111,7 +108,16 @@ function SpeechToTextRequest({ tab }: { tab: PlaygroundRequestTab }) {
           {!options ? <p role="status">Loading configuration…</p> : !options.enabled && <p role="status">Voice is not configured. Set AzureOpenAI:TranscriptionDeployment on the server.</p>}
           <div className="decision-playground-grid">
             <div className="decision-panel">
-              <div className="decision-panel-heading"><h3>Audio</h3><button type="button" disabled={busy} onClick={() => input.current?.click()}><Upload size={15} />Select file</button></div>
+              <div className="decision-panel-heading playground-request-heading">
+                <h3>Audio</h3>
+                <div className="row">
+                  <button type="button" className="primary" disabled={busy || !file || !options?.enabled} onClick={() => void run()}><Play size={15} />Transcribe</button>
+                  {running && <button type="button" onClick={() => request.current?.abort()}><Square size={15} />Cancel</button>}
+                  <button type="button" disabled={busy} onClick={() => { setFile(null); setText(null); setError('') }}><RotateCcw size={15} />Reset</button>
+                  <button type="button" className="ghost icon-only" disabled={busy} aria-label="Reload transcription availability and limits" title="Reload transcription availability and limits" onClick={() => setRetry(value => value + 1)}><RefreshCw size={15} /></button>
+                  <button type="button" disabled={busy} onClick={() => input.current?.click()}><Upload size={15} />Select file</button>
+                </div>
+              </div>
               <input type="file" hidden ref={input} accept=".webm,.ogg,.mp4,.m4a,.mp3,.wav" aria-label="Select audio file" disabled={busy} onChange={event => {
                 select(event.target.files)
                 event.target.value = ''
