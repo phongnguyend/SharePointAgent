@@ -1,13 +1,25 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { PlaygroundRequestTabs, type PlaygroundRequestTab } from '../components/PlaygroundRequestTabs'
 import { Play, RefreshCw, RotateCcw, ShieldCheck, Square } from 'lucide-react'
 import { evaluateSafety, getSafetyOptions, type SafetyAssessment, type SafetyOptions } from '../api/contentSafetyPlaygroundClient'
 import { CopyButton, ErrorBanner } from '../components/ui'
 
 export default function ContentSafetyPlaygroundPage({ active }: { active: boolean }) {
+  return <PlaygroundRequestTabs label="Content Safety" active={active}>
+    {tab => <ContentSafetyRequest tab={tab} />}
+  </PlaygroundRequestTabs>
+}
+
+function ContentSafetyRequest({ tab }: { tab: PlaygroundRequestTab }) {
+  const { active, id, onSummary } = tab
+  const inputId = useId()
   const [options, setOptions] = useState<SafetyOptions | null>(null)
   const [retry, setRetry] = useState(0)
   const [text, setText] = useState('')
   const [running, setRunning] = useState(false)
+  useEffect(() => {
+    onSummary(id, '', running)
+  }, [id, onSummary, running])
   const [error, setError] = useState('')
   const [result, setResult] = useState<SafetyAssessment | null>(null)
   const pending = useRef<AbortController | null>(null)
@@ -61,26 +73,31 @@ export default function ContentSafetyPlaygroundPage({ active }: { active: boolea
     </div>
     <div className="card-body stack">
       <p className="decision-description">Analyze text against the configured safety thresholds. Usage is recorded under your user; provider charges may apply.</p>
-      {error && <ErrorBanner message={error} />}
-      {!options ? <p role="status">Loading configuration…</p> : !options.configured && <p role="status">Configure the ContentSafety endpoint and credentials on the server to analyze text.</p>}
-      <div className="decision-playground-grid">
-        <div className="decision-panel safety-playground-editor">
-          <div className="decision-panel-heading"><label htmlFor="safety-playground-text">Text to analyze</label><span className="muted">{text.length.toLocaleString()} / {(options?.maxCharacters ?? 10000).toLocaleString()}</span></div>
-          <textarea id="safety-playground-text" className="safety-playground-input" placeholder="Enter text to evaluate" value={text} maxLength={options?.maxCharacters ?? 10000} disabled={running}
-            onChange={event => { setText(event.target.value); setResult(null) }} />
-        </div>
-        <div className="decision-panel" aria-busy={running}>
-          <div className="decision-panel-heading"><h3>Assessment</h3>{result && <CopyButton value={JSON.stringify(result, null, 2)} />}</div>
-          {!result ? <div className="decision-response-empty" role="status">{running ? 'Analyzing text…' : 'Enter text and click Analyze.'}</div> : <div className="safety-playground-results">
-            <p><span className={`badge ${result.status === 'Blocked' ? 'critical' : 'good'}`}>{result.status}</span> by the configured policy</p>
-            <p className="muted">Scores range from 0 to 7. A score at or above its threshold blocks the text.</p>
-            <table><thead><tr><th>Category</th><th>Severity</th><th>Threshold</th><th>Result</th></tr></thead><tbody>
-              {result.categories.map(category => <tr key={category.category}><td>{category.category === 'SelfHarm' ? 'Self-harm' : category.category}</td><td>{category.severity} / 7</td><td>{category.threshold}</td><td>{category.severity >= category.threshold ? 'Blocked' : 'Allowed'}</td></tr>)}
-            </tbody></table>
-            <p className="muted">{result.characterCount.toLocaleString()} characters · {result.elapsedMs.toLocaleString()} ms</p>
-            <p className="safety-playground-id">Assessment: {result.assessmentId}</p>
-            {result.traceId && <p className="safety-playground-id">Trace: {result.traceId}</p>}
-          </div>}
+      <div className="playground-request-boundary">
+        {tab.tabBar}
+        <div className="stack playground-request-content" role="tabpanel" id={tab.panelId} aria-labelledby={tab.tabId}>
+          {error && <ErrorBanner message={error} />}
+          {!options ? <p role="status">Loading configuration…</p> : !options.configured && <p role="status">Configure the ContentSafety endpoint and credentials on the server to analyze text.</p>}
+          <div className="decision-playground-grid">
+            <div className="decision-panel safety-playground-editor">
+              <div className="decision-panel-heading"><label htmlFor={inputId}>Text to analyze</label><span className="muted">{text.length.toLocaleString()} / {(options?.maxCharacters ?? 10000).toLocaleString()}</span></div>
+              <textarea id={inputId} className="safety-playground-input" placeholder="Enter text to evaluate" value={text} maxLength={options?.maxCharacters ?? 10000} disabled={running}
+                onChange={event => { setText(event.target.value); setResult(null) }} />
+            </div>
+            <div className="decision-panel" aria-busy={running}>
+              <div className="decision-panel-heading"><h3>Assessment</h3>{result && <CopyButton value={JSON.stringify(result, null, 2)} />}</div>
+              {!result ? <div className="decision-response-empty" role="status">{running ? 'Analyzing text…' : 'Enter text and click Analyze.'}</div> : <div className="safety-playground-results">
+                <p><span className={`badge ${result.status === 'Blocked' ? 'critical' : 'good'}`}>{result.status}</span> by the configured policy</p>
+                <p className="muted">Scores range from 0 to 7. A score at or above its threshold blocks the text.</p>
+                <table><thead><tr><th>Category</th><th>Severity</th><th>Threshold</th><th>Result</th></tr></thead><tbody>
+                  {result.categories.map(category => <tr key={category.category}><td>{category.category === 'SelfHarm' ? 'Self-harm' : category.category}</td><td>{category.severity} / 7</td><td>{category.threshold}</td><td>{category.severity >= category.threshold ? 'Blocked' : 'Allowed'}</td></tr>)}
+                </tbody></table>
+                <p className="muted">{result.characterCount.toLocaleString()} characters · {result.elapsedMs.toLocaleString()} ms</p>
+                <p className="safety-playground-id">Assessment: {result.assessmentId}</p>
+                {result.traceId && <p className="safety-playground-id">Trace: {result.traceId}</p>}
+              </div>}
+            </div>
+          </div>
         </div>
       </div>
     </div>

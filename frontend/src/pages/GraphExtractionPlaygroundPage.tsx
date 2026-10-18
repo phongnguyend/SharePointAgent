@@ -1,3 +1,4 @@
+import { PlaygroundRequestTabs, type PlaygroundRequestTab } from '../components/PlaygroundRequestTabs'
 import { useEffect, useId, useRef, useState } from 'react'
 import { Network, Play, RotateCcw, Square } from 'lucide-react'
 import { request } from '../api/http'
@@ -9,6 +10,13 @@ import './GraphExtractionPlaygroundPage.css'
 type ExtractionResult = { chunks: unknown[]; elapsedMs: number; usage: GraphModelUsage[] }
 
 export default function GraphExtractionPlaygroundPage() {
+  return <PlaygroundRequestTabs label="Entity and relationship extraction" active>
+    {tab => <GraphExtractionRequest tab={tab} />}
+  </PlaygroundRequestTabs>
+}
+
+function GraphExtractionRequest({ tab }: { tab: PlaygroundRequestTab }) {
+  const { id, onSummary } = tab
   const inputId = useId()
   const limit = 20000
   const [text, setText] = useState('')
@@ -17,6 +25,9 @@ export default function GraphExtractionPlaygroundPage() {
   const [running, setRunning] = useState(false)
   const controller = useRef<AbortController | null>(null)
   useEffect(() => () => controller.current?.abort(), [])
+  useEffect(() => {
+    onSummary(id, '', running)
+  }, [id, onSummary, running])
 
   const run = async () => {
     if (controller.current || !text.trim()) {
@@ -54,28 +65,33 @@ export default function GraphExtractionPlaygroundPage() {
     </div>
     <div className="card-body stack">
       <p className="decision-description">Test indexing extraction on document text, including chunking and grounding. Nothing is saved to the graph.</p>
-      {error && <ErrorBanner message={error} />}
-      <div className="decision-playground-grid">
-        <div className="decision-panel graph-extraction-editor">
-          <div className="decision-panel-heading">
-            <label htmlFor={inputId}>Document text</label>
-            <span className="muted">{text.length.toLocaleString()} / {limit.toLocaleString()}</span>
+      <div className="playground-request-boundary">
+        {tab.tabBar}
+        <div className="stack playground-request-content" role="tabpanel" id={tab.panelId} aria-labelledby={tab.tabId}>
+          {error && <ErrorBanner message={error} />}
+          <div className="decision-playground-grid">
+            <div className="decision-panel graph-extraction-editor">
+              <div className="decision-panel-heading">
+                <label htmlFor={inputId}>Document text</label>
+                <span className="muted">{text.length.toLocaleString()} / {limit.toLocaleString()}</span>
+              </div>
+              <textarea id={inputId} className="graph-extraction-textarea" value={text} onChange={event => { setText(event.target.value); setResult(null) }}
+                maxLength={limit} disabled={running} placeholder="The CRM depends on ERP for invoicing." />
+            </div>
+            <section className="decision-panel graph-extraction-result" aria-busy={running}>
+              <div className="decision-panel-heading">
+                <h3>Extraction results</h3>
+              </div>
+              {!result ? <div className="decision-response-empty" role="status" aria-live="polite">{running ? 'Extracting?' : 'Enter document text and click Extract.'}</div>
+                : <div className="graph-extraction-output">
+                  <p className="muted">Raw and grounded entities and relationships are shown per chunk, with rejection counts.</p>
+                  <GraphUsageSummary usage={result.usage} />
+                  <JsonCodeBlock value={JSON.stringify(result.chunks, null, 2)} />
+                  <p className="muted" role="status">Completed in {result.elapsedMs.toLocaleString()} ms</p>
+                </div>}
+            </section>
           </div>
-          <textarea id={inputId} className="graph-extraction-textarea" value={text} onChange={event => { setText(event.target.value); setResult(null) }}
-            maxLength={limit} disabled={running} placeholder="The CRM depends on ERP for invoicing." />
         </div>
-        <section className="decision-panel graph-extraction-result" aria-busy={running}>
-          <div className="decision-panel-heading">
-            <h3>Extraction results</h3>
-          </div>
-          {!result ? <div className="decision-response-empty" role="status" aria-live="polite">{running ? 'Extracting?' : 'Enter document text and click Extract.'}</div>
-            : <div className="graph-extraction-output">
-              <p className="muted">Raw and grounded entities and relationships are shown per chunk, with rejection counts.</p>
-              <GraphUsageSummary usage={result.usage} />
-              <JsonCodeBlock value={JSON.stringify(result.chunks, null, 2)} />
-              <p className="muted" role="status">Completed in {result.elapsedMs.toLocaleString()} ms</p>
-            </div>}
-        </section>
       </div>
     </div>
   </section>

@@ -1,3 +1,4 @@
+import { PlaygroundRequestTabs, type PlaygroundRequestTab } from '../components/PlaygroundRequestTabs'
 import { useEffect, useId, useRef, useState } from 'react'
 import { Network, Play, RotateCcw, Square } from 'lucide-react'
 import { request } from '../api/http'
@@ -10,6 +11,13 @@ import './GraphQueryPlaygroundPage.css'
 type PlanResult = { plan: GraphQueryPlan; elapsedMs: number; usage: GraphModelUsage[] }
 
 export default function GraphQueryPlaygroundPage() {
+  return <PlaygroundRequestTabs label="Query plan" active>
+    {tab => <GraphQueryRequest tab={tab} />}
+  </PlaygroundRequestTabs>
+}
+
+function GraphQueryRequest({ tab }: { tab: PlaygroundRequestTab }) {
+  const { id, onSummary } = tab
   const inputId = useId()
   const limit = 2000
   const [question, setQuestion] = useState('')
@@ -18,6 +26,9 @@ export default function GraphQueryPlaygroundPage() {
   const [running, setRunning] = useState(false)
   const controller = useRef<AbortController | null>(null)
   useEffect(() => () => controller.current?.abort(), [])
+  useEffect(() => {
+    onSummary(id, '', running)
+  }, [id, onSummary, running])
 
   const run = async () => {
     if (controller.current || !question.trim()) {
@@ -55,29 +66,34 @@ export default function GraphQueryPlaygroundPage() {
     </div>
     <div className="card-body stack">
       <p className="decision-description">Extract entity names and relationship types from a question without graph retrieval.</p>
-      {error && <ErrorBanner message={error} />}
-      <div className="decision-playground-grid">
-        <div className="decision-panel graph-plan-editor">
-          <div className="decision-panel-heading">
-            <label htmlFor={inputId}>Question</label>
-            <span className="muted">{question.length.toLocaleString()} / {limit.toLocaleString()}</span>
+      <div className="playground-request-boundary">
+        {tab.tabBar}
+        <div className="stack playground-request-content" role="tabpanel" id={tab.panelId} aria-labelledby={tab.tabId}>
+          {error && <ErrorBanner message={error} />}
+          <div className="decision-playground-grid">
+            <div className="decision-panel graph-plan-editor">
+              <div className="decision-panel-heading">
+                <label htmlFor={inputId}>Question</label>
+                <span className="muted">{question.length.toLocaleString()} / {limit.toLocaleString()}</span>
+              </div>
+              <textarea id={inputId} className="graph-plan-textarea" value={question} onChange={event => { setQuestion(event.target.value); setResult(null) }}
+                maxLength={limit} disabled={running} placeholder="Which systems depend on the customer portal?" />
+            </div>
+            <section className="decision-panel graph-plan-result" aria-busy={running}>
+              <div className="decision-panel-heading">
+                <h3>Query plan</h3>
+              </div>
+              {!result ? <div className="decision-response-empty" role="status" aria-live="polite">{running ? 'Extracting?' : 'Enter question and click Extract plan.'}</div>
+                : <div className="graph-plan-output">
+                  <p><strong>Entities:</strong> {result.plan.entities.join(', ') || 'None extracted'}</p>
+                  <p><strong>Relationship types:</strong> {result.plan.relationshipTypes.join(', ') || 'All configured relationship types'}</p>
+                  <GraphUsageSummary usage={result.usage} />
+                  <JsonCodeBlock value={JSON.stringify(result.plan, null, 2)} />
+                  <p className="muted" role="status">Completed in {result.elapsedMs.toLocaleString()} ms</p>
+                </div>}
+            </section>
           </div>
-          <textarea id={inputId} className="graph-plan-textarea" value={question} onChange={event => { setQuestion(event.target.value); setResult(null) }}
-            maxLength={limit} disabled={running} placeholder="Which systems depend on the customer portal?" />
         </div>
-        <section className="decision-panel graph-plan-result" aria-busy={running}>
-          <div className="decision-panel-heading">
-            <h3>Query plan</h3>
-          </div>
-          {!result ? <div className="decision-response-empty" role="status" aria-live="polite">{running ? 'Extracting?' : 'Enter question and click Extract plan.'}</div>
-            : <div className="graph-plan-output">
-              <p><strong>Entities:</strong> {result.plan.entities.join(', ') || 'None extracted'}</p>
-              <p><strong>Relationship types:</strong> {result.plan.relationshipTypes.join(', ') || 'All configured relationship types'}</p>
-              <GraphUsageSummary usage={result.usage} />
-              <JsonCodeBlock value={JSON.stringify(result.plan, null, 2)} />
-              <p className="muted" role="status">Completed in {result.elapsedMs.toLocaleString()} ms</p>
-            </div>}
-        </section>
       </div>
     </div>
   </section>

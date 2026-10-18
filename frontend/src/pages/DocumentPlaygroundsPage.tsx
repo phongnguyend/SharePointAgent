@@ -46,7 +46,7 @@ export default function DocumentPlaygroundsPage() {
     </div>
     {tabs.map(({ key }) => <div key={key} role="tabpanel" id={`${id}-${key}-panel`}
       aria-labelledby={`${id}-${key}`} hidden={selected !== key}>
-      <DocumentPlaygroundPage provider={key} />
+      <DocumentPlaygroundPage provider={key} active={selected === key} />
     </div>)}
   </div>
 }

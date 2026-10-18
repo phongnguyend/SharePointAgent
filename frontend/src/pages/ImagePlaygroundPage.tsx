@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Image as ImageIcon, Play, RotateCcw, Square, Upload } from 'lucide-react'
 import { evaluateImage, type ImageEvaluation, type ImageOperation } from '../api/imagePlaygroundClient'
 import { CopyButton, ErrorBanner } from '../components/ui'
+import { PlaygroundRequestTabs, type PlaygroundRequestTab } from '../components/PlaygroundRequestTabs'
 
 const formats = {
   describe: ['.png', '.jpg', '.jpeg', '.webp', '.gif'],
@@ -13,6 +14,13 @@ const clipboardExtensions: Record<string, string> = {
 }
 
 export default function ImagePlaygroundPage({ operation, active = true }: { operation: ImageOperation; active?: boolean }) {
+  return <PlaygroundRequestTabs label={operation === 'describe' ? 'Image Description' : 'Image Text Extraction'} active={active}>
+    {tab => <ImageRequest operation={operation} tab={tab} />}
+  </PlaygroundRequestTabs>
+}
+
+function ImageRequest({ operation, tab }: { operation: ImageOperation; tab: PlaygroundRequestTab }) {
+  const { active, id, onSummary } = tab
   const [file, setFile] = useState<File | null>(null)
   const [url, setUrl] = useState<string | null>(null)
   const [previewFailed, setPreviewFailed] = useState(false)
@@ -26,6 +34,15 @@ export default function ImagePlaygroundPage({ operation, active = true }: { oper
   const action = operation === 'describe' ? 'Describe' : 'Extract'
   const title = operation === 'describe' ? 'Image Description' : 'Image Text Extraction'
   useEffect(() => () => controller.current?.abort(), [])
+  useEffect(() => {
+    onSummary(id, file?.name ?? '', running)
+  }, [id, file?.name, running, onSummary])
+  useEffect(() => {
+    if (!active) {
+      depth.current = 0
+      setDragging(false)
+    }
+  }, [active])
   useEffect(() => {
     setPreviewFailed(false)
     if (!file) {
@@ -116,6 +133,9 @@ export default function ImagePlaygroundPage({ operation, active = true }: { oper
       <p className="decision-description">{operation === 'describe'
         ? 'Describe an image using the configured vision model. Token usage is recorded under your user in Image Description usage.'
         : 'Extract visible text using Document Intelligence OCR.'} Runs may incur provider charges.</p>
+      <div className="playground-request-boundary">
+      {tab.tabBar}
+      <div className="stack playground-request-content" role="tabpanel" id={tab.panelId} aria-labelledby={tab.tabId}>
       {error ? <ErrorBanner message={error} /> : null}
       <div className="decision-playground-grid">
         <div className="decision-panel">
@@ -165,6 +185,8 @@ export default function ImagePlaygroundPage({ operation, active = true }: { oper
         <div><dt>Duration</dt><dd>{result.elapsedMs.toLocaleString()} ms</dd></div>
         <div className="decision-trace"><dt>Trace ID</dt><dd>{result.traceId ?? 'Unavailable'}{result.traceId ? <CopyButton value={result.traceId} /> : null}</dd></div>
       </dl></section> : null}
+      </div>
+      </div>
     </div>
   </section>
 }

@@ -1,9 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
+import { PlaygroundRequestTabs, type PlaygroundRequestTab } from '../components/PlaygroundRequestTabs'
 import { Download, Play, RefreshCw, RotateCcw, Square, Volume2 } from 'lucide-react'
 import { getSpeechOptions, synthesizeSpeech, type SpeechOptions } from '../api/speechPlaygroundClient'
 import { ErrorBanner } from '../components/ui'
 
 export default function TextToSpeechPlaygroundPage({ active }: { active: boolean }) {
+  return <PlaygroundRequestTabs label="Text to speech" active={active}>
+    {tab => <TextToSpeechRequest tab={tab} />}
+  </PlaygroundRequestTabs>
+}
+
+function TextToSpeechRequest({ tab }: { tab: PlaygroundRequestTab }) {
+  const { active, id, onSummary } = tab
   const [options, setOptions] = useState<SpeechOptions | null>(null)
   const [retry, setRetry] = useState(0)
   const [text, setText] = useState('')
@@ -13,6 +21,9 @@ export default function TextToSpeechPlaygroundPage({ active }: { active: boolean
   const [preview, setPreview] = useState('')
   const [error, setError] = useState('')
   const [running, setRunning] = useState(false)
+  useEffect(() => {
+    onSummary(id, '', running)
+  }, [id, onSummary, running])
   const request = useRef<AbortController | null>(null)
   const audio = useRef<HTMLAudioElement>(null)
   useEffect(() => () => request.current?.abort(), [])
@@ -75,25 +86,30 @@ export default function TextToSpeechPlaygroundPage({ active }: { active: boolean
     </div></div>
     <div className="card-body stack">
       <p className="decision-description">Generate speech with Azure AI Speech. Text and audio are not saved by this app. Azure usage charges apply; audio is limited to 10 minutes.</p>
-      {error && <ErrorBanner message={error} />}
-      {!options && !error && <p role="status">Loading voices…</p>}
-      {options && !options.configured && <p role="status">Configure the Speech endpoint and credentials on the server to begin.</p>}
-      <div className="speech-playground-settings">
-        <label>Voice<select value={voice} disabled={running || !options?.voices.length} onChange={event => setVoice(event.target.value)}>
-          {!options?.voices.length && <option value="">No voices available</option>}
-          {options?.voices.map(item => <option key={item.shortName} value={item.shortName}>{item.locale} · {item.displayName} · {item.gender} ({item.shortName})</option>)}
-        </select></label>
-        <label>Output format<select value={format} disabled={running} onChange={event => setFormat(event.target.value)}><option value="mp3">MP3</option><option value="wav">WAV</option></select></label>
-      </div>
-      <div className="decision-playground-grid">
-        <div className="decision-panel speech-playground-editor">
-          <div className="decision-panel-heading"><h3>Text</h3><small>{text.length.toLocaleString()} / {(options?.maxCharacters ?? 3000).toLocaleString()}</small></div>
-          <textarea aria-label="Text to speak" placeholder="Enter text to turn into speech…" value={text} disabled={running} maxLength={options?.maxCharacters ?? 3000} onChange={event => setText(event.target.value)} />
-        </div>
-        <div className="decision-panel" aria-busy={running}>
-          <div className="decision-panel-heading"><h3>Audio</h3>{preview && result && <a className="button" href={preview} download={`speech.${result.format}`}><Download size={15} />Download {result.format.toUpperCase()}</a>}</div>
-          {preview ? <div className="speech-playground-audio"><audio ref={audio} controls src={preview} /></div>
-            : <div className="decision-response-empty" role="status">{running ? 'Generating speech…' : 'Generate speech to preview and download the audio.'}</div>}
+      <div className="playground-request-boundary">
+        {tab.tabBar}
+        <div className="stack playground-request-content" role="tabpanel" id={tab.panelId} aria-labelledby={tab.tabId}>
+          {error && <ErrorBanner message={error} />}
+          {!options && !error && <p role="status">Loading voices…</p>}
+          {options && !options.configured && <p role="status">Configure the Speech endpoint and credentials on the server to begin.</p>}
+          <div className="speech-playground-settings">
+            <label>Voice<select value={voice} disabled={running || !options?.voices.length} onChange={event => setVoice(event.target.value)}>
+              {!options?.voices.length && <option value="">No voices available</option>}
+              {options?.voices.map(item => <option key={item.shortName} value={item.shortName}>{item.locale} · {item.displayName} · {item.gender} ({item.shortName})</option>)}
+            </select></label>
+            <label>Output format<select value={format} disabled={running} onChange={event => setFormat(event.target.value)}><option value="mp3">MP3</option><option value="wav">WAV</option></select></label>
+          </div>
+          <div className="decision-playground-grid">
+            <div className="decision-panel speech-playground-editor">
+              <div className="decision-panel-heading"><h3>Text</h3><small>{text.length.toLocaleString()} / {(options?.maxCharacters ?? 3000).toLocaleString()}</small></div>
+              <textarea aria-label="Text to speak" placeholder="Enter text to turn into speech…" value={text} disabled={running} maxLength={options?.maxCharacters ?? 3000} onChange={event => setText(event.target.value)} />
+            </div>
+            <div className="decision-panel" aria-busy={running}>
+              <div className="decision-panel-heading"><h3>Audio</h3>{preview && result && <a className="button" href={preview} download={`speech.${result.format}`}><Download size={15} />Download {result.format.toUpperCase()}</a>}</div>
+              {preview ? <div className="speech-playground-audio"><audio ref={audio} controls src={preview} /></div>
+                : <div className="decision-response-empty" role="status">{running ? 'Generating speech…' : 'Generate speech to preview and download the audio.'}</div>}
+            </div>
+          </div>
         </div>
       </div>
     </div>

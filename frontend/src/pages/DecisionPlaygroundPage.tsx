@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { FlaskConical, Play, RotateCcw, Square } from 'lucide-react'
+import { PlaygroundRequestTabs, type PlaygroundRequestTab } from '../components/PlaygroundRequestTabs'
 import { evaluateDecision, type DecisionEvaluation, type DecisionProvider } from '../api/decisionClient'
 import { CopyButton, ErrorBanner } from '../components/ui'
 import { JsonCode, JsonEditor } from '../components/JsonCode'
@@ -14,12 +15,23 @@ const sample = JSON.stringify({
 }, null, 2)
 
 export default function DecisionPlaygroundPage({ provider }: { provider: DecisionProvider }) {
+  return <PlaygroundRequestTabs label={provider === 'jev' ? 'Jev' : 'Microsoft Decision'} active>
+    {tab => <DecisionRequest provider={provider} tab={tab} />}
+  </PlaygroundRequestTabs>
+}
+
+function DecisionRequest({ provider, tab }: { provider: DecisionProvider; tab: PlaygroundRequestTab }) {
+  const { id: requestId, onSummary, tabBar: requestTabs, panelId, tabId } = tab
+  const inputId = useId()
   const [input, setInput] = useState(sample)
   const [result, setResult] = useState<DecisionEvaluation | null>(null)
   const [error, setError] = useState('')
   const [running, setRunning] = useState(false)
   const controller = useRef<AbortController | null>(null)
   useEffect(() => () => controller.current?.abort(), [])
+  useEffect(() => {
+    onSummary(requestId, '', running)
+  }, [requestId, running, onSummary])
   const name = provider === 'jev' ? 'Jev' : 'Microsoft Decision'
 
   const run = async () => {
@@ -64,10 +76,13 @@ export default function DecisionPlaygroundPage({ provider }: { provider: Decisio
     </div>
     <div className="card-body stack">
       <p className="decision-description">Test choice, score, or yes/no (noul) with {name}. Runs may incur charges; usage is recorded under your user in SystemOne Usage.</p>
+      <div className="playground-request-boundary">
+      {requestTabs}
+      <div className="stack playground-request-content" role="tabpanel" id={panelId} aria-labelledby={tabId}>
       <div className="decision-playground-grid">
         <div className="decision-panel">
-          <div className="decision-panel-heading"><label htmlFor={`decision-input-${provider}`}>Request JSON</label><CopyButton value={input} /></div>
-          <JsonEditor id={`decision-input-${provider}`} value={input} disabled={running}
+          <div className="decision-panel-heading"><label htmlFor={inputId}>Request JSON</label><CopyButton value={input} /></div>
+          <JsonEditor id={inputId} value={input} disabled={running}
             onChange={value => { setInput(value); setResult(null) }} />
         </div>
         <div className="decision-panel" aria-busy={running}>
@@ -88,6 +103,8 @@ export default function DecisionPlaygroundPage({ provider }: { provider: Decisio
           <div className="decision-trace"><dt>Trace ID</dt><dd>{result.traceId ?? 'Unavailable'}{result.traceId && <CopyButton value={result.traceId} />}</dd></div>
         </dl>
       </section>}
+      </div>
+      </div>
     </div>
   </section>
 }

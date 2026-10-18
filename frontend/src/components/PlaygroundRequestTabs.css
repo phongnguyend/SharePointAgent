@@ -1,0 +1,13 @@
+.playground-request-boundary { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.playground-request-content { padding: 16px; min-width: 0; }
+.playground-request-tabbar { display: flex; align-items: center; border-bottom: 1px solid var(--border); min-width: 0; }
+.playground-request-tabbar > button { flex-shrink: 0; margin: 0 4px; }
+.playground-request-tabs { display: flex; min-width: 0; overflow-x: auto; }
+.playground-request-tab { display: flex; align-items: center; flex-shrink: 0; border-right: 1px solid var(--border); border-top: 2px solid transparent; }
+.playground-request-tab[data-selected=true] { border-top-color: var(--accent); background: var(--surface-1); }
+.playground-request-tab > [role=tab] { border: 0; border-radius: 0; background: transparent; box-shadow: none; padding: 10px 12px; font-size: 12px; }
+.playground-request-tab > .icon-only { width: 24px; height: 24px; padding: 4px; margin-right: 4px; }
+.playground-request-title { display: block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.playground-request-loading { animation: playground-request-spin 1s linear infinite; }
+@keyframes playground-request-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .playground-request-loading { animation: none; } }
