@@ -22,6 +22,7 @@ builder.Services.AddOllayaClient(builder.Configuration);
 builder.Services.AddJevClient(builder.Configuration);
 builder.Services.AddMicrosoftDecisionClient(builder.Configuration);
 builder.Services.AddWorkspacePlayground();
+builder.Services.AddHttpPlayground();
 
 // Graph RAG operator endpoints need the graph store even when the chat agent runs in Foundry. Registered
 // with agent access controlled through tool assignment.
@@ -70,6 +71,7 @@ app.MapSpeechPlaygroundEndpoints();
 app.MapDocumentPlaygroundEndpoints();
 
 app.MapWorkspacePlaygroundEndpoints();
+app.MapHttpPlaygroundEndpoints();
 
 app.MapTranscriptionUsage();
 app.MapSystemEndpoints();

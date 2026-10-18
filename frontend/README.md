@@ -449,6 +449,36 @@ The **Graph** navigation item opens `/graph`. Ask a relationship question (owner
 
 Configure knowledge graph storage and populate the graph through the indexing pipeline. Assign `find_relationships` to an agent to allow graph retrieval, or unassign it to disable graph use by that agent. The Graph page is independently available for allowed tenants. The page distinguishes unsupported relationship questions, missing seeds, missing authorized evidence, and retrieval failures.
 
+## HTTP playground
+
+The request tab bar supports multiple independent requests. Use **+**
+to open a blank tab; saved requests and history open in new tabs. Switching preserves
+each tab's editor, response, and pending request. Closing a tab discards its draft and
+cancels its pending request; closing the last tab opens a blank one. Arrow keys and
+Home/End switch tabs, and Delete closes the focused tab. History and saved requests
+are shared across tabs.
+
+Under **Playgrounds → HTTP**, Global Admins can send GET, POST, PUT, PATCH, DELETE,
+HEAD, and OPTIONS requests through the API. The editor supports enabled/disabled
+query parameters and headers, Bearer/Basic authentication, `{{variables}}`, JSON,
+raw text/XML, URL-encoded forms, and 1–120 second timeouts with cancellation.
+GET and HEAD do not send a body. Set custom content types in Headers.
+
+Inspect status, HTTP version, elapsed time, captured size, response headers, and
+pretty/raw bodies; copy or download the response, or copy the request as a Bash
+cURL command. Non-2xx responses are displayed normally. HTML is displayed as text.
+The latest 20 requests and up to 30 saved requests remain in memory until reload.
+Import/export uses this playground's JSON request format, not Postman collections.
+Exports and copied commands include explicitly entered credentials.
+
+Requests use public HTTP(S) destinations on standard ports. DNS is validated at
+connection time; private/loopback/metadata addresses, automatic redirects,
+shared cookies, proxies, and inherited application credentials are blocked.
+Bodies are limited to 2 MB; larger responses are marked truncated and downloads
+contain only captured bytes. This is a request debugging playground; multipart
+file uploads, OAuth sign-in flows, collection runners, and script assertions are
+not included. Endpoint: `POST /api/admin/http-playground`.
+
 ## Voice playgrounds
 
 Under **Playgrounds → Voice**, use **Speech to text** for the existing Azure OpenAI transcription playground or **Text to speech** for Azure AI Speech synthesis. Switching tabs preserves inputs and stops microphone recording/audio playback.

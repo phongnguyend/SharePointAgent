@@ -1,6 +1,7 @@
 import { useId } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { BrainCircuit, Image, ListTree, FileText, ShieldCheck, Mic, Network } from 'lucide-react'
+import { BrainCircuit, Image, ListTree, FileText, ShieldCheck, Mic, Network, Globe } from 'lucide-react'
+import HttpPlaygroundPage from './HttpPlaygroundPage'
 import KnowledgeGraphPlaygroundsPage from './KnowledgeGraphPlaygroundsPage'
 import DecisionMakingPlaygroundPage from './DecisionMakingPlaygroundPage'
 import ImagePlaygroundsPage from './ImagePlaygroundsPage'
@@ -17,6 +18,7 @@ const providers = [
   { key: 'voice', label: 'Voice', Icon: Mic },
   { key: 'document', label: 'Document', Icon: FileText },
   { key: 'workspace', label: 'Workspace', Icon: ListTree },
+  { key: 'http', label: 'HTTP', Icon: Globe },
 ] as const
 
 export default function PlaygroundsPage() {
@@ -67,6 +69,7 @@ export default function PlaygroundsPage() {
     {providers.map(({ key }) => <div key={key} role="tabpanel" id={`${id}-${key}-panel`}
       aria-labelledby={`${id}-${key}`} hidden={selected !== key}>
       {key === 'knowledge-graph' ? <KnowledgeGraphPlaygroundsPage />
+        : key === 'http' ? <HttpPlaygroundPage />
         : key === 'content-safety' ? <ContentSafetyPlaygroundPage active={selected === key} />
         : key === 'voice' ? <VoicePlaygroundsPage active={selected === key} />
         : key === 'workspace'
