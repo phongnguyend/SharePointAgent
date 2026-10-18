@@ -116,6 +116,7 @@ function ImageRequest({ operation, tab }: { operation: ImageOperation; tab: Play
   return <section className="card decision-playground">
     <div className="card-head decision-toolbar">
       <h2><ImageIcon size={18} />{title}</h2>
+      {tab.headerActions}
     </div>
     <div className="card-body stack">
       <p className="decision-description">{operation === 'describe'

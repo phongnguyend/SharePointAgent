@@ -64,6 +64,7 @@ function ContentSafetyRequest({ tab }: { tab: PlaygroundRequestTab }) {
   return <section className="card safety-playground">
     <div className="card-head decision-toolbar">
       <h2><ShieldCheck size={18} />Content Safety</h2>
+      {tab.headerActions}
     </div>
     <div className="card-body stack">
       <p className="decision-description">Analyze text against the configured safety thresholds. Usage is recorded under your user; provider charges may apply.</p>

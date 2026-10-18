@@ -80,6 +80,7 @@ function TextToSpeechRequest({ tab }: { tab: PlaygroundRequestTab }) {
   return <section className="card speech-playground">
     <div className="card-head decision-toolbar">
       <h2><Volume2 size={18} />Text to speech</h2>
+      {tab.headerActions}
     </div>
     <div className="card-body stack">
       <p className="decision-description">Generate speech with Azure AI Speech. Text and audio are not saved by this app. Azure usage charges apply; audio is limited to 10 minutes.</p>

@@ -98,6 +98,7 @@ function SpeechToTextRequest({ tab }: { tab: PlaygroundRequestTab }) {
   return <section className="card voice-playground">
     <div className="card-head decision-toolbar">
       <h2><Mic size={18} />Speech to text</h2>
+      {tab.headerActions}
     </div>
     <div className="card-body stack">
       <p className="decision-description">Transcribe speech using the configured voice model. Audio is not stored; usage is recorded under your user and provider charges may apply.</p>

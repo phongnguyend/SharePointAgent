@@ -68,6 +68,7 @@ function DecisionRequest({ provider, tab }: { provider: DecisionProvider; tab: P
   return <section className="card decision-playground">
     <div className="card-head decision-toolbar">
       <h2><FlaskConical size={18} />{name} playground</h2>
+      {tab.headerActions}
     </div>
     <div className="card-body stack">
       <p className="decision-description">Test choice, score, or yes/no (noul) with {name}. Runs may incur charges; usage is recorded under your user in SystemOne Usage.</p>

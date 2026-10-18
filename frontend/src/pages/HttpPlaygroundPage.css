@@ -1,8 +1,12 @@
 .http-layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 16px; align-items: start; }
 .http-library, .http-request, .http-response { padding: 16px; min-width: 0; }
 .http-library { max-height: 800px; overflow: auto; }
+.http-library > .stack + .stack { border-top: 1px solid var(--border); padding-top: 16px; }
 .http-library-heading > button { margin-left: auto; }
 .http-main { min-width: 0; }
+.http-toolbar { flex-wrap: wrap; gap: 12px; }
+.http-header-actions { margin-left: auto; }
+.http-request-panel > .http-response { border-top: 1px solid var(--border); }
 .http-body-toolbar { justify-content: flex-end; }
 .http-json-heading > button { margin-left: auto; }
 .http-request { --http-action-width: 128px; }

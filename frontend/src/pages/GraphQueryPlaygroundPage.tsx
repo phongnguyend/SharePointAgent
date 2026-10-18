@@ -58,6 +58,7 @@ function GraphQueryRequest({ tab }: { tab: PlaygroundRequestTab }) {
   return <section className="card graph-plan-playground">
     <div className="card-head decision-toolbar">
       <h2><Network size={18} />Query plan playground</h2>
+      {tab.headerActions}
     </div>
     <div className="card-body stack">
       <p className="decision-description">Extract entity names and relationship types from a question without graph retrieval.</p>

@@ -113,6 +113,7 @@ function DocumentRequest({ provider, tab }: { provider: DocumentPlaygroundProvid
   return <section className="card decision-playground">
     <div className="card-head decision-toolbar">
       <h2><FileText size={18} />{name} playground</h2>
+      {tab.headerActions}
     </div>
     <div className="card-body stack">
       <p className="decision-description">{isIndex ? 'Build a document tree from PDF or Markdown. Indexing and summaries may incur model charges. Token usage is returned in the response only.' : isParser ? `Convert a ${provider.toUpperCase()} document to Markdown using DocumentParsers. Enable Enrich images for AI descriptions and OCR; provider charges may apply.` : 'Convert a document to Markdown using the configured MarkItDown service.'}</p>

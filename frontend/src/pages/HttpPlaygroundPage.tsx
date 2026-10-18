@@ -1,5 +1,7 @@
+import { usePlaygroundMaximized } from '../components/usePlaygroundMaximized'
+import '../components/PlaygroundRequestTabs.css'
 import { useCallback, useEffect, useId, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
-import { Braces, Cookie, Copy, Download, FileText, Globe, GripVertical, KeyRound, List, ListFilter, LoaderCircle, LockKeyhole, Plus, Save, Send, Settings, ShieldOff, Square, Trash2, Upload, UserRound, X } from 'lucide-react'
+import { Braces, Cookie, Copy, Download, FileText, Globe, GripVertical, KeyRound, List, ListFilter, LoaderCircle, LockKeyhole, Maximize2, Minimize2, Plus, Save, Send, Settings, ShieldOff, Square, Trash2, Upload, UserRound, X } from 'lucide-react'
 import { useCopy } from '../lib/useCopy'
 import { request } from '../api/http'
 import { CopyButton, ErrorBanner } from '../components/ui'
@@ -136,6 +138,7 @@ const newTab = (initial?: Draft): RequestTab => ({ id: crypto.randomUUID(), meth
   title: initial?.url || initial?.name || 'Untitled request', busy: false, initial })
 
 export default function HttpPlaygroundPage() {
+  const { fullscreen, toggleFullscreen } = usePlaygroundMaximized()
   const [tabs, setTabs] = useState<RequestTab[]>(() => [newTab()])
   const [active, setActive] = useState<string | null>(null)
   const [saved, setSaved] = useState<Draft[]>([])
@@ -201,19 +204,20 @@ export default function HttpPlaygroundPage() {
       <button type="button" className="ghost icon-only" aria-label="New request tab" title="New request tab" onClick={() => open()}><Plus size={17} /></button>
     </div>
 
-  return <div className="stack http-request-workspace">
+  return <div className={`stack http-request-workspace playground-request-container${fullscreen ? ' is-maximized' : ''}`}>
     {tabs.map(tab => <div key={tab.id} hidden={selected !== tab.id}>
       <HttpRequestEditor id={tab.id} initial={tab.initial} onSummary={summary} onNew={open}
-        requestTabs={selected === tab.id ? requestTabs : null} panelId={`${uid}-${tab.id}-panel`} tabId={`${uid}-${tab.id}`}
+        fullscreen={fullscreen} onToggleFullscreen={toggleFullscreen} requestTabs={selected === tab.id ? requestTabs : null} panelId={`${uid}-${tab.id}-panel`} tabId={`${uid}-${tab.id}`}
         saved={saved} setSaved={setSaved} history={history} setHistory={setHistory} />
     </div>)}
   </div>
 }
 
-function HttpRequestEditor({ id, initial, onSummary, onNew, saved, setSaved, history, setHistory, requestTabs, panelId, tabId }: {
+function HttpRequestEditor({ id, initial, onSummary, onNew, saved, setSaved, history, setHistory, requestTabs, panelId, tabId, fullscreen, onToggleFullscreen }: {
   id: string; initial?: Draft; onSummary: (id: string, method: string, title: string, busy: boolean) => void
   onNew: (draft?: Draft) => void; saved: Draft[]; setSaved: Dispatch<SetStateAction<Draft[]>>
   history: Draft[]; setHistory: Dispatch<SetStateAction<Draft[]>>
+  fullscreen: boolean; onToggleFullscreen: () => void
   requestTabs: ReactNode; panelId: string; tabId: string
 }) {
   const [draft, setDraft] = useState<Draft>(() => initial ?? blank())
@@ -292,8 +296,10 @@ function HttpRequestEditor({ id, initial, onSummary, onNew, saved, setSaved, his
     // Plain text, XML, and HTML are shown as text, never executed.
   }
 
-  return <section className="http-playground stack">
-    <div className="row http-toolbar"><Globe size={18} /><strong>HTTP playground</strong>
+  return <section className="card http-playground">
+    <div className="card-head http-toolbar">
+      <h2><Globe size={18} />HTTP playground</h2>
+      <div className="row http-header-actions">
       <button disabled={busy} onClick={() => upload.current?.click()}><Upload size={15} />Import</button>
       <button onClick={() => download(new Blob([JSON.stringify(draft, null, 2)], { type: 'application/json' }), 'http-request.json')}><Download size={15} />Export</button>
       <button onClick={() => {
@@ -313,8 +319,15 @@ function HttpRequestEditor({ id, initial, onSummary, onNew, saved, setSaved, his
         }
       }}><Copy size={15} />Copy cURL (Bash)</button>
       <input ref={upload} type="file" accept=".json" hidden onChange={event => { void importFile(event.target.files?.[0]); event.target.value = '' }} />
+      <button type="button" className="ghost icon-only" style={{ marginLeft: 'auto' }}
+        aria-label={fullscreen ? 'Restore playground' : 'Maximize playground'} title={fullscreen ? 'Restore playground (Esc)' : 'Maximize playground'}
+        aria-pressed={fullscreen} onClick={onToggleFullscreen}>
+        {fullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+      </button>
     </div>
-    <p className="hint">Public HTTP(S) endpoints only, standard ports. Redirects are not followed. Requests and responses are limited to 2 MB. Saved requests and history last until reload; exported files include entered credentials.</p>
+    </div>
+    <div className="card-body stack">
+    <p className="decision-description">Public HTTP(S) endpoints only, standard ports. Redirects are not followed. Requests and responses are limited to 2 MB. Saved requests and history last until reload; exported files include entered credentials.</p>
     <div className="http-layout">
       <aside className="card stack http-library">
         {([['Saved requests', saved, setSaved], ['History', history, setHistory]] as const).map(([label, items, change]) => <div className="stack" key={label}>
@@ -324,7 +337,7 @@ function HttpRequestEditor({ id, initial, onSummary, onNew, saved, setSaved, his
         </div>)}
       </aside>
       <div className="stack http-main">
-        <section className="card http-request-panel">
+        <section className="playground-request-boundary http-request-panel">
           {requestTabs}
         <form className="stack http-request" role="tabpanel" id={panelId} aria-labelledby={tabId} onSubmit={event => { event.preventDefault(); void send() }}>
           <div className="http-request-name">
@@ -391,9 +404,8 @@ function HttpRequestEditor({ id, initial, onSummary, onNew, saved, setSaved, his
           </fieldset>
           </div>
         </form>
-        </section>
         {error && <ErrorBanner message={error} />}
-        <section className="card stack http-response" aria-label="HTTP response" aria-busy={busy}>
+        <section className="stack http-response" aria-label="HTTP response" aria-busy={busy}>
           <div className="row"><strong>Response</strong>{result && <><span className="http-response-status" data-status={Math.floor(result.statusCode / 100)}>{result.statusCode} {result.reason}</span><span>{result.durationMs.toLocaleString()} ms</span><span>{result.sizeBytes.toLocaleString()} bytes</span><span>HTTP/{result.version}</span></>}</div>
           {result ? <><small className="http-sent"><span className="http-history-method" data-method={sent.split(' ')[0]}>{sent.split(' ')[0]}</span>{sent.slice(sent.indexOf(' '))}</small>{result.truncated && <p role="status">Response truncated at 2 MB. Download contains only the captured bytes.</p>}
             <div className="page-tabs page-tabs-secondary" role="tablist" aria-label="Response views" onKeyDown={event => {
@@ -441,7 +453,9 @@ function HttpRequestEditor({ id, initial, onSummary, onNew, saved, setSaved, his
             </div>
           </> : <p className="hint">{busy ? 'Waiting for response…' : 'Send a request to inspect its response.'}</p>}
         </section>
+        </section>
       </div>
+    </div>
     </div>
   </section>
 }

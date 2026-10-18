@@ -57,6 +57,7 @@ function GraphExtractionRequest({ tab }: { tab: PlaygroundRequestTab }) {
   return <section className="card graph-extraction-playground">
     <div className="card-head decision-toolbar">
       <h2><Network size={18} />Entity and relationship extraction</h2>
+      {tab.headerActions}
     </div>
     <div className="card-body stack">
       <p className="decision-description">Test indexing extraction on document text, including chunking and grounding. Nothing is saved to the graph.</p>

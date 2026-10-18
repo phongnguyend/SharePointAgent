@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { Archive, ArrowRight, ArrowUp, Download, File, Folder, FolderPlus, Play, Plus, RefreshCw, Square, Terminal, Trash2, Upload } from 'lucide-react'
+import { Archive, ArrowRight, ArrowUp, Download, File, Folder, FolderPlus, Maximize2, Minimize2, Play, Plus, RefreshCw, Square, Terminal, Trash2, Upload } from 'lucide-react'
+import { usePlaygroundMaximized } from '../components/usePlaygroundMaximized'
+import '../components/PlaygroundRequestTabs.css'
 import {
   archivePlaygroundFiles, changePlaygroundInstance, createPlaygroundInstance, downloadPlaygroundFile,
   listPlaygroundFiles, listPlaygroundInstances, managePlaygroundFile, writePlaygroundText,
@@ -21,6 +23,7 @@ const name = (path: string) => path.split('/').at(-1) ?? path
 const join = (folder: string, file: string) => folder && folder !== '.' ? `${folder}/${file}` : file
 
 export default function WorkspacePlaygroundPage({ provider, active }: { provider: WorkspacePlaygroundProvider; active: boolean }) {
+  const { fullscreen, toggleFullscreen } = usePlaygroundMaximized(active)
   const uid = useId()
   const toast = useToast()
   const [listing, setListing] = useState<PlaygroundListing | null>(null)
@@ -254,8 +257,16 @@ export default function WorkspacePlaygroundPage({ provider, active }: { provider
   const destructive = dialog && ['delete', 'stop-instance', 'stop-sandbox', 'delete-instance'].includes(dialog.kind)
   const dialogTitle = dialog ? ({ mkdir: 'Create folder', new: 'Create text file', edit: 'Edit text file', rename: 'Rename', move: 'Move', copy: 'Copy', delete: 'Delete files and folders', zip: 'Create Zip archive', unzip: 'Extract Zip archive', 'stop-instance': 'Stop session', 'stop-sandbox': 'Stop sandbox', 'delete-instance': 'Delete sandbox' })[dialog.kind] : ''
 
-  return <section className="card workspace-playground">
-    <div className="card-head"><h2><Terminal size={18} />{title} playground</h2><span className="muted workspace-playground-status" role="status" aria-live="polite">{busy || 'Ready'}</span></div>
+  return <section className={`card workspace-playground playground-request-container${fullscreen ? ' is-maximized' : ''}`}>
+    <div className="card-head">
+      <h2><Terminal size={18} />{title} playground</h2>
+      <span className="muted workspace-playground-status" role="status" aria-live="polite">{busy || 'Ready'}</span>
+      <button type="button" className="ghost icon-only playground-fullscreen-toggle"
+        aria-label={fullscreen ? 'Restore playground' : 'Maximize playground'} title={fullscreen ? 'Restore playground (Esc)' : 'Maximize playground'}
+        aria-pressed={fullscreen} onClick={toggleFullscreen}>
+        {fullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+      </button>
+    </div>
     <div className="card-body stack">
       <div className="workspace-playground-intro muted">
         <p>Manage {provider === 'sandboxes' ? 'sandboxes' : 'sessions'}, files, and scripts. Changes apply immediately, including to chat instances; Azure usage may incur charges.</p>

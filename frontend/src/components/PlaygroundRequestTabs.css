@@ -14,3 +14,6 @@
 
 .playground-request-heading { flex-wrap: wrap; gap: 8px; }
 .playground-request-heading > .row { flex-wrap: wrap; margin-left: auto; }
+.card-head > .playground-fullscreen-toggle { margin-left: auto; }
+.playground-request-container.is-maximized { position: fixed; inset: 0; z-index: 1000; overflow: auto; padding: 16px; box-sizing: border-box; background: var(--surface-1); }
+.playground-request-container.is-maximized > div:not([hidden]) > .card { min-height: calc(100dvh - 32px); }

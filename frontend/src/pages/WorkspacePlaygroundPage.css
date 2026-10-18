@@ -1,6 +1,7 @@
 .workspace-playground-controls { border: 0; padding: 0; margin: 0; min-width: 0; }
 .workspace-playground > .card-head { flex-wrap: wrap; gap: .5rem; }
 .workspace-playground-status { margin-left: auto; font-size: .75rem; }
+.workspace-playground > .card-head > .playground-fullscreen-toggle { margin-left: 0; }
 .workspace-playground-intro { font-size: .8rem; line-height: 1.5; }
 .workspace-playground-intro p { margin: 0; }
 .workspace-playground-intro p + p { margin-top: .25rem; }
