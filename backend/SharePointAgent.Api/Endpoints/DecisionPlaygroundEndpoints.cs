@@ -24,7 +24,7 @@ public static class DecisionPlaygroundEndpoints
             {
                 return Results.StatusCode(StatusCodes.Status403Forbidden);
             }
-            if (provider is not ("jev" or "microsoft-decision"))
+            if (provider is not ("jev" or "microsoft-decision" or "ollaya"))
             {
                 return Results.NotFound();
             }
@@ -37,7 +37,9 @@ public static class DecisionPlaygroundEndpoints
             object parsedQuestions;
             try
             {
-                parsedQuestions = provider == "jev"
+                parsedQuestions = provider == "ollaya"
+                    ? questions.Deserialize<Dictionary<string, OllayaQuestion>>(Json)!
+                    : provider == "jev"
                     ? questions.Deserialize<Dictionary<string, JevQuestion>>(Json)!
                     : questions.Deserialize<Dictionary<string, MicrosoftDecisionQuestion>>(Json)!;
             }
@@ -48,7 +50,16 @@ public static class DecisionPlaygroundEndpoints
             var timer = Stopwatch.StartNew();
             try
             {
-                object result = provider == "jev"
+                if (provider == "ollaya" && (state.ValueKind != JsonValueKind.String ||
+                    ((Dictionary<string, OllayaQuestion>)parsedQuestions).Values.Any(question => question is null ||
+                        question.Type is not ("choice" or "score" or "noul") || string.IsNullOrWhiteSpace(question.Instructions))))
+                {
+                    return Results.BadRequest(new { error = "Ollaya requires a text state and questions with type choice, score, or noul and instructions." });
+                }
+                object result = provider == "ollaya"
+                    ? await context.RequestServices.GetRequiredService<OllayaClient>().DecideAsync(state.GetString()!,
+                        (Dictionary<string, OllayaQuestion>)parsedQuestions, cancellationToken)
+                    : provider == "jev"
                     ? await context.RequestServices.GetRequiredService<JevClient>().EvaluateAsync(state, (Dictionary<string, JevQuestion>)parsedQuestions,
                         new SystemOneUsageContext(UserId: context.AppUser().Id), cancellationToken)
                     : await context.RequestServices.GetRequiredService<MicrosoftDecisionClient>().EvaluateAsync(state, (Dictionary<string, MicrosoftDecisionQuestion>)parsedQuestions,
@@ -91,6 +102,10 @@ public static class DecisionPlaygroundEndpoints
 
     private static IResult ConfigurationError(string provider)
     {
+        if (provider == "ollaya")
+        {
+            return Results.Json(new { error = "Ollaya configuration is invalid. Check Ollaya:Endpoint (server base URL), ApiKey, Model, DecidePath, and TimeoutSeconds in the API host configuration." }, statusCode: 502);
+        }
         var error = provider == "microsoft-decision"
             ? "Microsoft Decision configuration is invalid. Set MicrosoftDecision:Endpoint to the full HTTPS API URL (https://RESOURCE.services.ai.azure.com/providers/microsoft/v1/systemone). Set Model to the deployment name and TimeoutSeconds to 1–3600."
             : "Jev configuration is invalid. Check Jev:Endpoint (full HTTPS evaluation URL, such as https://api.typesafe.ai/v1/systemone), ApiKey, Model, and TimeoutSeconds (1–3600) in the API host configuration.";

@@ -63,6 +63,10 @@ public sealed class DecisionPlaygroundTests
     }
 
     [Theory]
+    [InlineData("ollaya", AppRoles.GlobalAdmin, false, false, 200)]
+    [InlineData("ollaya", AppRoles.User, false, false, 403)]
+    [InlineData("ollaya", AppRoles.GlobalAdmin, true, false, 400)]
+    [InlineData("ollaya", AppRoles.GlobalAdmin, false, true, 502)]
     [InlineData("jev", AppRoles.GlobalAdmin, false, false, 200)]
     [InlineData("microsoft-decision", AppRoles.GlobalAdmin, false, false, 200)]
     [InlineData("jev", AppRoles.GlobalReaderAdmin, false, false, 403)]
@@ -83,6 +87,10 @@ public sealed class DecisionPlaygroundTests
         }));
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
+        builder.Services.AddSingleton(new OllayaClient(http, Options.Create(new OllayaOptions
+        {
+            Endpoint = "https://ollaya.example", ApiKey = "secret-key"
+        })));
         builder.Services.AddSingleton(new JevClient(http, Options.Create(new JevOptions { ApiKey = "secret-key" })));
         builder.Services.AddSingleton(new MicrosoftDecisionClient(http, Options.Create(new MicrosoftDecisionOptions
         {

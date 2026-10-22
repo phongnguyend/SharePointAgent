@@ -15,7 +15,7 @@ const sample = JSON.stringify({
 }, null, 2)
 
 export default function DecisionPlaygroundPage({ provider }: { provider: DecisionProvider }) {
-  return <PlaygroundRequestTabs label={provider === 'jev' ? 'Jev' : 'Microsoft Decision'} active>
+  return <PlaygroundRequestTabs label={provider === 'ollaya' ? 'Ollaya' : provider === 'jev' ? 'Jev' : 'Microsoft Decision'} active>
     {tab => <DecisionRequest provider={provider} tab={tab} />}
   </PlaygroundRequestTabs>
 }
@@ -32,7 +32,7 @@ function DecisionRequest({ provider, tab }: { provider: DecisionProvider; tab: P
   useEffect(() => {
     onSummary(requestId, '', running)
   }, [requestId, running, onSummary])
-  const name = provider === 'jev' ? 'Jev' : 'Microsoft Decision'
+  const name = provider === 'ollaya' ? 'Ollaya' : provider === 'jev' ? 'Jev' : 'Microsoft Decision'
 
   const run = async () => {
     if (controller.current) {
@@ -71,7 +71,7 @@ function DecisionRequest({ provider, tab }: { provider: DecisionProvider; tab: P
       {tab.headerActions}
     </div>
     <div className="card-body stack">
-      <p className="decision-description">Test choice, score, or yes/no (noul) with {name}. Runs may incur charges; usage is recorded under your user in SystemOne Usage.</p>
+      <p className="decision-description">Test choice, score, or yes/no (noul) with {name}. {provider === 'ollaya' ? 'Uses the configured Ollaya model. A cold replica may take a minute to load; subsequent requests reuse the model.' : 'Runs may incur charges; usage is recorded under your user in SystemOne Usage.'}</p>
       <div className="playground-request-boundary">
       {requestTabs}
       <div className="stack playground-request-content" role="tabpanel" id={panelId} aria-labelledby={tabId}>
@@ -107,9 +107,9 @@ function DecisionRequest({ provider, tab }: { provider: DecisionProvider; tab: P
         <h3>Evaluation summary</h3>
         <dl>
           <div><dt>Model</dt><dd>{result.result.model}</dd></div>
-          <div><dt>Input tokens</dt><dd>{result.result.usage.input_tokens.toLocaleString()}</dd></div>
-          <div><dt>Output tokens</dt><dd>{result.result.usage.output_tokens.toLocaleString()}</dd></div>
-          <div><dt>Total tokens</dt><dd>{(result.result.usage.input_tokens + result.result.usage.output_tokens).toLocaleString()}</dd></div>
+          <div><dt>Input tokens</dt><dd>{result.result.usage?.input_tokens?.toLocaleString() ?? 'Unavailable'}</dd></div>
+          <div><dt>Output tokens</dt><dd>{result.result.usage?.output_tokens?.toLocaleString() ?? 'Unavailable'}</dd></div>
+          <div><dt>Total tokens</dt><dd>{result.result.usage ? (result.result.usage.input_tokens + result.result.usage.output_tokens).toLocaleString() : 'Unavailable'}</dd></div>
           <div><dt>Duration</dt><dd>{result.elapsedMs.toLocaleString()} ms</dd></div>
           <div className="decision-trace"><dt>Trace ID</dt><dd>{result.traceId ?? 'Unavailable'}{result.traceId && <CopyButton value={result.traceId} />}</dd></div>
         </dl>

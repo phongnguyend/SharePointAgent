@@ -1,12 +1,12 @@
 import { request } from './http'
 
-export type DecisionProvider = 'jev' | 'microsoft-decision'
+export type DecisionProvider = 'jev' | 'microsoft-decision' | 'ollaya'
 
 export interface DecisionEvaluation {
   result: {
     model: string
     answers: Record<string, unknown>
-    usage: { input_tokens: number; output_tokens: number }
+    usage: { input_tokens: number; output_tokens: number } | null
   }
   elapsedMs: number
   traceId: string | null

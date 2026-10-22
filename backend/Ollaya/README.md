@@ -45,6 +45,12 @@ From .NET, use `OllayaClient` (registered by `AddOllayaClient` in the API, Backg
 
 ## Troubleshoot response time
 
+### Decision playground
+
+Global Admins can use **Playgrounds → Decision Making → Ollaya** to evaluate JSON requests with `state` (text) and `questions`. It shares the Jev/Microsoft Decision editor, independent request tabs, cancellation, maximize/restore, response JSON, and elapsed-time/token summary. The API uses the server's `Ollaya` configuration and configured model; credentials stay on the server. This playground does not record SystemOne Usage. Missing provider token usage is displayed as unavailable.
+
+The admin endpoint is `POST /api/admin/decision-playground/ollaya`. It calls the configured decision path (normally `/v1/systemone`); the playground's elapsed time measures the whole client call, not separate model loading and inference. Use `/api/decide` directly as described below when diagnosing those phases.
+
 Use these endpoints directly against the Ollaya host, either from the HTTP playground or PowerShell. All except `/` require the bearer token. Do not include the token in shared diagnostics.
 
 | Method and path | Purpose |

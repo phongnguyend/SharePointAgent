@@ -32,7 +32,7 @@ export default function PlaygroundsPage() {
   const select = (provider: string) => {
     const next = new URLSearchParams(params)
     const previous = params.get('provider')
-    if (!params.has('decision') && (previous === 'jev' || previous === 'microsoft-decision')) {
+    if (!params.has('decision') && (previous === 'jev' || previous === 'microsoft-decision' || previous === 'ollaya')) {
       next.set('decision', previous)
     }
     if (!params.has('image') && (previous === 'image-description' || previous === 'image-text')) {

@@ -1,11 +1,12 @@
 import { useId } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { BrainCircuit, GitBranch } from 'lucide-react'
+import { BrainCircuit, GitBranch, Server } from 'lucide-react'
 import DecisionPlaygroundPage from './DecisionPlaygroundPage'
 
 const providers = [
   { key: 'jev', label: 'Jev', Icon: BrainCircuit },
   { key: 'microsoft-decision', label: 'Microsoft Decision', Icon: GitBranch },
+  { key: 'ollaya', label: 'Ollaya', Icon: Server },
 ] as const
 
 export default function DecisionMakingPlaygroundPage() {
