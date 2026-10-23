@@ -19,7 +19,7 @@ Winnow owns its [settings](../../../.github/scripts/winow-native-settings.ps1), 
 
 - Infrastructure reruns preserve the current container image. Optional **`WINNOW_NATIVE_IMAGE`** overrides it, useful for rollback to a recorded digest. Clear an obsolete override before future infrastructure reruns.
 - `rebuild` on the release workflow forces a remote rebuild; otherwise unchanged content tags are reused. The deployed image is pinned by digest.
-- **Start or Stop Winow Native** (`manage-winow-native.yml`) calls the Azure Container App start/stop API and waits for its running status. Stop removes running replicas and requests cannot wake it; registry storage and logging costs can remain. Start restores the app, but `minReplicas: 0` still allows idle scale-to-zero. Running status is not model readiness.
+- **Start or Stop - System One - Winnow Native** (`manage-winow-native.yml`) calls the Azure Container App start/stop API and waits for its running status. Stop removes running replicas and requests cannot wake it; registry storage and logging costs can remain. Start restores the app, but `minReplicas: 0` still allows idle scale-to-zero. Running status is not model readiness.
 - If stopped, start before releasing. Changing region creates a new app/environment and endpoint; the old resources remain until explicitly removed.
 - All three workflows use the existing environment deployment concurrency lock.
 

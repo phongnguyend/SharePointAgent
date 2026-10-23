@@ -19,7 +19,7 @@ Laya owns its [settings](../../../.github/scripts/laya-native-settings.ps1), [de
 
 Infrastructure reruns retain the deployed image. **`LAYA_NATIVE_IMAGE`** is an optional explicit override for rollback; use a recorded image digest and clear obsolete overrides before future releases. Release skips unchanged builds unless `rebuild` is selected. Source/model pins live in the backend build context.
 
-**Start or Stop Laya Native** (`manage-laya-native.yml`) stops/starts the app through Azure's lifecycle API and waits for the requested status. A stopped app runs no replicas and requests cannot wake it. Starting restores the app; with zero minimum replicas, it can still scale away when idle. Check `/health` separately for model readiness. Storage/logging charges can continue while stopped. Start a stopped app before releasing.
+**Start or Stop - System One - Laya Native** (`manage-laya-native.yml`) stops/starts the app through Azure's lifecycle API and waits for the requested status. A stopped app runs no replicas and requests cannot wake it. Starting restores the app; with zero minimum replicas, it can still scale away when idle. Check `/health` separately for model readiness. Storage/logging charges can continue while stopped. Start a stopped app before releasing.
 
 All workflows share the environment deployment lock. Changing the region creates new resources and a new endpoint, leaving the old ones for explicit cleanup.
 

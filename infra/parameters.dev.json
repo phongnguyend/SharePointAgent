@@ -11,6 +11,9 @@
     "allowOpenAiApiKeyAuth": {
       "value": true
     },
+    "allowFoundryApiKeyAuth": {
+      "value": true
+    },
     "allowSearchApiKeyAuth": {
       "value": true
     },

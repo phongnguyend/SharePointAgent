@@ -47,7 +47,7 @@ if (-not $found -or $env:WINNOW_NATIVE_REBUILD -eq 'true') {
     # All compiler work and model downloads happen on ACR, never local Docker or the runner.
     Push-Location -LiteralPath $context
     try {
-        az acr build --registry $shared.containerRegistryName.value --platform linux/amd64 --no-logs --timeout 10800 `
+        az acr build --registry $shared.containerRegistryName.value --platform linux/amd64 --timeout 10800 `
             --image "${id}:$tag" --file Dockerfile .
     } finally {
         Pop-Location

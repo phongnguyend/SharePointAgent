@@ -1,5 +1,5 @@
-name: Start or Stop Laya Native
-run-name: ${{ inputs.action }} Laya Native (${{ inputs.environment }})
+name: Start or Stop - System One - Laya Native
+run-name: ${{ inputs.action }} - System One - Laya Native (${{ inputs.environment }})
 'on':
   workflow_dispatch:
     inputs:

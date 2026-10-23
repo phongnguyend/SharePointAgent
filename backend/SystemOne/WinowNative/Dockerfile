@@ -10,7 +10,11 @@ RUN git init . && git remote add origin https://github.com/EldanRing/winnow-infe
     && git fetch --depth 1 origin "${WINNOW_REVISION}" && git checkout --detach FETCH_HEAD \
     && test "$(git rev-parse HEAD)" = "${WINNOW_REVISION}"
 # Compile for T4 without needing a GPU on the ACR builder.
-RUN python3 scripts/build.py --backend cuda --cuda-arch 75 --jobs 4
+# Do not inherit the ACR builder's CPU instruction set: the serving host can differ.
+# Seed the cache before the upstream script configures and builds the runtime.
+RUN mkdir -p .build \
+    && printf 'GGML_NATIVE:BOOL=OFF\n' > .build/CMakeCache.txt \
+    && python3 scripts/build.py --backend cuda --cuda-arch 75 --jobs 4
 
 FROM python:3.12-slim-bookworm AS models
 WORKDIR /models

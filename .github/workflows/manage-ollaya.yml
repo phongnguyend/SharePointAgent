@@ -1,5 +1,5 @@
-name: Start or Stop Ollaya
-run-name: ${{ inputs.action }} Ollaya (${{ inputs.environment }})
+name: Start or Stop - System One - Ollaya
+run-name: ${{ inputs.action }} - System One - Ollaya (${{ inputs.environment }})
 'on':
   workflow_dispatch:
     inputs:

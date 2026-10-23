@@ -1,5 +1,5 @@
-name: Start or Stop Winow Native
-run-name: ${{ inputs.action }} Winow Native (${{ inputs.environment }})
+name: Start or Stop - System One - Winnow Native
+run-name: ${{ inputs.action }} - System One - Winnow Native (${{ inputs.environment }})
 'on':
   workflow_dispatch:
     inputs:

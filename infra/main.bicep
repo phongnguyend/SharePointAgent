@@ -42,8 +42,8 @@ param sqlLocation string = location
 @description('Cosmos DB region. Override independently when access or capacity is restricted in the shared resource region.')
 param cosmosLocation string = location
 
-@description('Disable Cosmos DB key authentication. Set false for local development.')
-param cosmosDisableLocalAuth bool = true
+@description('Allow Cosmos DB key authentication. Set true for local development.')
+param allowCosmosLocalAuth bool = false
 
 param sqlDatabaseName string = 'sharepointagent'
 @description('SQL database DTU SKU. Basic is the minimal default; use an S-series SKU for Standard.')
@@ -71,6 +71,9 @@ param allowSearchApiKeyAuth bool = true
 
 @description('Allow Azure OpenAI API-key authentication.')
 param allowOpenAiApiKeyAuth bool = true
+
+@description('Allow Foundry API-key authentication. Enable in local and dev environment parameter files when needed.')
+param allowFoundryApiKeyAuth bool = false
 
 @description('Deploy Azure AI Document Intelligence.')
 param deployDocumentIntelligence bool = false
@@ -267,7 +270,7 @@ resource graphCosmos 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
     locations: [{ locationName: cosmosLocation, failoverPriority: 0, isZoneRedundant: false }]
     consistencyPolicy: { defaultConsistencyLevel: 'Session' }
     capabilities: knowledgeGraphCosmosServerless ? [{ name: 'EnableServerless' }] : []
-    disableLocalAuth: cosmosDisableLocalAuth
+    disableLocalAuth: !allowCosmosLocalAuth
     disableKeyBasedMetadataWriteAccess: true
     minimalTlsVersion: 'Tls12'
     publicNetworkAccess: 'Enabled'
@@ -536,7 +539,7 @@ resource foundry 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
   properties: {
     customSubDomainName: '${namePrefix}-foundry-${uniqueSuffix}'
     allowProjectManagement: true
-    disableLocalAuth: true
+    disableLocalAuth: !allowFoundryApiKeyAuth
     publicNetworkAccess: 'Enabled'
   }
 }
