@@ -1,5 +1,5 @@
-name: Release Services
-run-name: Release Services (${{ inputs.environment }})
+name: Release - Services
+run-name: Release - Services (${{ inputs.environment }})
 
 on:
   workflow_dispatch:
@@ -11,15 +11,15 @@ on:
         options: [dev, test]
         default: dev
       db_migration:
-        description: Release Database migrations
+        description: Release - Database migrations
         type: boolean
         default: false
       markitdown:
-        description: Release MarkItDown
+        description: Release - MarkItDown
         type: boolean
         default: false
       pageindex:
-        description: Release PageIndex
+        description: Release - PageIndex
         type: boolean
         default: false
       ollaya:
@@ -27,27 +27,27 @@ on:
         type: boolean
         default: false
       dynamic_sessions:
-        description: Release Dynamic Sessions
+        description: Release - Dynamic Sessions
         type: boolean
         default: false
       sandboxes:
-        description: Release Sandboxes image
+        description: Release - Sandboxes image
         type: boolean
         default: false
       agent:
-        description: Release AgentHost
+        description: Release - AgentHost
         type: boolean
         default: false
       api:
-        description: Release API
+        description: Release - API
         type: boolean
         default: false
       background:
-        description: Release Background
+        description: Release - Background
         type: boolean
         default: false
       frontend:
-        description: Release Frontend
+        description: Release - Frontend
         type: boolean
         default: false
 
@@ -85,7 +85,7 @@ jobs:
           "- Deployment order: $($selected -join ', ')" >> $env:GITHUB_STEP_SUMMARY
 
   db_migration:
-    name: Release Database migrations
+    name: Release - Database migrations
     needs: [validate]
     # Explicit status checks allow unselected predecessors to be skipped.
     if: ${{ !cancelled() && !failure() && inputs.db_migration }}
@@ -96,7 +96,7 @@ jobs:
     secrets: inherit
 
   markitdown:
-    name: Release MarkItDown
+    name: Release - MarkItDown
     needs: [validate, db_migration]
     # Explicit status checks allow unselected predecessors to be skipped.
     if: ${{ !cancelled() && !failure() && inputs.markitdown }}
@@ -107,7 +107,7 @@ jobs:
     secrets: inherit
 
   pageindex:
-    name: Release PageIndex
+    name: Release - PageIndex
     needs: [validate, db_migration, markitdown]
     if: ${{ !cancelled() && !failure() && inputs.pageindex }}
     uses: ./.github/workflows/release-pageindex.yml
@@ -127,7 +127,7 @@ jobs:
     secrets: inherit
 
   dynamic_sessions:
-    name: Release Dynamic Sessions
+    name: Release - Dynamic Sessions
     needs: [validate, db_migration, markitdown, pageindex, ollaya]
     if: ${{ !cancelled() && !failure() && inputs.dynamic_sessions }}
     uses: ./.github/workflows/release-dynamic-sessions.yml
@@ -137,7 +137,7 @@ jobs:
     secrets: inherit
 
   sandboxes:
-    name: Release Sandboxes
+    name: Release - Sandboxes
     needs: [validate, db_migration, markitdown, pageindex, ollaya, dynamic_sessions]
     if: ${{ !cancelled() && !failure() && inputs.sandboxes }}
     uses: ./.github/workflows/release-sandboxes.yml
@@ -147,7 +147,7 @@ jobs:
     secrets: inherit
 
   agent:
-    name: Release AgentHost
+    name: Release - AgentHost
     needs: [validate, db_migration, markitdown, pageindex, ollaya, dynamic_sessions, sandboxes]
     # Explicit status checks allow unselected predecessors to be skipped.
     if: ${{ !cancelled() && !failure() && inputs.agent }}
@@ -158,7 +158,7 @@ jobs:
     secrets: inherit
 
   api:
-    name: Release API
+    name: Release - API
     needs: [validate, db_migration, markitdown, pageindex, ollaya, dynamic_sessions, sandboxes, agent]
     # Explicit status checks allow unselected predecessors to be skipped.
     if: ${{ !cancelled() && !failure() && inputs.api }}
@@ -169,7 +169,7 @@ jobs:
     secrets: inherit
 
   background:
-    name: Release Background
+    name: Release - Background
     needs: [validate, db_migration, markitdown, pageindex, ollaya, dynamic_sessions, sandboxes, agent, api]
     # Explicit status checks allow unselected predecessors to be skipped.
     if: ${{ !cancelled() && !failure() && inputs.background }}
@@ -180,7 +180,7 @@ jobs:
     secrets: inherit
 
   frontend:
-    name: Release Frontend
+    name: Release - Frontend
     needs: [validate, db_migration, markitdown, pageindex, ollaya, dynamic_sessions, sandboxes, agent, api, background]
     # Explicit status checks allow unselected predecessors to be skipped.
     if: ${{ !cancelled() && !failure() && inputs.frontend }}

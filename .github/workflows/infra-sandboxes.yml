@@ -1,5 +1,5 @@
-name: Deploy Sandboxes Infrastructure
-run-name: Deploy Sandboxes Infrastructure (${{ inputs.environment }})
+name: Deploy - Sandboxes Infrastructure
+run-name: Deploy - Sandboxes Infrastructure (${{ inputs.environment }})
 
 on:
   workflow_dispatch:
@@ -91,7 +91,7 @@ jobs:
           "## Sandboxes infrastructure deployed" >> $env:GITHUB_STEP_SUMMARY
           "- Sandbox group: $($outputs.sandboxGroupName.value) in $($outputs.sandboxGroupLocation.value)" >> $env:GITHUB_STEP_SUMMARY
           "- Pull identity: $($outputs.sandboxesPullIdentityId.value)" >> $env:GITHUB_STEP_SUMMARY
-          "Run Release Sandboxes, register the image as a disk image in the group, set SANDBOX_DISK_IMAGE_ID, then run Release API." >> $env:GITHUB_STEP_SUMMARY
+          "Run Release - Sandboxes, register the image as a disk image in the group, set SANDBOX_DISK_IMAGE_ID, then run Release - API." >> $env:GITHUB_STEP_SUMMARY
       - name: Remove temporary files
         if: always()
         run: |

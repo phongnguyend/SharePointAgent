@@ -1,5 +1,5 @@
-name: Deploy Container Apps Infrastructure
-run-name: Deploy Container Apps Infrastructure (${{ inputs.environment }})
+name: Deploy - Container Apps Infrastructure
+run-name: Deploy - Container Apps Infrastructure (${{ inputs.environment }})
 
 on:
   workflow_dispatch:
@@ -159,7 +159,7 @@ jobs:
           "- API: $($outputs.apiUrl.value)" >> $env:GITHUB_STEP_SUMMARY
           "- MarkItDown: $($outputs.markItDownEndpoint.value)" >> $env:GITHUB_STEP_SUMMARY
           "- PageIndex: $($outputs.pageIndexEndpoint.value)" >> $env:GITHUB_STEP_SUMMARY
-          "API, Background and MarkItDown use GitHub environment image variables, falling back to hello images when all three are unset. Run Release Database first, then the independent MarkItDown, AgentHost, API, Background and Frontend release workflows." >> $env:GITHUB_STEP_SUMMARY
+          "API, Background and MarkItDown use GitHub environment image variables, falling back to hello images when all three are unset. Run Release - Database first, then the independent MarkItDown, AgentHost, API, Background and Frontend release workflows." >> $env:GITHUB_STEP_SUMMARY
       - name: Remove temporary files
         if: always()
         run: |

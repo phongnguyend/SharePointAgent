@@ -1,5 +1,5 @@
-name: Deploy Infrastructure
-run-name: Deploy Infrastructure (${{ inputs.environment }})
+name: Deploy - Infrastructure
+run-name: Deploy - Infrastructure (${{ inputs.environment }})
 
 on:
   workflow_dispatch:
@@ -95,7 +95,7 @@ jobs:
           $outputs = Get-Content "$env:RUNNER_TEMP/shared-outputs.json" -Raw | ConvertFrom-Json
           "- Static Web App: $($outputs.staticWebAppName.value)" >> $env:GITHUB_STEP_SUMMARY
           "- Frontend origin: $($outputs.staticWebAppUrl.value)" >> $env:GITHUB_STEP_SUMMARY
-          "Next, run Deploy Container Apps infrastructure for the environment and apps, then Release Database and the release workflows." >> $env:GITHUB_STEP_SUMMARY
+          "Next, run Deploy Container Apps infrastructure for the environment and apps, then Release - Database and the release workflows." >> $env:GITHUB_STEP_SUMMARY
       - name: Remove temporary files
         if: always()
         run: |

@@ -1,5 +1,5 @@
-name: Start or Stop PageIndex
-run-name: ${{ inputs.action }} PageIndex (${{ inputs.environment }})
+name: Start or Stop - PageIndex
+run-name: ${{ inputs.action }} - PageIndex (${{ inputs.environment }})
 'on':
   workflow_dispatch:
     inputs:

@@ -37,7 +37,7 @@ The API uses one dedicated shared sender per provider. Existing attachment owner
 
 Configure **SharePointAgent.Api only**, using environment variables, local user secrets, or Container Apps secret references. Never commit keys or tokens. Both providers default to disabled.
 
-See the [GitHub environment variable/secret mapping](infra/README.md#document-signing-configuration-mapping) for storage types, example values, and corresponding API runtime keys. Release API forwards these settings to the API Container App, including when selected through Release services; credentials use Container Apps secret references.
+See the [GitHub environment variable/secret mapping](infra/README.md#document-signing-configuration-mapping) for storage types, example values, and corresponding API runtime keys. Release - API forwards these settings to the API Container App, including when selected through Release services; credentials use Container Apps secret references.
 
 | Setting | Value |
 | --- | --- |

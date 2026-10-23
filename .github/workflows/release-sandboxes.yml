@@ -1,5 +1,5 @@
-name: Release Sandboxes
-run-name: Release Sandboxes (${{ inputs.environment }})
+name: Release - Sandboxes
+run-name: Release - Sandboxes (${{ inputs.environment }})
 
 on:
   workflow_dispatch:

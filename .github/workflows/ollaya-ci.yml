@@ -1,4 +1,4 @@
-name: Ollaya CI
+name: CI - System One - Ollaya
 
 on:
   push:

@@ -26,7 +26,7 @@ Use this guide in deployment order, or jump to an operational task:
 1. Create the matching GitHub environment (`dev` or `test`), configure [OIDC access](#deployment-identity), and fill in the [settings table](#github-environment-settings) for the services you will deploy.
 2. Review `infra/parameters.<environment>.json` and run **Deploy infrastructure**, then review `infra/ContainerApps/parameters.<environment>.json` and run **Deploy Container Apps infrastructure**. The default Container App images are placeholders; provisioning alone does not install the APIs.
 3. [Retrieve the frontend origin and deployment token](#retrieve-the-frontend-origin-and-deployment-token), save them in GitHub, and register the Entra redirect URI.
-4. [Grant the release identity SQL access](#grant-the-release-identity-sql-access), then run **Release Database migrations**.
+4. [Grant the release identity SQL access](#grant-the-release-identity-sql-access), then run **Release - Database migrations**.
 5. [Configure API and Background SQL access](#configure-runtime-sql-access-manually) before starting those services.
 6. Release **MarkItDown**, **PageIndex** if used, and **AgentHost**. Once Foundry creates AgentHost's identity, grant its runtime SQL access; rerun its release if it failed before routing.
 7. Release **API**, **Background**, and **Frontend**. Verify **Admin → Service health** and test a chat request.
@@ -76,19 +76,19 @@ Configure these settings under **Settings → Environments → dev/test → Envi
 | `DOCUMENTSIGNING__RETURNURL` | Variable | API signing: `https://YOUR_FRONTEND/attachment-files`; required for the DocuSign return redirect. Runtime key: `DocumentSigning__ReturnUrl`. |
 | `FRONTEND_ORIGIN` | Variable | Frontend HTTPS origin for CORS; configure its Entra redirect URI separately |
 | `JEV_API_KEY` | Optional secret | TypeSafe provider API key for Jev. API/Background releases and Container Apps application-image deployments map it to `Jev__ApiKey` through a Container App secret. AgentHost uses a Foundry connection secret reference. Omit to leave Jev unconfigured. |
-| `LAYA_NATIVE_API_KEY` | Secret | Required when deploying or releasing the Laya Native inference image. Single-line bearer token, at least 32 characters. Service container key: `LAYA_API_KEY`; Release API maps the same secret to `LayaNative__ApiKey` for the playground. |
+| `LAYA_NATIVE_API_KEY` | Secret | Required when deploying or releasing the Laya Native inference image. Single-line bearer token, at least 32 characters. Service container key: `LAYA_API_KEY`; Release - API maps the same secret to `LayaNative__ApiKey` for the playground. |
 | `LAYA_NATIVE_IMAGE` | Optional variable | Explicit Laya Native image override for infrastructure deployment or rollback, preferably `YOUR_REGISTRY.azurecr.io/layanative@sha256:DIGEST`. When unset, infrastructure reruns preserve the deployed image; the first deployment uses the bootstrap hello image. Bicep parameter: `layanativeImage`. |
 | `MARKITDOWN_API_KEY` | Secret | Shared MarkItDown authentication key, at least 32 characters |
 | `MARKITDOWN_IMAGE` | Optional variable | Existing MarkItDown image, e.g. `YOUR_REGISTRY.azurecr.io/markitdown:EXISTING_TAG`; set all three image variables together |
 | `OLLAYA_API_KEY` | Secret | Deploy - System One - Ollaya Infrastructure and Release - System One - Ollaya: bearer key the Ollaya server requires, at least 32 characters; Ollaya ingress is external. API, Background, and AgentHost releases pass it as `Ollaya__ApiKey` when set. Container key: `OLLAYA_API_KEY`. |
 | `OLLAYA_IMAGE` | Optional variable | Released Ollaya image, e.g. `YOUR_REGISTRY.azurecr.io/ollaya:EXISTING_TAG`; keeps it when Deploy - System One - Ollaya Infrastructure runs again. Bicep parameter: `ollayaImage`. |
 | `OLLAYA_MODEL` | Optional variable | Release - System One - Ollaya: model baked into the image and used by the smoke test; defaults to `winnow:e4b`. |
-| `PAGEINDEX_AZURE_API_KEY` | Secret | Release PageIndex: key for the provisioned Azure OpenAI resource; key authentication must be enabled. Container key: `AZURE_API_KEY`. |
-| `PAGEINDEX_AZURE_API_VERSION` | Optional variable | Release PageIndex: defaults to `2024-10-21`; select a version supported by the deployment. Container key: `AZURE_API_VERSION`. |
-| `PAGEINDEX_INDEX_MODEL` | Optional variable | Release PageIndex: defaults to `azure/<chatDeploymentName>` from infrastructure; use `azure/<deployment-name>`. Container key: `PAGEINDEX_INDEX_MODEL`. |
-| `PAGEINDEX_SERVICE_API_KEY` | Secret | Release PageIndex: separately generated service key, at least 32 characters; see [key generation](../backend/PageIndex/README.md#generate-the-service-api-key). Container key: `PAGEINDEX_SERVICE_API_KEY`. |
+| `PAGEINDEX_AZURE_API_KEY` | Secret | Release - PageIndex: key for the provisioned Azure OpenAI resource; key authentication must be enabled. Container key: `AZURE_API_KEY`. |
+| `PAGEINDEX_AZURE_API_VERSION` | Optional variable | Release - PageIndex: defaults to `2024-10-21`; select a version supported by the deployment. Container key: `AZURE_API_VERSION`. |
+| `PAGEINDEX_INDEX_MODEL` | Optional variable | Release - PageIndex: defaults to `azure/<chatDeploymentName>` from infrastructure; use `azure/<deployment-name>`. Container key: `PAGEINDEX_INDEX_MODEL`. |
+| `PAGEINDEX_SERVICE_API_KEY` | Secret | Release - PageIndex: separately generated service key, at least 32 characters; see [key generation](../backend/PageIndex/README.md#generate-the-service-api-key). Container key: `PAGEINDEX_SERVICE_API_KEY`. |
 | `SANDBOX_HOST_IMAGE` | Optional variable | Sandbox host image the Dynamic Sessions pool runs, e.g. `YOUR_REGISTRY.azurecr.io/sandboxhost:EXISTING_TAG`; keeps it when Deploy Dynamic Sessions infrastructure runs again. Independent of the three application image variables; Sandboxes use registered disk images instead. Bicep parameter: `sandboxHostImage`. |
-| `SANDBOX_DISK_IMAGE_ID` | Optional variable | Override the sandbox disk-image ID (for example, to roll back). When unset, Release API reads the last ready image from `sandbox-image-<environment>`; if neither exists, the current app setting is kept. Container key: `AgentWorkspace__Sandboxes__DiskImageId`. |
+| `SANDBOX_DISK_IMAGE_ID` | Optional variable | Override the sandbox disk-image ID (for example, to roll back). When unset, Release - API reads the last ready image from `sandbox-image-<environment>`; if neither exists, the current app setting is kept. Container key: `AgentWorkspace__Sandboxes__DiskImageId`. |
 | `SHAREPOINT_CLIENT_ID` | Variable | Existing SharePoint/Entra application client ID in the SharePoint tenant |
 | `SHAREPOINT_CLIENT_SECRET` | Secret | Graph application credential |
 | `SHAREPOINT_CLIENT_STATE` | Secret | Webhook validation secret, at least 16 characters |
@@ -98,20 +98,20 @@ Configure these settings under **Settings → Environments → dev/test → Envi
 | `SHAREPOINT_TENANT_ID` | Variable | Required for application deployments: Entra tenant ID for SharePoint Graph access and application sign-in; can differ from `AZURE_TENANT_ID` and has no fallback |
 | `SQL_ENTRA_ADMIN_OBJECT_ID` | Variable | Object ID of the SQL administrator matching the configured principal type, not its application/client ID |
 | `SQL_ENTRA_ADMINISTRATOR_PRINCIPAL_TYPE` | Optional variable | `Application` (default), `Group` or `User`; use `Application` for a managed identity or service principal |
-| `WINNOW_NATIVE_API_KEY` | Secret | Required when deploying or releasing the Winnow Native inference image. Single-line bearer token, at least 32 characters. Service container key: `WINNOW_API_KEY`; Release API maps the same secret to `WinowNative__ApiKey` for the playground. |
+| `WINNOW_NATIVE_API_KEY` | Secret | Required when deploying or releasing the Winnow Native inference image. Single-line bearer token, at least 32 characters. Service container key: `WINNOW_API_KEY`; Release - API maps the same secret to `WinowNative__ApiKey` for the playground. |
 | `WINNOW_NATIVE_IMAGE` | Optional variable | Explicit Winnow Native image override for infrastructure deployment or rollback, preferably `YOUR_REGISTRY.azurecr.io/winownative@sha256:DIGEST`. When unset, infrastructure reruns preserve the deployed image; the first deployment uses the bootstrap hello image. Bicep parameter: `winownativeImage`. |
 
 ### Configure Winnow Native and Laya Native
 
-For each service you use, generate a separate random key using the [service-key generation script](#generate-the-markitdown-api-key) and save it in the matching GitHub environment (`dev` / `test`) as `WINNOW_NATIVE_API_KEY` or `LAYA_NATIVE_API_KEY`. Run that service's infrastructure and release workflows, then **Release API** to configure the playground connection. To rotate a key, update the environment secret and rerun the service release followed by **Release API**.
+For each service you use, generate a separate random key using the [service-key generation script](#generate-the-markitdown-api-key) and save it in the matching GitHub environment (`dev` / `test`) as `WINNOW_NATIVE_API_KEY` or `LAYA_NATIVE_API_KEY`. Run that service's infrastructure and release workflows, then **Release - API** to configure the playground connection. To rotate a key, update the environment secret and rerun the service release followed by **Release - API**.
 
-Endpoint URLs do not need GitHub environment variables: Release API reads `winownativeEndpoint` and `layanativeEndpoint` from the respective infrastructure deployments. Image variables are optional overrides, not required after every release; clear an obsolete override before a later infrastructure rerun. `rebuild` is a release workflow input, not a GitHub environment setting. Start/stop workflows use the existing Azure OIDC secrets and do not require service API keys. See the independent [Winnow Native](SystemOne/WinowNative/README.md) and [Laya Native](SystemOne/LayaNative/README.md) deployment guides.
+Endpoint URLs do not need GitHub environment variables: Release - API reads `winownativeEndpoint` and `layanativeEndpoint` from the respective infrastructure deployments. Image variables are optional overrides, not required after every release; clear an obsolete override before a later infrastructure rerun. `rebuild` is a release workflow input, not a GitHub environment setting. Start/stop workflows use the existing Azure OIDC secrets and do not require service API keys. See the independent [Winnow Native](SystemOne/WinowNative/README.md) and [Laya Native](SystemOne/LayaNative/README.md) deployment guides.
 
 ### Configure the Jev API key
 
 Create a provider API key in your TypeSafe account and save it as `JEV_API_KEY` in each GitHub environment (`dev` / `test`) that uses Jev. This is a provider-issued credential; do not generate it with the service-key script below.
 
-Run **Release API**, **Release Background**, and **Release AgentHost** to apply or rotate the key. The combined **Release services** workflow uses the same environment secret. **Deploy Container Apps infrastructure** also supplies it when application images are configured. Direct Bicep deployments accept the secure `jevApiKey` parameter.
+Run **Release - API**, **Release - Background**, and **Release - AgentHost** to apply or rotate the key. The combined **Release services** workflow uses the same environment secret. **Deploy Container Apps infrastructure** also supplies it when application images are configured. Direct Bicep deployments accept the secure `jevApiKey` parameter.
 
 The key is optional. Removing it and rerunning those releases clears `Jev__ApiKey` for the newly deployed configuration; existing Container App secrets may remain stored but are no longer referenced. No key is sent to the frontend, MarkItDown, or PageIndex. See [Jev client configuration](../docs/jev.md).
 
@@ -135,8 +135,8 @@ finally {
 
 Under **GitHub repository → Settings → Environments → your environment → Environment secrets**, save the entire output as `MARKITDOWN_API_KEY` or `PAGEINDEX_SERVICE_API_KEY`, depending on which service you are configuring. Preserve trailing `=` characters in the Base64 value. Generate a separate key for each service and environment, and keep them out of source control.
 
-- **MarkItDown:** save `MARKITDOWN_API_KEY`. The deployment supplies it to the service and its callers. To rotate it, run **Release MarkItDown**, **Release API**, **Release Background**, and **Release AgentHost**.
-- **PageIndex:** save `PAGEINDEX_SERVICE_API_KEY` and run **Release PageIndex**. Callers must send that value in `X-Api-Key`; configure `PageIndex__ApiKey` separately for C# callers because their release workflows do not provision it. For local use, save the value in `backend/PageIndex/.env` and restart the service or recreate the container. This service key is separate from `PAGEINDEX_AZURE_API_KEY`, which authenticates Azure OpenAI calls.
+- **MarkItDown:** save `MARKITDOWN_API_KEY`. The deployment supplies it to the service and its callers. To rotate it, run **Release - MarkItDown**, **Release - API**, **Release - Background**, and **Release - AgentHost**.
+- **PageIndex:** save `PAGEINDEX_SERVICE_API_KEY` and run **Release - PageIndex**. Callers must send that value in `X-Api-Key`; configure `PageIndex__ApiKey` separately for C# callers because their release workflows do not provision it. For local use, save the value in `backend/PageIndex/.env` and restart the service or recreate the container. This service key is separate from `PAGEINDEX_AZURE_API_KEY`, which authenticates Azure OpenAI calls.
 
 Generate keys once per environment and service, then reuse the saved values. When rotating a key, coordinate service and caller updates because requests fail while their keys differ.
 
@@ -209,14 +209,14 @@ Then deploy [ContainerApps/main.bicep](ContainerApps/main.bicep) with `infra/Con
 
 Configure `API_IMAGE`, `BACKGROUND_IMAGE` and `MARKITDOWN_IMAGE` in the selected GitHub environment using the [GitHub settings table](#github-environment-settings). Set all three to existing application images, preferably immutable tags or digests in this environment's ACR. **Deploy Container Apps infrastructure** automatically enables application runtime settings, ports and health checks and reads the application secrets from the same GitHub environment. SQL migrations and runtime database grants must already exist; infrastructure does not run them. Partial image configuration is rejected.
 
-Leave all three variables unset for the default hello images. Re-running **Deploy Container Apps infrastructure** with them unset resets ACA apps to hello images; **Deploy infrastructure** does not touch the apps. Component release workflows build and deploy new images independently and do not update these GitHub variables; set them to the desired release references before the next Container Apps infrastructure run. All deployment workflows share an environment concurrency group. AgentHost is published by Release AgentHost and is not controlled by these ACA image variables.
-The Container Apps infrastructure workflow currently accepts image variables for API, Background, and MarkItDown only. It does not supply PageIndex's image or credentials. Run **Release PageIndex** after Container Apps infrastructure updates to restore its API image and settings; the three image variables above do not preserve PageIndex. For a direct Bicep deployment, see [PageIndex API](#pageindex-api).
+Leave all three variables unset for the default hello images. Re-running **Deploy Container Apps infrastructure** with them unset resets ACA apps to hello images; **Deploy infrastructure** does not touch the apps. Component release workflows build and deploy new images independently and do not update these GitHub variables; set them to the desired release references before the next Container Apps infrastructure run. All deployment workflows share an environment concurrency group. AgentHost is published by Release - AgentHost and is not controlled by these ACA image variables.
+The Container Apps infrastructure workflow currently accepts image variables for API, Background, and MarkItDown only. It does not supply PageIndex's image or credentials. Run **Release - PageIndex** after Container Apps infrastructure updates to restore its API image and settings; the three image variables above do not preserve PageIndex. For a direct Bicep deployment, see [PageIndex API](#pageindex-api).
 
 ### Release services
 
-AgentHost registers knowledge graph retrieval even when indexing is disabled. **Release AgentHost** supplies `KnowledgeGraph__Cosmos__Endpoint` from `graphCosmosEndpoint`, uses managed identity, and grants the hosted agent Cosmos DB Built-in Data Reader access. The deployment identity needs permission to create Cosmos SQL role assignments. Older AgentHost releases omitted this required endpoint, causing startup validation to fail; Foundry may surface this as a failed invocation. Redeploy AgentHost and create a new session after correcting the configuration, since existing sessions remain bound to their original version.
+AgentHost registers knowledge graph retrieval even when indexing is disabled. **Release - AgentHost** supplies `KnowledgeGraph__Cosmos__Endpoint` from `graphCosmosEndpoint`, uses managed identity, and grants the hosted agent Cosmos DB Built-in Data Reader access. The deployment identity needs permission to create Cosmos SQL role assignments. Older AgentHost releases omitted this required endpoint, causing startup validation to fail; Foundry may surface this as a failed invocation. Redeploy AgentHost and create a new session after correcting the configuration, since existing sessions remain bound to their original version.
 
-**Release AgentHost** also supports `local` when run individually. Create/configure the GitHub `local` environment with the Azure OIDC credentials and the SharePoint/application variables and secrets listed above, including `SHAREPOINT_CLIENT_STATE` and `MARKITDOWN_API_KEY`. Run **Deploy infrastructure** for `local` first, then **Release AgentHost → local**. The release reads `infra/parameters.local.json` and the `infra-local` deployment in that environment's resource group, builds the image in its ACR, and publishes the hosted agent to its Foundry project. This deploys to Azure; it does not start a host on your computer.
+**Release - AgentHost** also supports `local` when run individually. Create/configure the GitHub `local` environment with the Azure OIDC credentials and the SharePoint/application variables and secrets listed above, including `SHAREPOINT_CLIENT_STATE` and `MARKITDOWN_API_KEY`. Run **Deploy infrastructure** for `local` first, then **Release - AgentHost → local**. The release reads `infra/parameters.local.json` and the `infra-local` deployment in that environment's resource group, builds the image in its ACR, and publishes the hosted agent to its Foundry project. This deploys to Azure; it does not start a host on your computer.
 
 The local API and hosted AgentHost must share the Azure SQL database. Apply database migrations and configure the hosted agent's SQL access using the runtime SQL instructions below. API and Background Container Apps are not required for this AgentHost release. Tools that use MarkItDown, PageIndex, or Ollaya still need endpoints reachable from Azure; localhost services on your computer are not reachable by the hosted agent. Configure the local API's `ChatAgent:Foundry:Endpoint` with the deployed invocation URL as described in the [AgentHost README](../backend/SharePointAgent.AgentHost/README.md#run-in-foundry).
 
@@ -279,7 +279,7 @@ Release workflows do not create, repair or grant roles to runtime SQL users. Con
 | --- | --- |
 | `sharepoint_api` | API managed identity client ID (`hosting.apiClientId` in infrastructure outputs) |
 | `sharepoint_background` | Background managed identity client ID (`hosting.workerClientId`) |
-| `sharepoint_agenthost` | Foundry agent's `instance_identity.client_id`, also printed by Release AgentHost |
+| `sharepoint_agenthost` | Foundry agent's `instance_identity.client_id`, also printed by Release - AgentHost |
 
 Retrieve the values with Azure CLI in PowerShell. Set the environment variables first, sign in to the subscription containing your deployment, and read the saved infrastructure outputs. These commands only read configuration:
 
@@ -314,7 +314,7 @@ Write-Host "SQL database: $($hosting.sqlDatabaseName)"
 ) | Format-Table -AutoSize
 ```
 
-For AgentHost, run this next in the same PowerShell session, **after Release AgentHost has created the agent identity**. Your signed-in account needs permission to read the Foundry agent. A 404 means the agent does not exist yet; a 403 means your account lacks access.
+For AgentHost, run this next in the same PowerShell session, **after Release - AgentHost has created the agent identity**. Your signed-in account needs permission to read the Foundry agent. A 404 means the agent does not exist yet; a 403 means your account lacks access.
 
 ```powershell
 $agentClientId = az rest --method get `
@@ -398,7 +398,7 @@ See [AgentHost configuration](../backend/SharePointAgent.AgentHost/README.md), [
 
 Use the signing entries in [GitHub environment settings](#github-environment-settings). These settings apply to **API only**; Background, AgentHost, and Frontend do not need provider credentials.
 
-**Deployment support:** run **Release API**, or select API in **Release services**, after configuring these GitHub settings. The workflow validates required values for enabled providers before building and deploys credentials through Container Apps secrets and secret references. Missing enable flags default to `false`, explicitly disabling those providers; DocuSign `Demo` defaults to `true`. Disabled providers need no credentials. Existing unused Container Apps secrets are retained. `main.bicep` does not configure signing; rerun Release API after infrastructure deployment to reapply these settings. No signing credentials are passed to Background, AgentHost, or Frontend.
+**Deployment support:** run **Release - API**, or select API in **Release services**, after configuring these GitHub settings. The workflow validates required values for enabled providers before building and deploys credentials through Container Apps secrets and secret references. Missing enable flags default to `false`, explicitly disabling those providers; DocuSign `Demo` defaults to `true`. Disabled providers need no credentials. Existing unused Container Apps secrets are retained. `main.bicep` does not configure signing; rerun Release - API after infrastructure deployment to reapply these settings. No signing credentials are passed to Background, AgentHost, or Frontend.
 
 Configure each provider independently; keep an unused provider disabled and omit its credentials. Use separate test and production credentials. Local user secrets use colons instead of double underscores, for example `DocumentSigning:AdobeSign:RefreshToken`. The old `Signing` section is no longer read. See [shared organization signing](../README.md#shared-organization-signing) for provider authorization and token renewal details.
 
@@ -409,8 +409,8 @@ For initial Adobe authorization without Postman, set `DOCUMENTSIGNING__ADOBESIGN
 Infrastructure creates a separate PageIndex Container App with an ACR pull identity,
 HTTPS ingress, 1 CPU / 2 GiB memory, 1–3 replicas, and a readiness probe. As with
 MarkItDown, the default infrastructure deployment uses a placeholder image; run
-**Release PageIndex** after **Deploy Container Apps infrastructure** to install the API. It is also
-an optional selection in **Release Services**.
+**Release - PageIndex** after **Deploy Container Apps infrastructure** to install the API. It is also
+an optional selection in **Release - Services**.
 
 Configure the PageIndex entries in [GitHub environment settings](#github-environment-settings)
 for each of `dev` and `test`; that table includes their container variable mappings.
@@ -427,7 +427,7 @@ enabled to verify those settings.
 Infrastructure outputs `pageIndexContainerAppName` and `pageIndexEndpoint`.
 API, Background, and AgentHost releases configure `PageIndex__Endpoint` from
 that output; Bicep also sets it for API and Background application images.
-Run **Release API** after updating the release scripts to apply the endpoint
+Run **Release - API** after updating the release scripts to apply the endpoint
 used by **Admin → Service health**. `/health` requires no API key.
 For C# indexing calls, configure `PageIndex__ApiKey` separately with the same
 service key; these releases do not provision that caller credential. The existing
@@ -472,7 +472,7 @@ The individual Dynamic Sessions and Sandboxes infrastructure and release workflo
 `local`, `dev`, and `test`. For local, configure the GitHub `local` environment with the
 Azure login secrets and optional `AZURE_RESOURCE_GROUP`, then deploy shared infrastructure
 using `infra/parameters.local.json`. Run the component infrastructure workflows with `local`,
-followed by **Release Dynamic Sessions** and/or **Release Sandboxes** with `local`.
+followed by **Release - Dynamic Sessions** and/or **Release - Sandboxes** with `local`.
 The component parameter files are `infra/DynamicSessions/parameters.local.json` and
 `infra/Sandboxes/parameters.local.json`; their initial sizing and region match dev.
 These deploy Azure resources for local development, not containers on your workstation.
@@ -482,15 +482,15 @@ The [sandbox host](../backend/SharePointAgent.SandboxHost/README.md) gives futur
 
 The environment is chosen per chat workspace, or per conversation outside one, and recorded on that row in SQL apart from the Foundry session: `DynamicSessionId` (a random session identifier created on first use) or `SandboxId` (the sandbox created for it; its address and per-sandbox key stay in the private `agent-workspaces` blob container). The conversation's **Workspace details** panel shows it, and users who can change the conversation can **Reset** it (`POST /api/chat/conversations/{id}/session/reset`). Reset deletes the dynamic session's snapshot and stops the session, or deletes the sandbox, so the next turn of every conversation sharing it starts with an empty working directory.
 
-Each target has its own template and workflow, like Ollaya, deployed after **Deploy infrastructure** has created the registry, API identity, and shared Container Apps environment. [ContainerApps/main.bicep](ContainerApps/main.bicep) cannot know the pool endpoint, sandbox group, or disk image, because they exist only after these deployments. **Release API** sets `AgentWorkspace__DynamicSessions__PoolManagementEndpoint` and `AgentWorkspace__Sandboxes__SandboxGroup` from the `dynamic-sessions-<environment>` and `sandboxes-<environment>` deployment outputs, and `AgentWorkspace__Sandboxes__DiskImageId` from the `sandbox-image-<environment>` release output (or the `SANDBOX_DISK_IMAGE_ID` override), skipping any that are not available yet. Run **Release API** after deploying either target, and again after **Deploy Container Apps infrastructure** with application images, which rewrites the API environment variables without them. Resource names are unchanged from when [main.bicep](main.bicep) created them, so the first run of each workflow adopts an existing pool or group instead of recreating it.
+Each target has its own template and workflow, like Ollaya, deployed after **Deploy infrastructure** has created the registry, API identity, and shared Container Apps environment. [ContainerApps/main.bicep](ContainerApps/main.bicep) cannot know the pool endpoint, sandbox group, or disk image, because they exist only after these deployments. **Release - API** sets `AgentWorkspace__DynamicSessions__PoolManagementEndpoint` and `AgentWorkspace__Sandboxes__SandboxGroup` from the `dynamic-sessions-<environment>` and `sandboxes-<environment>` deployment outputs, and `AgentWorkspace__Sandboxes__DiskImageId` from the `sandbox-image-<environment>` release output (or the `SANDBOX_DISK_IMAGE_ID` override), skipping any that are not available yet. Run **Release - API** after deploying either target, and again after **Deploy Container Apps infrastructure** with application images, which rewrites the API environment variables without them. Resource names are unchanged from when [main.bicep](main.bicep) created them, so the first run of each workflow adopts an existing pool or group instead of recreating it.
 
 **Dynamic Sessions.** **Deploy Dynamic Sessions infrastructure** ([infra-dynamic-sessions.yml](../.github/workflows/infra-dynamic-sessions.yml)) deploys [DynamicSessions/main.bicep](DynamicSessions/main.bicep) as deployment `dynamic-sessions-<environment>`. It creates a custom-container session pool in the existing Container Apps environment, in that environment's region. It has its own ACR pull identity, which is kept out of the sessions (`lifecycle: None`), so agent code cannot request its tokens. The pool runs 1 vCPU / 2 GiB per session, with `readySessions` warm sessions (default 1, billed while waiting), up to `maxSessions` (default 20), and a timed lifecycle that destroys a session `cooldownSeconds` (default 1800) after its last request. `egressEnabled` (default true) controls internet access from sessions. Set these in `infra/DynamicSessions/parameters.<environment>.json`. The API identity, and the identity that deploys the template, receive **Azure ContainerApps Session Executor** on the pool; the release smoke test uses the second. Outputs: `dynamicSessionsPoolName` and `dynamicSessionsPoolEndpoint`.
 
-Like the other services, the pool starts on the hello image. Run **Release Dynamic Sessions** to install the host. The release builds the image, runs it on the runner, and checks all four languages plus a file round trip before pushing. It then switches the pool to the image, port 8080, `/health` liveness and startup probes, and the pool's settings (`Sandbox__RequireApiKey=false`, `Sandbox__MaxTimeoutSeconds=220`), and repeats the check through the pool endpoint in a fresh session, which it then stops. To keep the image across Dynamic Sessions infrastructure runs, set `SANDBOX_HOST_IMAGE` to the reference in the release summary.
+Like the other services, the pool starts on the hello image. Run **Release - Dynamic Sessions** to install the host. The release builds the image, runs it on the runner, and checks all four languages plus a file round trip before pushing. It then switches the pool to the image, port 8080, `/health` liveness and startup probes, and the pool's settings (`Sandbox__RequireApiKey=false`, `Sandbox__MaxTimeoutSeconds=220`), and repeats the check through the pool endpoint in a fresh session, which it then stops. To keep the image across Dynamic Sessions infrastructure runs, set `SANDBOX_HOST_IMAGE` to the reference in the release summary.
 
 **Sandboxes.** **Deploy Sandboxes infrastructure** ([infra-sandboxes.yml](../.github/workflows/infra-sandboxes.yml)) deploys [Sandboxes/main.bicep](Sandboxes/main.bicep) as deployment `sandboxes-<environment>`. It creates a `Microsoft.App/sandboxGroups` group in `sandboxGroupLocation` (set in `infra/Sandboxes/parameters.<environment>.json`), with a user-assigned identity that has ACR pull access. The API identity and the deploying identity receive **Container Apps SandboxGroup Data Owner** on the group. Confirm that Container Apps sandboxes are available in your subscription and region before running it. The template uses the documented `2026-02-01-preview` API, for which Bicep has no type information, so property errors appear only at deployment. Outputs: `sandboxGroupName`, `sandboxGroupId`, and `sandboxesPullIdentityId`.
 
-**Release Sandboxes** builds and smoke-tests the container image, pushes `sandboxhost:<tag>` to ACR, and automatically registers a disk image using a short-lived ACR token obtained by the release identity. It waits up to 20 minutes for the disk image to become Ready, then saves its ID, source image, and group in the `sandbox-image-<environment>` deployment outputs. Failed builds do not replace the last successful image output. Run **Release API** afterward; it automatically reads the saved ID. No GitHub variable update is needed unless `SANDBOX_DISK_IMAGE_ID` is set, in which case that override takes precedence (remove it to follow new releases). Existing sandboxes and old disk images are retained. Each release registers a new disk image; retries may leave additional images for later cleanup. The release obtains the token with `az acr login --expose-token`, masks it in GitHub logs, and deletes the temporary request file in a finally block. No registry admin password or additional GitHub secret is required. It calls: `PUT /subscriptions/{subscription}/resourceGroups/{resourceGroup}/sandboxGroups/{group}/diskimages`, API `2026-02-01-preview`, with `image.base` and `registryCredentials` (the all-zero username and temporary token). See [Microsoft's disk-image documentation](https://staging.sandboxes.azure.com/docs/sandboxes/disk-images).
+**Release - Sandboxes** builds and smoke-tests the container image, pushes `sandboxhost:<tag>` to ACR, and automatically registers a disk image using a short-lived ACR token obtained by the release identity. It waits up to 20 minutes for the disk image to become Ready, then saves its ID, source image, and group in the `sandbox-image-<environment>` deployment outputs. Failed builds do not replace the last successful image output. Run **Release - API** afterward; it automatically reads the saved ID. No GitHub variable update is needed unless `SANDBOX_DISK_IMAGE_ID` is set, in which case that override takes precedence (remove it to follow new releases). Existing sandboxes and old disk images are retained. Each release registers a new disk image; retries may leave additional images for later cleanup. The release obtains the token with `az acr login --expose-token`, masks it in GitHub logs, and deletes the temporary request file in a finally block. No registry admin password or additional GitHub secret is required. It calls: `PUT /subscriptions/{subscription}/resourceGroups/{resourceGroup}/sandboxGroups/{group}/diskimages`, API `2026-02-01-preview`, with `image.base` and `registryCredentials` (the all-zero username and temporary token). See [Microsoft's disk-image documentation](https://staging.sandboxes.azure.com/docs/sandboxes/disk-images).
 
 Dynamic Sessions and sandbox provisioning always use `DefaultAzureCredential`. For local development, sign in with `az login`; in Azure, the hosting resource supplies managed identity through `AZURE_CLIENT_ID`. These sections need no `UseManagedIdentity`, `TenantId`, `ClientId`, or `ClientSecret` settings. The authenticating identity needs Session Executor on the pool and SandboxGroup Data Owner on the sandbox group. A shared sandbox continues to use `SharedEndpoint` and `SharedApiKey` without provisioning credentials.
 
@@ -563,7 +563,7 @@ Use **Admin → Service health** to inspect MarkItDown, PageIndex, and the Backg
 | Symptom | Check / recovery |
 | --- | --- |
 | Conversion returns 404, or health returns invalid JSON | Inspect the deployed image. If it is `mcr.microsoft.com/k8se/quickstart:latest`, run the corresponding component release. |
-| PageIndex health reports it could not connect | Check API's `PageIndex__Endpoint`; it must use the deployed HTTPS endpoint, not `http://localhost:8001`. Release API to apply the endpoint from infrastructure outputs. |
+| PageIndex health reports it could not connect | Check API's `PageIndex__Endpoint`; it must use the deployed HTTPS endpoint, not `http://localhost:8001`. Release - API to apply the endpoint from infrastructure outputs. |
 | Service reports unhealthy after being stopped | Use the matching start workflow, then check application health and container logs. |
 | PageIndex health succeeds but indexing with summaries fails | Verify its Azure OpenAI credentials, endpoint, API version, and model deployment. The health endpoint does not make model calls. |
 | SQL login fails during release or at runtime | Check the appropriate [SQL identity and database grants](#sql-access); Azure role assignments alone do not grant SQL access. |
@@ -572,7 +572,7 @@ For AgentHost, inspect the hosted agent version and routing in Foundry, then tes
 
 ### Start or stop MarkItDown, PageIndex, and Ollaya
 
-Open **Actions → Start or Stop MarkItDown** or **Actions → Start or Stop PageIndex**,
+Open **Actions → Start or Stop - MarkItDown** or **Actions → Start or Stop - PageIndex**,
 select **Run workflow**, choose `dev` or `test`, and choose `start` or `stop`.
 Run infrastructure and the corresponding service release first.
 
@@ -597,7 +597,7 @@ With `minReplicas` 0, Ollaya already scales to zero when idle and bills no GPU t
 
 ### Start or stop Background
 
-Open **Actions → Start or Stop Background → Run workflow**, select `dev` or
+Open **Actions → Start or Stop - Background → Run workflow**, select `dev` or
 `test`, and choose `start` or `stop`. The [workflow](../.github/workflows/manage-background.yml)
 resolves the Background Container App from the `container-apps-<environment>` deployment's
 `workerContainerAppName` output. Run **Deploy Container Apps infrastructure** and **Release
@@ -633,7 +633,7 @@ See [OpenTelemetry configuration](../docs/telemetry.md) for setup and trace-ID q
 
 ### Report current capacity
 
-To change the registry pricing tier, run **Actions → Configure Container Registry Capacity → Run workflow**
+To change the registry pricing tier, run **Actions → Configure - Container Registry Capacity → Run workflow**
 ([workflow](../.github/workflows/configure-acr-capacity.yml)) and select `local`, `dev`, or `test` and
 `Basic`, `Standard`, or `Premium`. It resolves the registry from `infra-<environment>`,
 uses the existing Azure environment credentials and deployment lock, and reports the
@@ -650,7 +650,7 @@ restores the tier in `infra/main.bicep` (currently `Basic`).
 Both capacity workflows use the selected GitHub environment's Azure credentials and
 resource-group setting, including the `local` environment for local-development Azure resources.
 
-Run **Actions → Report Current Capacity → Run workflow**, selecting `local`, `dev`, or
+Run **Actions → Report - Current Capacity → Run workflow**, selecting `local`, `dev`, or
 `test`. The [workflow](../.github/workflows/report-capacity.yml) reads the deployed
 resources and publishes a table in the job summary:
 
@@ -693,8 +693,8 @@ and start/stop workflows. No additional GitHub settings are required.
 
 | Workflow | Inputs | Behavior |
 | --- | --- | --- |
-| [Configure Container App Capacity](../.github/workflows/configure-container-app-capacity.yml) | Environment, component (`Api`, `Background`, `MarkItDown`, `PageIndex`), CPU (`0.25`, `0.5`, `1`, `2`, `4`) | Sets memory to 2 GiB per vCPU, creates a revision using the existing image and settings, and waits for that revision to become ready. Replica limits stay unchanged. |
-| [Configure AgentHost Capacity](../.github/workflows/configure-agent-capacity.yml) | Environment, CPU (`0.5`, `1`, `2`) | Sets memory to 1, 2, or 4 GiB per session. Copies the currently routed version's definition, changes its capacity, waits for the new version to become active, then routes 100% of traffic to it. |
+| [Configure - Container App Capacity](../.github/workflows/configure-container-app-capacity.yml) | Environment, component (`Api`, `Background`, `MarkItDown`, `PageIndex`), CPU (`0.25`, `0.5`, `1`, `2`, `4`) | Sets memory to 2 GiB per vCPU, creates a revision using the existing image and settings, and waits for that revision to become ready. Replica limits stay unchanged. |
+| [Configure - AgentHost Capacity](../.github/workflows/configure-agent-capacity.yml) | Environment, CPU (`0.5`, `1`, `2`) | Sets memory to 1, 2, or 4 GiB per session. Copies the currently routed version's definition, changes its capacity, waits for the new version to become active, then routes 100% of traffic to it. |
 
 Run infrastructure and the relevant component release first. Container Apps must
 be running in single-revision mode with one container. AgentHost must have an
@@ -706,7 +706,7 @@ previous version numbers. No image builds, secret rotation, or SQL grants occur.
 
 These workflows change deployed capacity, not repository defaults. Container App
 releases preserve the allocation, but **Deploy Container Apps infrastructure** reapplies Bicep
-capacity. **Release AgentHost** reapplies the allocation in `release-agent.ps1`.
+capacity. **Release - AgentHost** reapplies the allocation in `release-agent.ps1`.
 Update those defaults too if the change should persist across those deployments.
 To revert, rerun the capacity workflow with the previous CPU selection.
 
@@ -802,7 +802,7 @@ To resize a deployed service using its current image, use the
 defaults from the repository to an existing environment:
 
 1. Run **Deploy Container Apps infrastructure** to update API to 2 vCPU and 4 GiB, or follow [manual Container Apps capacity updates](#manually-update-container-apps-capacity) in the operations section. For a Container Apps infrastructure deployment, set `API_IMAGE`, `BACKGROUND_IMAGE`, and `MARKITDOWN_IMAGE` to the current application images first, as described under [Preserve application images](#preserve-application-images), to preserve them. An API-only release preserves the existing resource allocation and does not apply Bicep changes.
-2. Run **Release AgentHost**, or select **AgentHost** in **Release services**, to publish a version with 2 vCPU and 4 GiB per session.
+2. Run **Release - AgentHost**, or select **AgentHost** in **Release services**, to publish a version with 2 vCPU and 4 GiB per session.
 
 ### Runtime configuration and networking
 

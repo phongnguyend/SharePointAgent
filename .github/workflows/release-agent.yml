@@ -1,5 +1,5 @@
-name: Release AgentHost
-run-name: Release AgentHost (${{ inputs.environment }})
+name: Release - AgentHost
+run-name: Release - AgentHost (${{ inputs.environment }})
 'on':
   workflow_dispatch:
     inputs:
@@ -105,7 +105,7 @@ jobs:
           . "$env:GITHUB_WORKSPACE/.github/scripts/deployment-helpers.ps1"
           az acr build --registry $outputs.containerRegistryName.value --platform linux/amd64 --no-logs `
             --image "agenthost:$env:IMAGE_TAG" --file "backend/SharePointAgent.AgentHost/Dockerfile" .
-      - name: Release AgentHost
+      - name: Release - AgentHost
         run: |
           & ./.github/scripts/release-agent.ps1
         env:

@@ -1,4 +1,4 @@
-name: PageIndex CI
+name: CI - PageIndex
 
 on:
   push:

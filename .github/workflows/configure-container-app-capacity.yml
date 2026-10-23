@@ -1,5 +1,5 @@
-name: Configure Container App Capacity
-run-name: Capacity ${{ inputs.component }} (${{ inputs.environment }}, ${{ inputs.cpu }} vCPU)
+name: Configure - Container App Capacity
+run-name: Configure - ${{ inputs.component }} (${{ inputs.environment }}, ${{ inputs.cpu }} vCPU)
 'on':
   workflow_dispatch:
     inputs:

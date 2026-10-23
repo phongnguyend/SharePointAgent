@@ -1,5 +1,5 @@
-name: Release MarkItDown
-run-name: Release MarkItDown (${{ inputs.environment }})
+name: Release - MarkItDown
+run-name: Release - MarkItDown (${{ inputs.environment }})
 
 on:
   workflow_dispatch:

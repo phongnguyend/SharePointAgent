@@ -1,4 +1,4 @@
-name: MarkItDown CI
+name: CI - MarkItDown
 
 on:
   push:

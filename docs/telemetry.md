@@ -73,7 +73,7 @@ to `APPLICATIONINSIGHTS_CONNECTION_STRING` when the application setting is blank
 This keeps AgentHost application telemetry in the same provisioned resource as
 API and Background without overriding Foundry's platform variable. See
 [Foundry telemetry configuration](https://learn.microsoft.com/azure/foundry/agents/how-to/configure-hosted-agent-telemetry).
-Rerun **Release API**, **Release Background**, and **Release AgentHost** from the
+Rerun **Release - API**, **Release - Background**, and **Release - AgentHost** from the
 updated commit so their rebuilt images and deployment settings use the new key.
 Bicep uses the same key for deployments with application images enabled.
 

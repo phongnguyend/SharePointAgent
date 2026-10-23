@@ -1,5 +1,5 @@
-name: Release Background
-run-name: Release Background (${{ inputs.environment }})
+name: Release - Background
+run-name: Release - Background (${{ inputs.environment }})
 'on':
   workflow_dispatch:
     inputs:
@@ -104,7 +104,7 @@ jobs:
           . "$env:GITHUB_WORKSPACE/.github/scripts/deployment-helpers.ps1"
           az acr build --registry $outputs.containerRegistryName.value --platform linux/amd64 --no-logs `
             --image "background:$env:IMAGE_TAG" --file "backend/SharePointAgent.Background/Dockerfile" .
-      - name: Release Background
+      - name: Release - Background
         run: |
           & ./.github/scripts/release-container-app.ps1 -Component Background
         env:

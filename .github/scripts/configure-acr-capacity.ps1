@@ -29,7 +29,7 @@ if ([string]::IsNullOrWhiteSpace($ResourceGroup)) {
 $name = az deployment group show --resource-group $ResourceGroup --name "infra-$EnvironmentName" `
     --query properties.outputs.containerRegistryName.value -o tsv
 if ([string]::IsNullOrWhiteSpace($name)) {
-    throw 'Container Registry output is missing. Run Deploy Infrastructure first.'
+    throw 'Container Registry output is missing. Run Deploy - Infrastructure first.'
 }
 $before = az acr show --resource-group $ResourceGroup --name $name --query sku.name -o tsv
 $poolName = 'nativebuild'

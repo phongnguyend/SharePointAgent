@@ -1,5 +1,5 @@
-name: Release Dynamic Sessions
-run-name: Release Dynamic Sessions (${{ inputs.environment }})
+name: Release - Dynamic Sessions
+run-name: Release - Dynamic Sessions (${{ inputs.environment }})
 
 on:
   workflow_dispatch:

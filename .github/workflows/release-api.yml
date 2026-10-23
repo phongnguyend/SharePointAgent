@@ -1,5 +1,5 @@
-name: Release API
-run-name: Release API (${{ inputs.environment }})
+name: Release - API
+run-name: Release - API (${{ inputs.environment }})
 'on':
   workflow_dispatch:
     inputs:
@@ -127,7 +127,7 @@ jobs:
           . "$env:GITHUB_WORKSPACE/.github/scripts/deployment-helpers.ps1"
           az acr build --registry $outputs.containerRegistryName.value --platform linux/amd64 --no-logs `
             --image "api:$env:IMAGE_TAG" --file "backend/SharePointAgent.Api/Dockerfile" .
-      - name: Release API
+      - name: Release - API
         run: |
           & ./.github/scripts/release-container-app.ps1 -Component Api
         env:

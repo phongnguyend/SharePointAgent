@@ -1,5 +1,5 @@
-name: Release Database
-run-name: Release Database (${{ inputs.environment }})
+name: Release - Database
+run-name: Release - Database (${{ inputs.environment }})
 'on':
   workflow_dispatch:
     inputs:
@@ -87,7 +87,7 @@ jobs:
             throw 'Run Deploy infrastructure before releasing applications.'
           }
           $result | ConvertTo-Json -Depth 20 | Set-Content "$env:RUNNER_TEMP/shared-outputs.json"
-      - name: Release Database
+      - name: Release - Database
         run: |
           & ./.github/scripts/release-database.ps1
       - name: Deployment summary

@@ -1,5 +1,5 @@
-name: Release Frontend
-run-name: Release Frontend (${{ inputs.environment }})
+name: Release - Frontend
+run-name: Release - Frontend (${{ inputs.environment }})
 
 on:
   workflow_dispatch:

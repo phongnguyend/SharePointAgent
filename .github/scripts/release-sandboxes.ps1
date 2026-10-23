@@ -11,7 +11,7 @@ if (-not $outputs.containerRegistryName.value) {
 . "$PSScriptRoot/sandbox-disk-image.ps1"
 $sandboxGroupName = Get-SandboxGroupName
 if (-not $sandboxGroupName) {
-  throw 'Run Deploy Sandboxes Infrastructure before releasing Sandboxes.'
+  throw 'Run Deploy - Sandboxes Infrastructure before releasing Sandboxes.'
 }
 $region = az resource show --resource-group $env:RESOURCE_GROUP --name $sandboxGroupName `
   --resource-type Microsoft.App/sandboxGroups --query location -o tsv
@@ -26,4 +26,4 @@ $diskId = Publish-SandboxDiskImage -Image $image -Group $sandboxGroupName -Regio
 "- Image: $image" >> $env:GITHUB_STEP_SUMMARY
 "- Sandbox group: $sandboxGroupName" >> $env:GITHUB_STEP_SUMMARY
 "- Disk image ID: $diskId" >> $env:GITHUB_STEP_SUMMARY
-"Run Release API to use this disk image for new sandboxes. The ID is read automatically from sandbox-image-$env:DEPLOY_ENVIRONMENT. Remove SANDBOX_DISK_IMAGE_ID if it pins an older image; an explicit override takes precedence. Existing sandboxes and older disk images are retained." >> $env:GITHUB_STEP_SUMMARY
+"Run Release - API to use this disk image for new sandboxes. The ID is read automatically from sandbox-image-$env:DEPLOY_ENVIRONMENT. Remove SANDBOX_DISK_IMAGE_ID if it pins an older image; an explicit override takes precedence. Existing sandboxes and older disk images are retained." >> $env:GITHUB_STEP_SUMMARY

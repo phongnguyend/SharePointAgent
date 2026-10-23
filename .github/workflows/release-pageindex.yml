@@ -1,5 +1,5 @@
-name: Release PageIndex
-run-name: Release PageIndex (${{ inputs.environment }})
+name: Release - PageIndex
+run-name: Release - PageIndex (${{ inputs.environment }})
 
 on:
   workflow_dispatch:

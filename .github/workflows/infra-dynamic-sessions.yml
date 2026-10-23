@@ -1,5 +1,5 @@
-name: Deploy Dynamic Sessions Infrastructure
-run-name: Deploy Dynamic Sessions Infrastructure (${{ inputs.environment }})
+name: Deploy - Dynamic Sessions Infrastructure
+run-name: Deploy - Dynamic Sessions Infrastructure (${{ inputs.environment }})
 
 on:
   workflow_dispatch:
@@ -82,7 +82,7 @@ jobs:
             apiIdentityId = @{ value = $outputs.hosting.value.apiIdentityId }
             apiPrincipalId = @{ value = $outputs.hosting.value.apiPrincipalId }
           }
-          # Without SANDBOX_HOST_IMAGE the pool runs the hello image until Release Dynamic Sessions runs.
+          # Without SANDBOX_HOST_IMAGE the pool runs the hello image until Release - Dynamic Sessions runs.
           if (-not [string]::IsNullOrWhiteSpace($env:SANDBOX_HOST_IMAGE)) {
             $parameters.sandboxHostImage = @{ value = $env:SANDBOX_HOST_IMAGE.Trim() }
           }
@@ -102,9 +102,9 @@ jobs:
           "- Pool: $($outputs.dynamicSessionsPoolName.value)" >> $env:GITHUB_STEP_SUMMARY
           "- Endpoint: $($outputs.dynamicSessionsPoolEndpoint.value)" >> $env:GITHUB_STEP_SUMMARY
           if ([string]::IsNullOrWhiteSpace($env:SANDBOX_HOST_IMAGE)) {
-            "Running the hello image. Run Release Dynamic Sessions to install the sandbox host." >> $env:GITHUB_STEP_SUMMARY
+            "Running the hello image. Run Release - Dynamic Sessions to install the sandbox host." >> $env:GITHUB_STEP_SUMMARY
           }
-          "Run Release API to point the API at this pool." >> $env:GITHUB_STEP_SUMMARY
+          "Run Release - API to point the API at this pool." >> $env:GITHUB_STEP_SUMMARY
       - name: Remove temporary files
         if: always()
         run: |

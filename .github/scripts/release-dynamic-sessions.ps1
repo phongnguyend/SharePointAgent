@@ -11,7 +11,7 @@ if (-not $outputs.containerRegistryName.value) {
 $poolName = Get-OptionalDeploymentOutput 'dynamic-sessions' 'dynamicSessionsPoolName'
 $endpoint = Get-DynamicSessionsPoolEndpoint
 if (-not $poolName) {
-  throw 'Run Deploy Dynamic Sessions Infrastructure before releasing Dynamic Sessions.'
+  throw 'Run Deploy - Dynamic Sessions Infrastructure before releasing Dynamic Sessions.'
 }
 
 $image = Publish-SandboxHostImage $outputs
@@ -28,7 +28,7 @@ $pool = az rest --method get --url $url -o json | ConvertFrom-Json -AsHashtable
 $template = $pool.properties.customContainerTemplate
 $containers = @($template.containers)
 if ($containers.Count -ne 1) {
-  throw "Expected one container in session pool $poolName. Run Deploy Dynamic Sessions Infrastructure first."
+  throw "Expected one container in session pool $poolName. Run Deploy - Dynamic Sessions Infrastructure first."
 }
 $containers[0].image = $image
 # Same values as the infrastructure template: the pool authenticates callers and its ingress allows 240 seconds.
@@ -88,4 +88,4 @@ try {
 "- Image: $image" >> $env:GITHUB_STEP_SUMMARY
 "- Pool: $poolName" >> $env:GITHUB_STEP_SUMMARY
 "- Endpoint: $endpoint" >> $env:GITHUB_STEP_SUMMARY
-"Set the GitHub environment variable SANDBOX_HOST_IMAGE to this image so Deploy Dynamic Sessions Infrastructure keeps it instead of the hello image." >> $env:GITHUB_STEP_SUMMARY
+"Set the GitHub environment variable SANDBOX_HOST_IMAGE to this image so Deploy - Dynamic Sessions Infrastructure keeps it instead of the hello image." >> $env:GITHUB_STEP_SUMMARY

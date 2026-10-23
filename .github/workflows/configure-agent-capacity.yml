@@ -1,5 +1,5 @@
-name: Configure AgentHost Capacity
-run-name: Capacity AgentHost (${{ inputs.environment }}, ${{ inputs.cpu }} vCPU)
+name: Configure - AgentHost Capacity
+run-name: Configure - AgentHost (${{ inputs.environment }}, ${{ inputs.cpu }} vCPU)
 'on':
   workflow_dispatch:
     inputs:

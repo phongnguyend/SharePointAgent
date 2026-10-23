@@ -1,5 +1,5 @@
-name: Start or Stop MarkItDown
-run-name: ${{ inputs.action }} MarkItDown (${{ inputs.environment }})
+name: Start or Stop - MarkItDown
+run-name: ${{ inputs.action }} - MarkItDown (${{ inputs.environment }})
 'on':
   workflow_dispatch:
     inputs:

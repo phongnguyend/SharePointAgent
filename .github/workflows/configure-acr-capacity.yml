@@ -1,5 +1,5 @@
-name: Configure Container Registry Capacity
-run-name: Container Registry capacity (${{ inputs.environment }}, ${{ inputs.sku }})
+name: Configure - Container Registry Capacity
+run-name: Configure - Container Registry Capacity (${{ inputs.environment }}, ${{ inputs.sku }})
 'on':
   workflow_dispatch:
     inputs:

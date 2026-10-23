@@ -1,5 +1,5 @@
-name: Start or Stop Background
-run-name: ${{ inputs.action }} Background (${{ inputs.environment }})
+name: Start or Stop - Background
+run-name: ${{ inputs.action }} - Background (${{ inputs.environment }})
 'on':
   workflow_dispatch:
     inputs:

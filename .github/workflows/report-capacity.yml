@@ -1,5 +1,5 @@
-name: Report Current Capacity
-run-name: Current capacity (${{ inputs.environment }})
+name: Report - Current Capacity
+run-name: Report - Current Capacity (${{ inputs.environment }})
 'on':
   workflow_dispatch:
     inputs:
