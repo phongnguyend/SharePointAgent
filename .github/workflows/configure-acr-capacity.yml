@@ -1,0 +1,59 @@
+name: Configure Container Registry Capacity
+run-name: Container Registry capacity (${{ inputs.environment }}, ${{ inputs.sku }})
+'on':
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options: [local, dev, test]
+        default: dev
+      sku:
+        description: Registry tier (Basic/Standard removes the nativebuild pool)
+        required: true
+        type: choice
+        options: [Basic, Standard, Premium]
+        default: Basic
+      pool_count:
+        description: S3 build agents (8 CPUs each); use 0 for Basic/Standard or to pause the pool
+        required: true
+        type: choice
+        options: ['0', '1', '2']
+        default: '0'
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: deployment-${{ inputs.environment }}
+  cancel-in-progress: false
+jobs:
+  capacity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: ${{ inputs.environment }}
+    env:
+      DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+      REGISTRY_SKU: ${{ inputs.sku }}
+      POOL_COUNT: ${{ inputs.pool_count }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Scale registry and build pool
+        run: |
+          & ./.github/scripts/configure-acr-capacity.ps1 `
+            -EnvironmentName $env:DEPLOY_ENVIRONMENT `
+            -Sku $env:REGISTRY_SKU `
+            -PoolCount $env:POOL_COUNT `
+            -ResourceGroup $env:AZURE_RESOURCE_GROUP

@@ -633,14 +633,37 @@ See [OpenTelemetry configuration](../docs/telemetry.md) for setup and trace-ID q
 
 ### Report current capacity
 
-Run **Actions → Report Current Capacity → Run workflow**, selecting `dev` or
+To change the registry pricing tier, run **Actions → Configure Container Registry Capacity → Run workflow**
+([workflow](../.github/workflows/configure-acr-capacity.yml)) and select `local`, `dev`, or `test` and
+`Basic`, `Standard`, or `Premium`. It resolves the registry from `infra-<environment>`,
+uses the existing Azure environment credentials and deployment lock, and reports the
+verified before/after tier. Select pool count `1` or `2` with `Premium` to create or scale
+the `nativebuild` S3 pool (8 vCPU / 16 GiB per agent). `Premium` with count `0` pauses
+an existing pool; `Basic` or `Standard` requires count `0` and removes `nativebuild`
+before downgrading. Other pools are never deleted. Active or queued builds block changes.
+Dedicated pools are preview and billed while allocated, including idle time.
+Winnow releases automatically use an active `nativebuild` pool with eight compilation
+jobs, or the default ACR builder when the pool is absent or paused. Two agents allow
+concurrent builds; they do not give a single build sixteen CPUs. Shared infrastructure redeployment
+restores the tier in `infra/main.bicep` (currently `Basic`).
+
+Both capacity workflows use the selected GitHub environment's Azure credentials and
+resource-group setting, including the `local` environment for local-development Azure resources.
+
+Run **Actions → Report Current Capacity → Run workflow**, selecting `local`, `dev`, or
 `test`. The [workflow](../.github/workflows/report-capacity.yml) reads the deployed
 resources and publishes a table in the job summary:
 
-- API, Background, MarkItDown, PageIndex, and Ollaya: app state, active revisions,
+- Azure Container Registry: registry name, region, pricing tier, and provisioning state.
+- ACR build-agent pools: all dedicated pools, tier, provisioning state, allocated/paused
+  capacity, instance count, and CPU/memory per instance. Zero instances is shown as
+  paused; an empty pool list is reported normally. The shared default builder is not
+  a dedicated pool. The identity also needs agent-pool read access.
+- API, Background, MarkItDown, PageIndex, Ollaya, Winnow Native, and Laya Native: app state, active revisions,
   CPU/memory per container per replica, and configured minimum/maximum replicas.
-  Ollaya's app comes from the `ollaya-<environment>` deployment and is listed as
-  not deployed, rather than failing the report, when that deployment is absent.
+  System One apps come from the `ollaya-<environment>`, `winownative-<environment>`,
+  and `layanative-<environment>` deployments. Each is listed as not deployed,
+  rather than failing the report, when its deployment is absent.
 - Dynamic Sessions: pool state, CPU/memory per session, ready and maximum
   sessions, cooldown, and egress.
 - Sandboxes: sandbox group state and region, the API's `AgentWorkspace__DefaultMode`,

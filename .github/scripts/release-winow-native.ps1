@@ -44,11 +44,23 @@ $existing = az acr repository show-tags --name $shared.containerRegistryName.val
 $found = $LASTEXITCODE -eq 0 -and $existing -eq $tag
 $PSNativeCommandUseErrorActionPreference = $true
 if (-not $found -or $env:WINNOW_NATIVE_REBUILD -eq 'true') {
+    $buildArguments = @()
+    $pools = @(az acr agentpool list --registry $shared.containerRegistryName.value -o json | ConvertFrom-Json)
+    $pool = $pools | Where-Object { $_.name -eq 'nativebuild' }
+    if ($pool -and $pool.count -gt 0) {
+        if ($pool.provisioningState -ne 'Succeeded') {
+            throw 'Wait for the nativebuild pool to finish provisioning before releasing.'
+        }
+        $buildArguments = @('--agent-pool', 'nativebuild', '--build-arg', 'BUILD_JOBS=8')
+        Write-Host 'Building on nativebuild (8 vCPU per S3 agent).'
+    } else {
+        Write-Host 'No running nativebuild pool; using the default ACR builder.'
+    }
     # All compiler work and model downloads happen on ACR, never local Docker or the runner.
     Push-Location -LiteralPath $context
     try {
         az acr build --registry $shared.containerRegistryName.value --platform linux/amd64 --timeout 10800 `
-            --image "${id}:$tag" --file Dockerfile .
+            --image "${id}:$tag" @buildArguments --file Dockerfile .
     } finally {
         Pop-Location
     }

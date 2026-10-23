@@ -2,6 +2,7 @@
 # No local Docker build or model download is needed.
 FROM nvidia/cuda:12.8.1-devel-ubuntu24.04 AS build
 ARG WINNOW_REVISION=a50c7d0d8cbc5c3ba34987c5c23ea114e44ce6b5
+ARG BUILD_JOBS=4
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential cmake git python3 ca-certificates libssl-dev \
     && rm -rf /var/lib/apt/lists/*
@@ -14,7 +15,7 @@ RUN git init . && git remote add origin https://github.com/EldanRing/winnow-infe
 # Seed the cache before the upstream script configures and builds the runtime.
 RUN mkdir -p .build \
     && printf 'GGML_NATIVE:BOOL=OFF\n' > .build/CMakeCache.txt \
-    && python3 scripts/build.py --backend cuda --cuda-arch 75 --jobs 4
+    && python3 scripts/build.py --backend cuda --cuda-arch 75 --jobs "${BUILD_JOBS}"
 
 FROM python:3.12-slim-bookworm AS models
 WORKDIR /models

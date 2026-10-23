@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('dev', 'test')]
+    [ValidateSet('local', 'dev', 'test')]
     [string] $EnvironmentName,
 
     [string] $ResourceGroup
@@ -46,15 +46,19 @@ if ($LASTEXITCODE -ne 0) {
     $project = ''
 }
 $PSNativeCommandUseErrorActionPreference = $true
-# Ollaya, Dynamic Sessions, and Sandboxes are optional and have their own templates, so a missing
+# System One services, Dynamic Sessions, and Sandboxes have optional templates, so a missing
 # deployment is reported as not deployed rather than as an error.
 $ollaya = Get-OptionalDeploymentOutput 'ollaya' 'ollayaContainerAppName' $ResourceGroup $EnvironmentName
+$winnowNative = Get-OptionalDeploymentOutput 'winownative' 'winownativeContainerAppName' $ResourceGroup $EnvironmentName
+$layaNative = Get-OptionalDeploymentOutput 'layanative' 'layanativeContainerAppName' $ResourceGroup $EnvironmentName
 $outputs = [pscustomobject]@{
     Api = $apps.Api
     Background = $apps.Background
     MarkItDown = $apps.MarkItDown
     PageIndex = $apps.PageIndex
     Ollaya = $ollaya
+    'Winnow Native' = $winnowNative
+    'Laya Native' = $layaNative
     project = $project
 }
 $lines = [Collections.Generic.List[string]]::new()
@@ -69,16 +73,71 @@ $lines.Add("# Current capacity ($EnvironmentName)")
 $lines.Add('')
 $lines.Add("Resource group: $(Cell $ResourceGroup). Checked at $([DateTimeOffset]::UtcNow.ToString('u')).")
 $lines.Add('')
+$lines.Add('## Azure Container Registry')
+$lines.Add('')
+$lines.Add('| Registry | Region | Tier | Provisioning state |')
+$lines.Add('| --- | --- | --- | --- |')
+$registryName = $null
+try {
+    $registryName = az deployment group show --resource-group $ResourceGroup --name "infra-$EnvironmentName" `
+        --query properties.outputs.containerRegistryName.value -o tsv
+    if ([string]::IsNullOrWhiteSpace($registryName)) {
+        throw 'Registry deployment output is missing.'
+    }
+    $registry = az acr show --resource-group $ResourceGroup --name $registryName `
+        --query '{name:name,location:location,tier:sku.name,state:provisioningState}' -o json | ConvertFrom-Json
+    $lines.Add("| $(Cell $registry.name) | $(Cell $registry.location) | $(Cell $registry.tier) | $(Cell $registry.state) |")
+} catch {
+    $errors.Add('Container Registry capacity could not be read. Check shared infrastructure outputs and Azure read permissions.')
+    $lines.Add('| Read failed | - | - | - |')
+}
+$lines.Add('')
+$lines.Add('## ACR build-agent pools')
+$lines.Add('')
+$lines.Add('Dedicated pool configuration, not live CPU utilization. Zero instances means paused; allocated instances are billed even when idle. The default shared ACR builder is not a dedicated pool.')
+$lines.Add('')
+$lines.Add('| Pool | Tier | Provisioning state | Capacity state | Instances | vCPU per instance | Memory GB per instance |')
+$lines.Add('| --- | --- | --- | --- | --- | --- | --- |')
+try {
+    if ([string]::IsNullOrWhiteSpace($registryName)) {
+        throw 'Registry deployment output is missing.'
+    }
+    $pools = @(az acr agentpool list --resource-group $ResourceGroup --registry $registryName `
+        --query '[].{name:name,tier:tier,state:provisioningState,count:count}' -o json | ConvertFrom-Json)
+    $poolCapacity = @{
+        S1 = @{ Cpu = 2; Memory = 3 }
+        S2 = @{ Cpu = 4; Memory = 8 }
+        S3 = @{ Cpu = 8; Memory = 16 }
+        I6 = @{ Cpu = 64; Memory = 216 }
+    }
+    if ($pools.Count -eq 0) {
+        $lines.Add('| No dedicated pools | - | - | - | 0 | - | - |')
+    }
+    foreach ($pool in $pools) {
+        $capacity = $poolCapacity[$pool.tier]
+        $capacityState = 'Allocated'
+        if ($null -eq $pool.count) {
+            $capacityState = 'Unknown'
+        } elseif ($pool.count -eq 0) {
+            $capacityState = 'Paused'
+        }
+        $lines.Add("| $(Cell $pool.name) | $(Cell $pool.tier) | $(Cell $pool.state) | $capacityState | $(Cell $pool.count) | $(Cell $capacity.Cpu) | $(Cell $capacity.Memory) |")
+    }
+} catch {
+    $errors.Add('ACR build-agent pools could not be read. Check registry availability and Azure agent-pool read permissions.')
+    $lines.Add('| Read failed | - | - | - | - | - | - |')
+}
+$lines.Add('')
 $lines.Add('## Container Apps')
 $lines.Add('')
 $lines.Add('Active revision configuration is shown below. CPU and memory are per container per replica; replica limits are per revision, not current replica counts. A stopped app retains its configuration.')
 $lines.Add('')
 $lines.Add('| Service | App / state | Active revision | Container | vCPU | Memory | Min replicas | Max replicas |')
 $lines.Add('| --- | --- | --- | --- | --- | --- | --- | --- |')
-foreach ($component in @('Api', 'Background', 'MarkItDown', 'PageIndex', 'Ollaya')) {
+foreach ($component in @('Api', 'Background', 'MarkItDown', 'PageIndex', 'Ollaya', 'Winnow Native', 'Laya Native')) {
     try {
         $name = $outputs.$component
-        if ($component -eq 'Ollaya' -and [string]::IsNullOrWhiteSpace($name)) {
+        if ($component -in @('Ollaya', 'Winnow Native', 'Laya Native') -and [string]::IsNullOrWhiteSpace($name)) {
             $lines.Add("| $component | Not deployed | - | - | - | - | - | - |")
             continue
         }

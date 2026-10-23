@@ -7,7 +7,7 @@ run-name: Current capacity (${{ inputs.environment }})
         description: Target environment
         required: true
         type: choice
-        options: [dev, test]
+        options: [local, dev, test]
         default: dev
 permissions:
   contents: read
