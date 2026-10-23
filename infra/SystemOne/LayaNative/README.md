@@ -7,8 +7,8 @@ Deploys native Laya in its own Azure Container Apps **CPU consumption** environm
 1. Run the shared **Deploy infrastructure** workflow first, including the registry and Log Analytics outputs.
 2. In GitHub environment `dev` or `test`, configure `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` and **`LAYA_NATIVE_API_KEY`** (single-line random token, at least 32 characters).
 3. Review `parameters.<environment>.json`: workload and environment names must match the shared parameters, `layanativeLocation` is `eastus`, replicas default to zero to one. `AZURE_RESOURCE_GROUP` can override the default resource group.
-4. Run **Deploy Laya Native Infrastructure** (`infra-laya-native.yml`). Initially it creates an app using the bootstrap hello image.
-5. Run **Release Laya Native** (`release-laya-native.yml`). ACR Tasks builds and downloads both pinned checkpoints remotely; no local Docker or model storage is used. The workflow deploys an image digest and tests health, authentication and two real decisions.
+4. Run **Deploy - System One - Laya Native Infrastructure** (`infra-laya-native.yml`). Initially it creates an app using the bootstrap hello image.
+5. Run **Release - System One - Laya Native** (`release-laya-native.yml`). ACR Tasks builds and downloads both pinned checkpoints remotely; no local Docker or model storage is used. The workflow deploys an image digest and tests health, authentication and two real decisions.
 6. Release the API and frontend to use **Playgrounds → Decision Making → Laya Native**. The API release reads `layanativeEndpoint` and passes `LAYA_NATIVE_API_KEY` as `LayaNative__ApiKey`. For a local API, set `LayaNative:Endpoint` to the server base URL and `LayaNative:ApiKey` through user secrets or environment variables. The default model is `multilingual`, with a 300-second timeout.
 
 The deployment identity needs resource deployment, managed identity/role assignment management, ACR Tasks and image metadata access, and Container App update/start/stop/secret permissions. The app's identity receives `AcrPull` on the shared registry.

@@ -26,7 +26,7 @@ param containerRegistryName string
 @description('Name of the existing Log Analytics workspace (infra/main.bicep output logAnalyticsWorkspaceName).')
 param logAnalyticsWorkspaceName string
 
-@description('WinowNative image; defaults to the public hello image until Release WinowNative runs.')
+@description('WinowNative image; defaults to the public hello image until Release - System One - Winnow Native runs.')
 param winownativeImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
 
 @description('Bearer token callers must send. Required for the WinowNative image, because ingress is external.')

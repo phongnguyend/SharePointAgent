@@ -1,5 +1,5 @@
-name: Release Ollaya
-run-name: Release Ollaya (${{ inputs.environment }})
+name: Release - System One - Ollaya
+run-name: Release - System One - Ollaya (${{ inputs.environment }})
 
 on:
   workflow_dispatch:

@@ -23,7 +23,7 @@ on:
         type: boolean
         default: false
       ollaya:
-        description: Release Ollaya
+        description: Release - System One - Ollaya
         type: boolean
         default: false
       dynamic_sessions:
@@ -117,7 +117,7 @@ jobs:
     secrets: inherit
 
   ollaya:
-    name: Release Ollaya
+    name: Release - System One - Ollaya
     needs: [validate, db_migration, markitdown, pageindex]
     if: ${{ !cancelled() && !failure() && inputs.ollaya }}
     uses: ./.github/workflows/release-ollaya.yml

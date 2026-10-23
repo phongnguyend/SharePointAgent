@@ -4,7 +4,7 @@ Serves Laya's native Python System One API without Ollaya. The [Dockerfile](Dock
 
 ## Build and release
 
-Run **Release Laya Native** in GitHub Actions. `az acr build` compiles the image and downloads models remotely in Azure Container Registry Tasks. No local Docker build or model download is needed.
+Run **Release - System One - Laya Native** in GitHub Actions. `az acr build` compiles the image and downloads models remotely in Azure Container Registry Tasks. No local Docker build or model download is needed.
 
 The upstream source commit and CPU PyTorch version are pinned in `Dockerfile`. [download_models.py](download_models.py) pins a separate Hugging Face revision for each checkpoint and fetches only inference weights, encoder configuration and tokenizers. The runtime loads those local paths with Hugging Face/Transformers offline mode enabled. Both checkpoints remain resident for the life of a replica; automatic task detection is off. The separate `typed-decisions` checkpoint is not included, so requests should use `english`, `multilingual`, or automatic language routing without a model override.
 

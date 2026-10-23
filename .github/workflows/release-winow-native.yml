@@ -1,5 +1,5 @@
-name: Release Winow Native
-run-name: Release Winow Native (${{ inputs.environment }})
+name: Release - System One - Winnow Native
+run-name: Release - System One - Winnow Native (${{ inputs.environment }})
 on:
   workflow_dispatch:
     inputs:

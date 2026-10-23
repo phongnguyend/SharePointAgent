@@ -26,7 +26,7 @@ param containerRegistryName string
 @description('Name of the existing Log Analytics workspace (infra/main.bicep output logAnalyticsWorkspaceName).')
 param logAnalyticsWorkspaceName string
 
-@description('LayaNative image; defaults to the public hello image until Release LayaNative runs.')
+@description('LayaNative image; defaults to the public hello image until Release - System One - Laya Native runs.')
 param layanativeImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
 
 @description('Bearer token callers must send. Required for the LayaNative image, because ingress is external.')

@@ -7,7 +7,7 @@ $PSNativeCommandUseErrorActionPreference = $false
 $ollayaOutputs = az deployment group show --resource-group $env:RESOURCE_GROUP --name "ollaya-$env:DEPLOY_ENVIRONMENT" --query properties.outputs -o json 2>$null | ConvertFrom-Json
 $PSNativeCommandUseErrorActionPreference = $true
 if (-not $ollayaOutputs.ollayaContainerAppName.value) {
-  throw 'Run Deploy Ollaya infrastructure before releasing Ollaya.'
+  throw 'Run Deploy - System One - Ollaya Infrastructure before releasing Ollaya.'
 }
 $name = $ollayaOutputs.ollayaContainerAppName.value
 $endpoint = $ollayaOutputs.ollayaEndpoint.value.TrimEnd('/')
@@ -54,7 +54,7 @@ $url = "https://management.azure.com$($app.id)"
 $containers = @($app.properties.template.containers)
 $container = @($containers | Where-Object { $_.name -eq 'ollaya' })
 if ($container.Count -ne 1) {
-  throw "Expected container ollaya in $name. Run Deploy Ollaya infrastructure first."
+  throw "Expected container ollaya in $name. Run Deploy - System One - Ollaya Infrastructure first."
 }
 $container = $container[0]
 $container.image = $image
@@ -123,4 +123,4 @@ if (-not $result.answers.complaint) {
 "- Image: $image ($built)" >> $env:GITHUB_STEP_SUMMARY
 "- Endpoint: $endpoint" >> $env:GITHUB_STEP_SUMMARY
 "- Server version: $($version.version); model: $($result.model); smoke-test decision in $($watch.ElapsedMilliseconds) ms, including any model load" >> $env:GITHUB_STEP_SUMMARY
-"Set the GitHub environment variable OLLAYA_IMAGE to this image so Deploy Ollaya infrastructure keeps it instead of the hello image." >> $env:GITHUB_STEP_SUMMARY
+"Set the GitHub environment variable OLLAYA_IMAGE to this image so Deploy - System One - Ollaya Infrastructure keeps it instead of the hello image." >> $env:GITHUB_STEP_SUMMARY

@@ -6,7 +6,7 @@ The [Dockerfile](Dockerfile) targets a T4 GPU with CUDA 12.8, text-only decision
 
 ## Build and release
 
-Use **Release Winow Native** in GitHub Actions. It runs `az acr build` in Azure Container Registry Tasks: compilation, model downloads and image storage happen in Azure. Do not build this image locally when disk space is limited. The GitHub runner uploads only this small build context.
+Use **Release - System One - Winnow Native** in GitHub Actions. It runs `az acr build` in Azure Container Registry Tasks: compilation, model downloads and image storage happen in Azure. Do not build this image locally when disk space is limited. The GitHub runner uploads only this small build context.
 
 The source commit is pinned in `Dockerfile`; its `runtime.lock.json` pins the patched llama.cpp runtime. [download_model.py](download_model.py) pins the model repository revision and checks both the 8,005,437,472-byte size and SHA256 before accepting the model. The image contains only the E4B Q8 weights, not a vision projector or draft model. To upgrade, update the source/model pins deliberately and rerun release. A source upgrade can also require updating the upstream manifest checksum used by `--target`.
 

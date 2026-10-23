@@ -1,4 +1,4 @@
-# Build remotely with Release Winow Native (Azure Container Registry Tasks).
+# Build remotely with Release - System One - Winnow Native (Azure Container Registry Tasks).
 # No local Docker build or model download is needed.
 FROM nvidia/cuda:12.8.1-devel-ubuntu24.04 AS build
 ARG WINNOW_REVISION=a50c7d0d8cbc5c3ba34987c5c23ea114e44ce6b5

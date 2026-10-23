@@ -26,7 +26,7 @@ param containerRegistryName string
 @description('Name of the existing Log Analytics workspace (infra/main.bicep output logAnalyticsWorkspaceName).')
 param logAnalyticsWorkspaceName string
 
-@description('Ollaya image; defaults to the public hello image until Release Ollaya runs.')
+@description('Ollaya image; defaults to the public hello image until Release - System One - Ollaya runs.')
 param ollayaImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
 
 @description('Bearer token callers must send. Required for the Ollaya image, because ingress is external.')

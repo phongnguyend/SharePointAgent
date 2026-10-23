@@ -153,4 +153,4 @@ The `cuda12` base runs on both the 570 driver that Container Apps serverless GPU
 
 ## Deployment
 
-See [Ollaya decision model](../../../infra/README.md#ollaya-decision-model): **Deploy Ollaya infrastructure** creates a Container Apps environment of its own, in a region of your choice, with the app on a serverless T4 GPU, and **Release Ollaya** builds this image and rolls it out. The apps reach it over HTTPS from any environment or region.
+See [Ollaya decision model](../../../infra/README.md#ollaya-decision-model): **Deploy - System One - Ollaya Infrastructure** creates a Container Apps environment of its own, in a region of your choice, with the app on a serverless T4 GPU, and **Release - System One - Ollaya** builds this image and rolls it out. The apps reach it over HTTPS from any environment or region.

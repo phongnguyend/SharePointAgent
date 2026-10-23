@@ -1,5 +1,5 @@
-name: Release Laya Native
-run-name: Release Laya Native (${{ inputs.environment }})
+name: Release - System One - Laya Native
+run-name: Release - System One - Laya Native (${{ inputs.environment }})
 on:
   workflow_dispatch:
     inputs:

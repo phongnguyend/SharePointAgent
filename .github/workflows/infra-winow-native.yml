@@ -1,5 +1,5 @@
-name: Deploy Winow Native Infrastructure
-run-name: Deploy Winow Native Infrastructure (${{ inputs.environment }})
+name: Deploy - System One - Winnow Native Infrastructure
+run-name: Deploy - System One - Winnow Native Infrastructure (${{ inputs.environment }})
 on:
   workflow_dispatch:
     inputs:

@@ -1,5 +1,5 @@
-name: Deploy Ollaya Infrastructure
-run-name: Deploy Ollaya Infrastructure (${{ inputs.environment }})
+name: Deploy - System One - Ollaya Infrastructure
+run-name: Deploy - System One - Ollaya Infrastructure (${{ inputs.environment }})
 
 on:
   workflow_dispatch:
@@ -116,7 +116,7 @@ jobs:
           "- Container App: $($outputs.ollayaContainerAppName.value)" >> $env:GITHUB_STEP_SUMMARY
           "- Endpoint: $($outputs.ollayaEndpoint.value)" >> $env:GITHUB_STEP_SUMMARY
           if ([string]::IsNullOrWhiteSpace($env:OLLAYA_IMAGE)) {
-            "Running the hello image. Run Release Ollaya to install Ollaya and winnow:e4b." >> $env:GITHUB_STEP_SUMMARY
+            "Running the hello image. Run Release - System One - Ollaya to install Ollaya and winnow:e4b." >> $env:GITHUB_STEP_SUMMARY
           }
       - name: Remove temporary files
         if: always()

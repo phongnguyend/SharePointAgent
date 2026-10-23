@@ -1,5 +1,5 @@
-name: Deploy Laya Native Infrastructure
-run-name: Deploy Laya Native Infrastructure (${{ inputs.environment }})
+name: Deploy - System One - Laya Native Infrastructure
+run-name: Deploy - System One - Laya Native Infrastructure (${{ inputs.environment }})
 on:
   workflow_dispatch:
     inputs:
