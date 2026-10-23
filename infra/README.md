@@ -8,7 +8,7 @@
 | [DynamicSessions](DynamicSessions/main.bicep) | `dynamic-sessions-<environment>` | The sandbox host session pool, in the Container Apps environment |
 | [Sandboxes](Sandboxes/main.bicep) | `sandboxes-<environment>` | The sandbox group |
 | [Ollaya](SystemOne/Ollaya/main.bicep) | `ollaya-<environment>` | Ollaya's own GPU environment and app |
-| [Winnow Native](SystemOne/WinnowNative/README.md) | `winownative-<environment>` | Native Winnow E4B server and its T4 environment |
+| [Winnow Native](SystemOne/WinnowNative/README.md) | `winnownative-<environment>` | Native Winnow E4B server and its T4 environment |
 | [Laya Native](SystemOne/LayaNative/README.md) | `layanative-<environment>` | Native Laya server and its CPU consumption environment |
 
 Use this guide in deployment order, or jump to an operational task:
@@ -99,13 +99,13 @@ Configure these settings under **Settings → Environments → dev/test → Envi
 | `SQL_ENTRA_ADMIN_OBJECT_ID` | Variable | Object ID of the SQL administrator matching the configured principal type, not its application/client ID |
 | `SQL_ENTRA_ADMINISTRATOR_PRINCIPAL_TYPE` | Optional variable | `Application` (default), `Group` or `User`; use `Application` for a managed identity or service principal |
 | `WINNOW_NATIVE_API_KEY` | Secret | Required when deploying or releasing the Winnow Native inference image. Single-line bearer token, at least 32 characters. Service container key: `WINNOW_API_KEY`; Release - API maps the same secret to `WinnowNative__ApiKey` for the playground. |
-| `WINNOW_NATIVE_IMAGE` | Optional variable | Explicit Winnow Native image override for infrastructure deployment or rollback, preferably `YOUR_REGISTRY.azurecr.io/winownative@sha256:DIGEST`. When unset, infrastructure reruns preserve the deployed image; the first deployment uses the bootstrap hello image. Bicep parameter: `winownativeImage`. |
+| `WINNOW_NATIVE_IMAGE` | Optional variable | Explicit Winnow Native image override for infrastructure deployment or rollback, preferably `YOUR_REGISTRY.azurecr.io/winnownative@sha256:DIGEST`. When unset, infrastructure reruns preserve the deployed image; the first deployment uses the bootstrap hello image. Bicep parameter: `winnownativeImage`. |
 
 ### Configure Winnow Native and Laya Native
 
 For each service you use, generate a separate random key using the [service-key generation script](#generate-the-markitdown-api-key) and save it in the matching GitHub environment (`dev` / `test`) as `WINNOW_NATIVE_API_KEY` or `LAYA_NATIVE_API_KEY`. Run that service's infrastructure and release workflows, then **Release - API** to configure the playground connection. To rotate a key, update the environment secret and rerun the service release followed by **Release - API**.
 
-Endpoint URLs do not need GitHub environment variables: Release - API reads `winownativeEndpoint` and `layanativeEndpoint` from the respective infrastructure deployments. Image variables are optional overrides, not required after every release; clear an obsolete override before a later infrastructure rerun. `rebuild` is a release workflow input, not a GitHub environment setting. Start/stop workflows use the existing Azure OIDC secrets and do not require service API keys. See the independent [Winnow Native](SystemOne/WinnowNative/README.md) and [Laya Native](SystemOne/LayaNative/README.md) deployment guides.
+Endpoint URLs do not need GitHub environment variables: Release - API reads `winnownativeEndpoint` and `layanativeEndpoint` from the respective infrastructure deployments. Image variables are optional overrides, not required after every release; clear an obsolete override before a later infrastructure rerun. `rebuild` is a release workflow input, not a GitHub environment setting. Start/stop workflows use the existing Azure OIDC secrets and do not require service API keys. See the independent [Winnow Native](SystemOne/WinnowNative/README.md) and [Laya Native](SystemOne/LayaNative/README.md) deployment guides.
 
 ### Configure the Jev API key
 
@@ -661,7 +661,7 @@ resources and publishes a table in the job summary:
   a dedicated pool. The identity also needs agent-pool read access.
 - API, Background, MarkItDown, PageIndex, Ollaya, Winnow Native, and Laya Native: app state, active revisions,
   CPU/memory per container per replica, and configured minimum/maximum replicas.
-  System One apps come from the `ollaya-<environment>`, `winownative-<environment>`,
+  System One apps come from the `ollaya-<environment>`, `winnownative-<environment>`,
   and `layanative-<environment>` deployments. Each is listed as not deployed,
   rather than failing the report, when its deployment is absent.
 - Dynamic Sessions: pool state, CPU/memory per session, ready and maximum

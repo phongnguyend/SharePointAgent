@@ -27,7 +27,7 @@ concurrency:
   group: deployment-${{ inputs.environment }}
   cancel-in-progress: false
 jobs:
-  winownative:
+  winnownative:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: ${{ inputs.environment }}

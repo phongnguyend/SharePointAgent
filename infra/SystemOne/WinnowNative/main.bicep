@@ -16,7 +16,7 @@ param workloadName string = 'sharepointagent'
 param environmentName string
 
 @description('Region for the WinnowNative environment and app; it must offer serverless T4 GPUs. Changing it deploys a new environment and app with a new endpoint, and leaves the old ones to delete.')
-param winownativeLocation string = resourceGroup().location
+param winnownativeLocation string = resourceGroup().location
 
 param tags object = {}
 
@@ -27,11 +27,11 @@ param containerRegistryName string
 param logAnalyticsWorkspaceName string
 
 @description('WinnowNative image; defaults to the public hello image until Release - System One - Winnow Native runs.')
-param winownativeImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
+param winnownativeImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
 
 @description('Bearer token callers must send. Required for the WinnowNative image, because ingress is external.')
 @secure()
-param winownativeApiKey string = ''
+param winnownativeApiKey string = ''
 
 @description('Zero lets the GPU scale away when idle; the first request then waits for a replica to start and load the model.')
 @minValue(0)
@@ -44,17 +44,17 @@ var namePrefix = toLower('${workloadName}-${environmentName}')
 // Same suffix as infra/main.bicep, plus the region, because an environment cannot move: a new region
 // gets new resources instead of a failed update.
 var uniqueSuffix = uniqueString(namePrefix, subscription().subscriptionId, resourceGroup().id)
-var regionSuffix = take(uniqueString(uniqueSuffix, toLower(winownativeLocation)), 6)
+var regionSuffix = take(uniqueString(uniqueSuffix, toLower(winnownativeLocation)), 6)
 var resourceTags = union(tags, {
   workload: workloadName
   environment: environmentName
   managedBy: 'Bicep'
 })
 var environmentNameForWinnowNative = '${namePrefix}-wn-cae-${regionSuffix}'
-var winownativeName = '${namePrefix}-wn-${regionSuffix}'
+var winnownativeName = '${namePrefix}-wn-${regionSuffix}'
 var gpuProfileName = 'gpu-t4'
 var helloImage = 'mcr.microsoft.com/k8se/quickstart:latest'
-var usesWinnowNativeImage = winownativeImage != helloImage
+var usesWinnowNativeImage = winnownativeImage != helloImage
 var healthPath = usesWinnowNativeImage ? '/health' : '/'
 var port = usesWinnowNativeImage ? 8091 : 80
 var acrPullRole = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
@@ -69,9 +69,9 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09
 
 // Serverless GPUs need a workload profiles environment; it has no base fee, so this costs nothing
 // while the GPU is scaled to zero.
-resource winownativeEnvironment 'Microsoft.App/managedEnvironments@2025-01-01' = {
+resource winnownativeEnvironment 'Microsoft.App/managedEnvironments@2025-01-01' = {
   name: environmentNameForWinnowNative
-  location: winownativeLocation
+  location: winnownativeLocation
   tags: resourceTags
   properties: {
     appLogsConfiguration: {
@@ -88,43 +88,43 @@ resource winownativeEnvironment 'Microsoft.App/managedEnvironments@2025-01-01' =
   }
 }
 
-resource winownativeIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: '${namePrefix}-winownative-pull-${regionSuffix}'
-  location: winownativeLocation
+resource winnownativeIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${namePrefix}-winnownative-pull-${regionSuffix}'
+  location: winnownativeLocation
   tags: resourceTags
 }
 
-resource winownativeRegistry 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(containerRegistry.id, winownativeIdentity.id, acrPullRole)
+resource winnownativeRegistry 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(containerRegistry.id, winnownativeIdentity.id, acrPullRole)
   scope: containerRegistry
   properties: {
-    principalId: winownativeIdentity.properties.principalId
+    principalId: winnownativeIdentity.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', acrPullRole)
   }
 }
 
-resource winownative 'Microsoft.App/containerApps@2025-01-01' = {
-  name: winownativeName
-  location: winownativeLocation
+resource winnownative 'Microsoft.App/containerApps@2025-01-01' = {
+  name: winnownativeName
+  location: winnownativeLocation
   tags: resourceTags
-  identity: { type: 'UserAssigned', userAssignedIdentities: { '${winownativeIdentity.id}': {} } }
+  identity: { type: 'UserAssigned', userAssignedIdentities: { '${winnownativeIdentity.id}': {} } }
   properties: {
-    environmentId: winownativeEnvironment.id
+    environmentId: winnownativeEnvironment.id
     workloadProfileName: gpuProfileName
     configuration: {
       activeRevisionsMode: 'Single'
       // External, like MarkItDown, so the apps reach it from their own environment and AgentHost from
       // Foundry; WINNOW_API_KEY guards it.
       ingress: { external: true, allowInsecure: false, targetPort: port, transport: 'http' }
-      registries: [{ server: containerRegistry.properties.loginServer, identity: winownativeIdentity.id }]
-      secrets: usesWinnowNativeImage ? [{ name: 'winownative-api-key', value: winownativeApiKey }] : []
+      registries: [{ server: containerRegistry.properties.loginServer, identity: winnownativeIdentity.id }]
+      secrets: usesWinnowNativeImage ? [{ name: 'winnownative-api-key', value: winnownativeApiKey }] : []
     }
     template: {
       containers: [{
-        name: 'winownative'
-        image: winownativeImage
-        env: usesWinnowNativeImage ? [{ name: 'WINNOW_API_KEY', secretRef: 'winownative-api-key' }] : []
+        name: 'winnownative'
+        image: winnownativeImage
+        env: usesWinnowNativeImage ? [{ name: 'WINNOW_API_KEY', secretRef: 'winnownative-api-key' }] : []
         // A T4 replica is a whole NC8as_T4 slice: 8 vCPU, 56 GiB, one 16 GB GPU.
         resources: { cpu: json('8.0'), memory: '56Gi' }
         // Startup budget covers checkpoint loading; health probes do not require authentication.
@@ -141,10 +141,10 @@ resource winownative 'Microsoft.App/containerApps@2025-01-01' = {
       }
     }
   }
-  dependsOn: [winownativeRegistry]
+  dependsOn: [winnownativeRegistry]
 }
 
-output winownativeEnvironmentName string = winownativeEnvironment.name
-output winownativeLocation string = winownativeLocation
-output winownativeContainerAppName string = winownative.name
-output winownativeEndpoint string = 'https://${winownative.properties.configuration.ingress.fqdn}'
+output winnownativeEnvironmentName string = winnownativeEnvironment.name
+output winnownativeLocation string = winnownativeLocation
+output winnownativeContainerAppName string = winnownative.name
+output winnownativeEndpoint string = 'https://${winnownative.properties.configuration.ingress.fqdn}'

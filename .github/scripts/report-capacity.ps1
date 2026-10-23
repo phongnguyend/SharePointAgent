@@ -49,7 +49,7 @@ $PSNativeCommandUseErrorActionPreference = $true
 # System One services, Dynamic Sessions, and Sandboxes have optional templates, so a missing
 # deployment is reported as not deployed rather than as an error.
 $ollaya = Get-OptionalDeploymentOutput 'ollaya' 'ollayaContainerAppName' $ResourceGroup $EnvironmentName
-$winnowNative = Get-OptionalDeploymentOutput 'winownative' 'winownativeContainerAppName' $ResourceGroup $EnvironmentName
+$winnowNative = Get-OptionalDeploymentOutput 'winnownative' 'winnownativeContainerAppName' $ResourceGroup $EnvironmentName
 $layaNative = Get-OptionalDeploymentOutput 'layanative' 'layanativeContainerAppName' $ResourceGroup $EnvironmentName
 $outputs = [pscustomobject]@{
     Api = $apps.Api

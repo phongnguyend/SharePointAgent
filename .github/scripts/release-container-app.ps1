@@ -76,10 +76,10 @@ if ($Component -eq 'Api') {
     Speech__UseManagedIdentity = 'true'
   }
   $apiEnvironment = $commonEnvironment + @($apiValues.GetEnumerator() | ForEach-Object { @{ name = $_.Key; value = [string]$_.Value } })
-  $apiEnvironment += @{ name = 'WinnowNative__Endpoint'; value = (Get-OptionalDeploymentOutput 'winownative' 'winownativeEndpoint') }
+  $apiEnvironment += @{ name = 'WinnowNative__Endpoint'; value = (Get-OptionalDeploymentOutput 'winnownative' 'winnownativeEndpoint') }
   if (-not [string]::IsNullOrWhiteSpace($env:WINNOW_NATIVE_API_KEY)) {
-    $apiEnvironment += @{ name = 'WinnowNative__ApiKey'; secretRef = 'winownative-api-key' }
-    $secrets += @{ name = 'winownative-api-key'; value = $env:WINNOW_NATIVE_API_KEY }
+    $apiEnvironment += @{ name = 'WinnowNative__ApiKey'; secretRef = 'winnownative-api-key' }
+    $secrets += @{ name = 'winnownative-api-key'; value = $env:WINNOW_NATIVE_API_KEY }
   } else {
     $apiEnvironment += @{ name = 'WinnowNative__ApiKey'; value = '' }
   }

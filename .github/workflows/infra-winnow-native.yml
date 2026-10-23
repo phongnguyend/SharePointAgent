@@ -43,7 +43,7 @@ jobs:
       - name: Remove temporary files
         if: always()
         run: |
-          foreach ($name in @('winownative.parameters.json', 'winownative.json')) {
+          foreach ($name in @('winnownative.parameters.json', 'winnownative.json')) {
             $path = Join-Path $env:RUNNER_TEMP $name
             if (Test-Path -LiteralPath $path) {
               Remove-Item -LiteralPath $path -Force

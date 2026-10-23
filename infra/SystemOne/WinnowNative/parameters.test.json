@@ -11,7 +11,7 @@
     "minReplicas": {
       "value": 0
     },
-    "winownativeLocation": {
+    "winnownativeLocation": {
       "value": "eastus"
     },
     "tags": {

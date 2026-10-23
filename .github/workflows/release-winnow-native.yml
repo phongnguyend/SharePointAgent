@@ -29,7 +29,7 @@ permissions:
   contents: read
   id-token: write
 concurrency:
-  group: ${{ inputs.orchestrated && format('release-winownative-{0}-{1}', github.run_id, github.run_attempt) || format('deployment-{0}', inputs.environment) }}
+  group: ${{ inputs.orchestrated && format('release-winnownative-{0}-{1}', github.run_id, github.run_attempt) || format('deployment-{0}', inputs.environment) }}
   cancel-in-progress: false
 jobs:
   release:
@@ -62,7 +62,7 @@ jobs:
       - name: Remove temporary request file
         if: always()
         run: |
-          $path = Join-Path $env:RUNNER_TEMP 'winownative.request.json'
+          $path = Join-Path $env:RUNNER_TEMP 'winnownative.request.json'
           if (Test-Path -LiteralPath $path) {
             Remove-Item -LiteralPath $path -Force
           }

@@ -23,9 +23,10 @@ if ([string]::IsNullOrWhiteSpace($ResourceGroup)) {
     $ResourceGroup = "rg-$($settings.workloadName.value)-$EnvironmentName"
 }
 
-$outputName = 'winownativeContainerAppName'
-$deploymentName = "winownative-$EnvironmentName"
-$containerName = $Component.ToLowerInvariant()
+$outputName = 'winnownativeContainerAppName'
+$deploymentName = "winnownative-$EnvironmentName"
+# Match the container identifier declared in the infrastructure template.
+$containerName = 'winnownative'
 
 $appName = az deployment group show --resource-group $ResourceGroup `
     --name $deploymentName --query "properties.outputs.$outputName.value" --output tsv
