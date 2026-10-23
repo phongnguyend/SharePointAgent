@@ -26,7 +26,6 @@ public sealed class DispatchTests
     [Fact]
     public async Task DispatchesToTypedParserAndEnrichesBeforeMarkdownConversion()
     {
-        var pdf = Substitute.For<IPdfDocumentParser>();
         var docx = Substitute.For<IDocxDocumentParser>();
         var pptx = Substitute.For<IPptxDocumentParser>();
         var xlsx = Substitute.For<IXlsxDocumentParser>();
@@ -37,12 +36,11 @@ public sealed class DispatchTests
         result.Metadata["Title"] = "Example";
         docx.ParseAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Returns(result);
         docx.ConvertToMarkdown(result, Arg.Any<CancellationToken>()).Returns(call => ((ImageElement)result.BodyElements[0]).Description!);
-        var service = new DocumentConversionService(pdf, docx, pptx, xlsx, new(analysis));
+        var service = new DocumentConversionService(docx, pptx, xlsx, new(analysis));
         using var stream = new MemoryStream();
         var output = await service.ConvertAsync(stream, "test.docx");
         Assert.Equal("Diagram", output.Markdown);
         Assert.Equal("Example", output.Metadata["Title"]);
-        Assert.Empty(pdf.ReceivedCalls());
         Assert.Empty(pptx.ReceivedCalls());
         Assert.Empty(xlsx.ReceivedCalls());
     }
@@ -58,7 +56,7 @@ public sealed class DispatchTests
         docx.ConvertToMarkdown(result, Arg.Any<CancellationToken>(), true).Returns("Text only");
         var analysis = Substitute.For<IImageAnalysisService>();
         var service = new DocumentConversionService(
-            Substitute.For<IPdfDocumentParser>(), docx,
+            docx,
             Substitute.For<IPptxDocumentParser>(), Substitute.For<IXlsxDocumentParser>(), new(analysis));
         using var stream = new MemoryStream();
         var output = await service.ConvertAsync(stream, "test.docx", imageOptions: new() { ExtractText = true }, skipImages: true);

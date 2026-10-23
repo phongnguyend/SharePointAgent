@@ -270,7 +270,9 @@ enable Enrich images (off by default) to run
 image description with the API host's configured vision model and image OCR with
 DocumentIntelligence before rendering Markdown. Description usage is recorded for the
 admin user. Provider failures appear as parser warnings while other content is retained.
-PDF uses PdfPig native text/layout; full-page OCR fallback remains disabled here.
+PDF uses PdfObjectKit 0.1.0-preview.2 for native text/layout and Markdown. Package diagnostics
+are returned as warnings. PDF skip-images omits image blocks; enrichment supports standalone
+JPEG streams, with warnings for unsupported encodings. Full-page OCR is not provided.
 The Global Admin-only routes are `POST /api/admin/{format}-playground/convert`, where
 `format` is `pdf`, `docx`, `xlsx`, or `pptx`. Multipart fields are `file` and optional
 `skip_images` (default `true`) and `enrich_images` (default `false`).

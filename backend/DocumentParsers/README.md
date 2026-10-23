@@ -9,8 +9,6 @@ DocumentParsers/
   DocumentParsers.Demo/DocumentParsers.Demo.csproj
   DocumentParsers.Shared/DocumentParsers.Shared.csproj
   DocumentParsers.Shared.Tests/DocumentParsers.Shared.Tests.csproj
-  DocumentParsers.Pdf/DocumentParsers.Pdf.csproj
-  DocumentParsers.Pdf.Tests/DocumentParsers.Pdf.Tests.csproj
   DocumentParsers.Docx/DocumentParsers.Docx.csproj
   DocumentParsers.Docx.Tests/DocumentParsers.Docx.Tests.csproj
   DocumentParsers.Pptx/DocumentParsers.Pptx.csproj
@@ -43,15 +41,12 @@ remain `DocumentParsers`.
 
 Shared owns the parser contracts, result/element models, input/image reading helpers,
 Markdown helpers, image analysis, format resolution and conversion orchestration. Dispatch
-depends only on parser interfaces, so Shared has no dependency on the format libraries.
+uses Office parser interfaces and PdfObjectKit, with no dependency on the Office format libraries.
 The PPTX reading-order resolver lives in the PPTX project; cell-reference utilities live in XLSX.
-Each format project owns its options: `PdfParserOptions`, `DocxParserOptions`,
-`PptxParserOptions`, and `XlsxParserOptions`. Replace former `ParserOptions`
-constructor arguments with the matching type. Common limit defaults are unchanged.
-Only PDF options expose `PdfReadingOrder` (the enum also lives in the PDF project);
-only XLSX options expose `MarkdownRowsPerRegion`. Zip limits apply only to Office formats.
-The demo binds separate `PdfParser`, `DocxParser`, `PptxParser`, and `XlsxParser`
-configuration sections; migrate settings from the former shared `Parser` section.
+Office projects own `DocxParserOptions`, `PptxParserOptions`, and `XlsxParserOptions`.
+PDF conversion uses the pinned `PdfObjectKit` 0.1.0-preview.2 NuGet package through
+`PdfObjectKitConversion` in Shared; the former PDF project, contracts, and options were removed.
+The demo binds `DocxParser`, `PptxParser`, and `XlsxParser` settings.
 SDK packages used by shared helpers/services are referenced by Shared and flow transitively.
 
 Each test project references only its corresponding library. Shared tests cover image services
@@ -62,7 +57,7 @@ input handling. For example, run only the DOCX suite with:
 dotnet test backend/DocumentParsers/DocumentParsers.Docx.Tests/DocumentParsers.Docx.Tests.csproj
 ```
 
-Each format has its own interface, result type and conversion method. There is no shared parsed-document wrapper.
+Each Office format has its own interface, result type and conversion method. There is no shared parsed-document wrapper.
 
 ```csharp
 using DocumentParsers;
@@ -85,9 +80,11 @@ conversion does not write image files. Images are included
 by default, and the parsed result is never modified by this option.
 `DocumentConversionService.ConvertAsync(..., skipImages: true)` also skips
 LLM/OCR enrichment; parsing still extracts images for reuse.
-`new PdfDocumentParser()` extracts PDF text, layout and embedded images locally using PdfPig.
-Pass an authenticated `DocumentIntelligenceClient` to enable `prebuilt-read` OCR fallback
-for pages without native text. Native text pages never call Azure.
+`PdfObjectKitConversion.ConvertAsync(stream, skipImages: true)` converts PDF to Markdown
+and returns package diagnostics as warnings. PDF input is limited to 50 MiB (25 MiB in
+the playground). Skipping PDF images omits their blocks entirely. Otherwise, package
+image metadata is retained. Optional enrichment supports embedded standalone JPEG bytes;
+other encodings produce `ImageEnrichmentUnsupported` warnings. Full-page OCR is not provided.
 DOCX, PPTX and XLSX parsing runs locally with Open XML SDK.
 
 ## Image analysis and dispatch
@@ -125,18 +122,10 @@ Omitting the optional processor produces Markdown using existing image captions/
 
 ## Current behavior and limits
 
-- PDF: PdfPig word extraction followed by `LayoutAnalyzer` coordinate normalization,
-  word-to-line grouping, font-size headings, Markdown lists, paragraph merging and conservative
-  aligned numeric table detection. Default `PdfParserOptions.PdfReadingOrder = PdfReadingOrder.LayoutAware`
-  reads each detected column top-to-bottom, then moves left-to-right, separating sections
-  around spanning content. Images and tables participate in ordering. Set `PdfReadingOrder.RowBased`
-  to read across rows instead, with a two-point tolerance for top-edge alignment.
-  Page attribution and bounding boxes use points measured from the top-left. Classification
-  targets horizontal left-to-right text; same-size headings, nested list indentation,
-  text-only/merged tables and overlapping layouts remain limitations. Vector figures are not
-  rendered. Optional Azure OCR selects pages
-  without native words (including blank pages); pages mixing native text and scanned images
-  need separate image OCR. The OCR request uploads the whole PDF with a page selection.
+- PDF: PdfObjectKit provides native text, layout, tables, image metadata, and Markdown.
+  Its diagnostics are preserved; image-only pages report OCR requirements. Encrypted
+  or unsupported documents can be rejected. Cancellation is checked before and after
+  synchronous package parsing/conversion and between image enrichment calls.
 - DOCX: body order, custom/inherited heading styles, bold text from run/paragraph/character
   styles (including explicit bold-off), nested bullets and numbered lists resolved from
   numbering definitions, list instances and start overrides. Bold is emitted as `**text**`;
@@ -192,4 +181,4 @@ See the [Azure SDK source for 1.0.0](https://github.com/Azure/azure-sdk-for-net/
 [Open XML SDK](https://github.com/dotnet/Open-XML-SDK), and
 [IChatClient documentation](https://learn.microsoft.com/en-us/dotnet/api/microsoft.extensions.ai.ichatclient).
 
-PDF layout implementation follows the [PdfPig layout analysis documentation](https://github.com/UglyToad/PdfPig/wiki/Document-Layout-Analysis).
+PDF conversion uses [PdfObjectKit 0.1.0-preview.2](https://www.nuget.org/packages/PdfObjectKit/0.1.0-preview.2).

@@ -16,10 +16,10 @@ public static class DocumentPlaygroundEndpoints
     {
         MapParser(app, "pdf", async (context, stream, skipImages, enrichImages, token) =>
         {
-            var parser = new PdfDocumentParser();
-            var result = await parser.ParseAsync(stream, token);
-            await EnrichImagesAsync(context, result.Elements.OfType<ImageElement>(), result.Warnings, skipImages || !enrichImages, token);
-            return new { markdown = parser.ConvertToMarkdown(result, token, skipImages), warnings = result.Warnings };
+            var result = await PdfObjectKitConversion.ConvertAsync(stream, skipImages,
+                enrichImages ? (images, warnings, cancellation) => EnrichImagesAsync(context, images, warnings, false, cancellation) : null,
+                token);
+            return new { markdown = result.Markdown, warnings = result.Warnings };
         });
 
         MapParser(app, "docx", async (context, stream, skipImages, enrichImages, token) =>

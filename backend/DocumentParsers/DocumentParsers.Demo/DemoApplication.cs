@@ -61,8 +61,7 @@ internal static class DemoApplication
             }
             var token = cancellation.Token;
             DocumentIntelligenceClient? documentClient = null;
-            var pdfOcr = format == DocumentFormat.Pdf && config.GetValue<bool>("Demo:PdfOcr");
-            if (pdfOcr || analyzeImages)
+            if (analyzeImages)
             {
                 documentClient = new DocumentIntelligenceClient(Endpoint(config, "DocumentIntelligence:Endpoint"),
                     new AzureKeyCredential(Required(config, "DocumentIntelligence:ApiKey")));
@@ -86,11 +85,16 @@ internal static class DemoApplication
             switch (format)
             {
                 case DocumentFormat.Pdf:
-                    var pdf = new PdfDocumentParser(pdfOcr ? documentClient : null,
-                        config.GetSection("PdfParser").Get<PdfParserOptions>());
-                    var pdfResult = await pdf.ParseAsync(stream, token);
-                    markdown = await RenderAsync(pdfResult.Elements.OfType<ImageElement>(), pdfResult.Warnings,
-                        () => pdf.ConvertToMarkdown(pdfResult, token, skipImages));
+                    var pdfResult = await PdfObjectKitConversion.ConvertAsync(stream, skipImages,
+                        processor is null ? null : async (images, warnings, cancellation) =>
+                        {
+                            warnings.AddRange(await processor.ProcessAsync(images, imageOptions, cancellation));
+                        }, token);
+                    markdown = pdfResult.Markdown;
+                    foreach (var warning in pdfResult.Warnings)
+                    {
+                        Console.Error.WriteLine($"{warning.Code}: {warning.Message}");
+                    }
                     break;
                 case DocumentFormat.Docx:
                     var docx = new DocxDocumentParser(config.GetSection("DocxParser").Get<DocxParserOptions>());
@@ -187,9 +191,6 @@ internal static class DemoApplication
                 case "--ocr":
                     values["Demo:ExtractText"] = "true";
                     break;
-                case "--pdf-ocr":
-                    values["Demo:PdfOcr"] = "true";
-                    break;
                 case "--overwrite":
                     values["Demo:Overwrite"] = "true";
                     break;
@@ -228,7 +229,6 @@ internal static class DemoApplication
               --skip-images       Keep image comments only; skip image enrichment
               --analyze-images    Enable Azure OpenAI image descriptions
               --ocr               Also extract image text; requires --analyze-images
-              --pdf-ocr           OCR PDF pages without native text using Azure prebuilt-read
               --overwrite         Replace an existing output file
               --help              Show this help
 

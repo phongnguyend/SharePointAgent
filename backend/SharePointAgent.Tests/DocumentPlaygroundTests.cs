@@ -33,6 +33,41 @@ namespace SharePointAgent.Tests;
 public sealed class DocumentPlaygroundTests
 {
     [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task PdfObjectKitPreservesImageEnrichmentAndSkipOption(bool skipImages, bool expectedEnrichment)
+    {
+        using var stream = new MemoryStream(CreateDocument("pdf", includeImage: true));
+        var calls = 0;
+        var result = await DocumentParsers.PdfObjectKitConversion.ConvertAsync(stream, skipImages,
+            (images, warnings, token) =>
+            {
+                calls++;
+                var image = Assert.Single(images);
+                Assert.Equal("image/jpeg", image.ContentType);
+                Assert.Equal(0xff, image.Data[0]);
+                image.Description = "A test image";
+                image.ExtractedText = "Image OCR";
+                return Task.CompletedTask;
+            });
+        Assert.Equal("PdfObjectKit", result.Metadata["Parser"]);
+        Assert.Contains("Example", result.Markdown);
+        Assert.Equal(expectedEnrichment ? 1 : 0, calls);
+        Assert.Equal(expectedEnrichment, result.Markdown.Contains("A test image"));
+        Assert.Equal(expectedEnrichment, result.Markdown.Contains("Image OCR"));
+    }
+
+    [Fact]
+    public async Task PdfObjectKitHonorsCancellation()
+    {
+        using var stream = new MemoryStream(CreateDocument("pdf"));
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            DocumentParsers.PdfObjectKitConversion.ConvertAsync(stream, cancellationToken: cancellation.Token));
+    }
+
+    [Theory]
     [InlineData("pdf")]
     [InlineData("docx")]
     [InlineData("xlsx")]
@@ -146,7 +181,13 @@ public sealed class DocumentPlaygroundTests
         {
             var builder = new PdfDocumentBuilder();
             var font = builder.AddStandard14Font(Standard14Font.Helvetica);
-            builder.AddPage(600, 800).AddText("Example", 12, new PdfPoint(40, 700), font);
+            var page = builder.AddPage(600, 800);
+            page.AddText("Example", 12, new PdfPoint(40, 700), font);
+            if (includeImage)
+            {
+                var jpeg = Convert.FromBase64String("/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD8qqKKKAP/2Q==");
+                page.AddJpeg(jpeg, new PdfRectangle(40, 500, 140, 600));
+            }
             return builder.Build();
         }
         using var stream = new MemoryStream();

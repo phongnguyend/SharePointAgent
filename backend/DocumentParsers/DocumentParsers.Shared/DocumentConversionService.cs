@@ -1,7 +1,6 @@
 namespace DocumentParsers;
 
 public sealed class DocumentConversionService(
-    IPdfDocumentParser pdf,
     IDocxDocumentParser docx,
     IPptxDocumentParser pptx,
     IXlsxDocumentParser xlsx,
@@ -18,18 +17,13 @@ public sealed class DocumentConversionService(
         var format = (resolver ?? new DocumentFormatResolver()).Resolve(fileName, contentType);
         return format switch
         {
-            DocumentFormat.Pdf => await ConvertAsync(await pdf.ParseAsync(stream, cancellationToken), imageOptions, cancellationToken, skipImages),
+            DocumentFormat.Pdf => await PdfObjectKitConversion.ConvertAsync(stream, skipImages,
+                images is null ? null : (elements, warnings, token) => EnrichAsync(elements, warnings, imageOptions, token, false), cancellationToken),
             DocumentFormat.Docx => await ConvertAsync(await docx.ParseAsync(stream, cancellationToken), imageOptions, cancellationToken, skipImages),
             DocumentFormat.Pptx => await ConvertAsync(await pptx.ParseAsync(stream, cancellationToken), imageOptions, cancellationToken, skipImages),
             DocumentFormat.Xlsx => await ConvertAsync(await xlsx.ParseAsync(stream, cancellationToken), imageOptions, cancellationToken, skipImages),
             _ => throw new NotSupportedException("Unsupported document format.")
         };
-    }
-
-    public async Task<MarkdownConversionResult> ConvertAsync(PdfParseResult result, ImageProcessingOptions? options = null, CancellationToken cancellationToken = default, bool skipImages = false)
-    {
-        await EnrichAsync(result.Elements.OfType<ImageElement>(), result.Warnings, options, cancellationToken, skipImages);
-        return new(pdf.ConvertToMarkdown(result, cancellationToken, skipImages), new Dictionary<string, string>(result.Metadata), result.Warnings.ToArray());
     }
 
     public async Task<MarkdownConversionResult> ConvertAsync(DocxParseResult result, ImageProcessingOptions? options = null, CancellationToken cancellationToken = default, bool skipImages = false)

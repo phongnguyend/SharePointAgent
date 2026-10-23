@@ -24,8 +24,7 @@ Settings load in this order; later values override earlier ones:
 
 Set `Demo:InputPath` and optionally `Demo:OutputPath` in appsettings or user secrets to run
 without arguments from your IDE. Relative input/output paths use the current working directory,
-not the directory containing appsettings. Configure parser limits in the `PdfParser`,
-`DocxParser`, `PptxParser`, or `XlsxParser` section. Each binds to that format's
+not the directory containing appsettings. Configure parser limits in the `DocxParser`, `PptxParser`, or `XlsxParser` section. Each binds to that format's
 options type. Migrate settings from the former `Parser` section to the corresponding
 format sections; the old section is no longer read.
 
@@ -35,14 +34,11 @@ $env:DOCUMENTPARSERS_Demo__SkipImages = "true"
 dotnet run --project backend/DocumentParsers/DocumentParsers.Demo
 ```
 
-Local PDF/DOCX/PPTX/XLSX conversion needs no credentials. PDF text/layout uses PdfPig.
-Use `--pdf-ocr` (or `Demo:PdfOcr=true`) to enable Document Intelligence OCR for PDF pages
-without native text. This option needs only Document Intelligence credentials, not Azure OpenAI.
-Image descriptions are off by default; `--analyze-images` enables the configured vision
-deployment. `--ocr` adds OCR and requires image analysis. `--skip-images` takes precedence
-over both, omitting visible image content and enrichment while retaining an
-`<!-- image: filename.png; caption: Sales overview; alt: Sales chart -->` comment
-per image, omitting empty caption/alt fields. It does not disable explicit `--pdf-ocr`.
+Local conversion needs no credentials. PDF conversion uses PdfObjectKit 0.1.0-preview.2.
+`--analyze-images` enables descriptions and `--ocr` adds image OCR. PDF enrichment supports
+standalone JPEG streams; other encodings retain metadata and produce warnings.
+`--skip-images` suppresses PDF image blocks and all enrichment. Office images retain
+identifier comments when skipped. Full-page PDF OCR and `--pdf-ocr` are no longer supported.
 
 ## User secrets
 
@@ -88,20 +84,7 @@ inputs; see [vision documentation](https://developers.openai.com/api/docs/guides
 dotnet run --project backend/DocumentParsers/DocumentParsers.Demo -- --input "C:\Documents\sample.pdf" --analyze-images --ocr
 ```
 
-Enabling PDF OCR or image analysis sends document content to the configured Azure services and incurs their
-normal usage charges. The demo never prints API keys.
-
-```powershell
-dotnet run --project backend/DocumentParsers/DocumentParsers.Demo -- --input "C:\Documents\scan.pdf" --pdf-ocr --skip-images
-```
-
-PDF OCR uploads the PDF and requests only pages without native text. Without `--pdf-ocr`,
-those pages produce a warning. Local layout analysis detects headings by font size, normalizes
-list markers, detects aligned numeric tables, and reads each column top-to-bottom before
-moving left-to-right between columns, separating sections around spanning content. Ambiguous
-headings/tables remain text; complex layouts and rotated text may require further rules.
-
-PDF reading order defaults to `LayoutAware`. For forms or side-by-side comparisons that
-should read across rows, set `PdfParser:PdfReadingOrder` to `RowBased` in appsettings or
-user secrets (or `DOCUMENTPARSERS_PdfParser__PdfReadingOrder=RowBased`). This applies to
-native PDF text and OCR results. Other document formats are unaffected.
+Image analysis sends supported images to the configured Azure services and incurs their
+normal usage charges. The demo never prints API keys. PdfObjectKit diagnostics are written
+to stderr, including OCR requirements for image-only pages. The former PdfParser settings
+and PDF reading-order options are no longer used.

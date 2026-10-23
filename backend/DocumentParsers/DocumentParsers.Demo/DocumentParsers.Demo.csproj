@@ -7,7 +7,6 @@
     <UserSecretsId>DocumentParsers.Demo-8f17d847-e24a-463f-8c89-afbbfd7c802f</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../DocumentParsers.Pdf/DocumentParsers.Pdf.csproj" />
     <ProjectReference Include="../DocumentParsers.Docx/DocumentParsers.Docx.csproj" />
     <ProjectReference Include="../DocumentParsers.Pptx/DocumentParsers.Pptx.csproj" />
     <ProjectReference Include="../DocumentParsers.Xlsx/DocumentParsers.Xlsx.csproj" />

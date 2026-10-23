@@ -1,3 +1,6 @@
+> Historical design specification: PDF implementation details below are superseded by
+> PdfObjectKit 0.1.0-preview.2. See README.md for the current APIs and limitations.
+
 # Document Parsers --- Implementation Spec
 
 ## Objective
