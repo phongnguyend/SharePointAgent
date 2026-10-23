@@ -1,4 +1,5 @@
 using System.Net;
+using DocumentParsers;
 using System.Net.Http.Json;
 using System.ClientModel.Primitives;
 using Azure;
@@ -39,7 +40,7 @@ public sealed class DocumentPlaygroundTests
     {
         using var stream = new MemoryStream(CreateDocument("pdf", includeImage: true));
         var calls = 0;
-        var result = await DocumentParsers.PdfObjectKitConversion.ConvertAsync(stream, skipImages,
+        var result = await PdfObjectKitConversion.ConvertAsync(stream, skipImages,
             (images, warnings, token) =>
             {
                 calls++;
@@ -64,7 +65,7 @@ public sealed class DocumentPlaygroundTests
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            DocumentParsers.PdfObjectKitConversion.ConvertAsync(stream, cancellationToken: cancellation.Token));
+            PdfObjectKitConversion.ConvertAsync(stream, cancellationToken: cancellation.Token));
     }
 
     [Theory]

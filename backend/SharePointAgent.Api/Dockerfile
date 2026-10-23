@@ -7,7 +7,6 @@ COPY ["backend/SharePointAgent.Persistence/SharePointAgent.Persistence.csproj", 
 COPY ["backend/SharePointAgent.Infrastructure/SharePointAgent.Infrastructure.csproj", "backend/SharePointAgent.Infrastructure/"]
 COPY ["backend/SharePointAgent.Api/SharePointAgent.Api.csproj", "backend/SharePointAgent.Api/"]
 COPY ["backend/DocumentParsers/DocumentParsers.Shared/DocumentParsers.Shared.csproj", "backend/DocumentParsers/DocumentParsers.Shared/"]
-COPY ["backend/DocumentParsers/DocumentParsers.Pdf/DocumentParsers.Pdf.csproj", "backend/DocumentParsers/DocumentParsers.Pdf/"]
 COPY ["backend/DocumentParsers/DocumentParsers.Docx/DocumentParsers.Docx.csproj", "backend/DocumentParsers/DocumentParsers.Docx/"]
 COPY ["backend/DocumentParsers/DocumentParsers.Xlsx/DocumentParsers.Xlsx.csproj", "backend/DocumentParsers/DocumentParsers.Xlsx/"]
 COPY ["backend/DocumentParsers/DocumentParsers.Pptx/DocumentParsers.Pptx.csproj", "backend/DocumentParsers/DocumentParsers.Pptx/"]

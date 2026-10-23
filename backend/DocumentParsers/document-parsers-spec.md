@@ -1,11 +1,9 @@
-> Historical design specification: PDF implementation details below are superseded by
-> PdfObjectKit 0.1.0-preview.2. See README.md for the current APIs and limitations.
-
 # Document Parsers --- Implementation Spec
 
 ## Objective
 
-Implement four C#/.NET parsers for PDF, DOCX, PPTX, and XLSX, each with
+Use PdfObjectKit 0.1.0-preview.2 for PDF conversion and C#/.NET parsers for
+DOCX, PPTX, and XLSX. Each Office parser has
 its own interface and format-specific result structure. Each parser exposes
 `ParseAsync` for extraction and `ConvertToMarkdown` for converting its own
 result to Markdown. Extract images/figures as
@@ -15,7 +13,7 @@ Markdown for reuse by downstream consumers. The output is not tied to a
 specific downstream use case.
 
 ``` text
-PDF  -> IPdfDocumentParser.ParseAsync  -> PdfParseResult
+PDF  -> PdfObjectKitConversion.ConvertAsync -> MarkdownConversionResult
 DOCX -> IDocxDocumentParser.ParseAsync -> DocxParseResult
 PPTX -> IPptxDocumentParser.ParseAsync -> PptxParseResult
 XLSX -> IXlsxDocumentParser.ParseAsync -> XlsxParseResult
@@ -37,26 +35,20 @@ dotnet add package DocumentFormat.OpenXml
 
 ### Project layout
 
-Each concrete parser accepts its own optional options record, defined in its
-format project: `PdfParserOptions`, `DocxParserOptions`, `PptxParserOptions`,
-or `XlsxParserOptions`. Do not use a shared options class or options base class.
-All four expose input size, image count/bytes, and table-cell limits. Office
-options additionally expose Zip entry/expanded-byte limits. Only PDF options
-expose `PdfReadingOrder`; only XLSX options expose `MarkdownRowsPerRegion`.
-Each type validates its own settings. Shared helpers receive primitive limit
-values, keeping Shared independent of format-specific option types.
-
-The demo binds the matching `PdfParser`, `DocxParser`, `PptxParser`, or
-`XlsxParser` configuration section. The former `Parser` section is no longer read.
+Each Office parser accepts its own options record: `DocxParserOptions`,
+`PptxParserOptions`, or `XlsxParserOptions`. These expose input/image/table
+limits and Zip entry/expanded-byte limits. XLSX also exposes `MarkdownRowsPerRegion`.
+The demo binds `DocxParser`, `PptxParser`, and `XlsxParser` configuration sections.
+PDF uses the package defaults through `PdfObjectKitConversion` in Shared, with
+an input limit of 50 MiB (25 MiB at the playground endpoint).
 
 Keep all projects and `DocumentParsers.slnx` under `backend/DocumentParsers`:
 
-- `DocumentParsers.Pdf` and `DocumentParsers.Pdf.Tests`
 - `DocumentParsers.Docx` and `DocumentParsers.Docx.Tests`
 - `DocumentParsers.Pptx` and `DocumentParsers.Pptx.Tests`
 - `DocumentParsers.Xlsx` and `DocumentParsers.Xlsx.Tests`
 - `DocumentParsers.Shared` and `DocumentParsers.Shared.Tests`
-- `DocumentParsers.Demo`: console application referencing all four parsers
+- `DocumentParsers.Demo`: console application referencing the Office parsers and Shared PDF conversion
   for manual conversion, with `appsettings.json`, .NET user secrets,
   environment variables and command-line overrides. Keep credentials out
   of committed settings. Support output paths, image skipping, optional
@@ -75,18 +67,6 @@ type. Each parser exposes a strongly typed contract. Shared semantic
 elements remain reusable within the four result structures.
 
 ``` csharp
-public interface IPdfDocumentParser
-{
-    Task<PdfParseResult> ParseAsync(
-        Stream stream,
-        CancellationToken cancellationToken = default);
-
-    string ConvertToMarkdown(
-        PdfParseResult result,
-        CancellationToken cancellationToken = default,
-        bool skipImages = false);
-}
-
 public interface IDocxDocumentParser
 {
     Task<DocxParseResult> ParseAsync(
@@ -135,17 +115,6 @@ public interface IImageAnalysisService
         ReadOnlyMemory<byte> image,
         string contentType,
         CancellationToken cancellationToken = default);
-}
-
-public sealed class PdfParseResult
-{
-    public int PageCount { get; init; }
-
-    public List<DocumentElement> Elements { get; } = [];
-
-    public Dictionary<string, string> Metadata { get; } = [];
-
-    public List<DocumentParseWarning> Warnings { get; } = [];
 }
 
 public sealed class DocxParseResult
@@ -238,8 +207,7 @@ public sealed record SpreadsheetCell(
 
 Parsers must not dispose the caller's stream. Copy to a seekable
 `MemoryStream` when required. Parsers extract images but must not invoke
-the LLM or image OCR service. PDF parsing may optionally use Azure `prebuilt-read` for pages without native
-text; this is separate from optional OCR of extracted images.
+the LLM or image OCR service. PDF conversion reports OCR requirements as diagnostics; it does not perform full-page OCR.
 
 ## Format-specific result processing
 
@@ -247,7 +215,7 @@ Keep each result in its own format-specific structure through image
 enrichment and Markdown conversion. No shared document wrapper or result
 normalizer is required.
 
-- PDF: traverse ordered `Elements`; retain `PageCount` on the result.
+- PDF: render the package structured document; return Markdown, metadata and diagnostics through `MarkdownConversionResult`.
 - DOCX: traverse ordered `BodyElements`; do not invent page numbers because
   Open XML does not provide reliable rendered pagination.
 - PPTX: traverse `Slides` in presentation order, retaining each slide's
@@ -262,7 +230,7 @@ normalizer is required.
 Implement one processor shared by all formats, accepting an
 `IEnumerable<ImageElement>`, processing options and a cancellation token,
 and returning operation warnings. The orchestrator enumerates images from
-PDF `Elements`, DOCX `BodyElements`, PPTX `Slides[].Elements`, or XLSX
+supported PDF JPEG images via the conversion callback, DOCX `BodyElements`, PPTX `Slides[].Elements`, or XLSX
 `Worksheets[].Images`, and adds returned warnings to the typed result's
 `Warnings`. Pass the existing image instances so enrichment updates that
 result directly. For each image, call
@@ -294,86 +262,28 @@ on failure, retain any successful output, and propagate caller cancellation.
 
 ------------------------------------------------------------------------
 
-# PDF Parser
+# PDF conversion
 
-Use `PdfPig` 0.1.16 for local text and layout parsing. Azure Document
-Intelligence is used only for OCR through `prebuilt-read`; never use
-`prebuilt-layout` or Azure figure extraction.
+Use the pinned [PdfObjectKit 0.1.0-preview.2](https://www.nuget.org/packages/PdfObjectKit/0.1.0-preview.2)
+package referenced by Shared. `PdfObjectKitConversion.ConvertAsync` reads the PDF with
+`PdfReader.Read`, converts using `PdfMarkdownConverter.Convert`, and renders the
+structured document with `PdfMarkdownConverter.Render` after optional enrichment.
 
 ```csharp
-var localParser = new PdfDocumentParser();
-var parserWithOcr = new PdfDocumentParser(documentIntelligenceClient, options);
+var result = await PdfObjectKitConversion.ConvertAsync(stream, skipImages: true,
+    cancellationToken: cancellationToken);
 ```
 
-Extract words with `NearestNeighbourWordExtractor` and pass words plus embedded
-images to the PDF project's `LayoutAnalyzer`:
+Return package warning/error diagnostics as `DocumentParseWarning` entries.
+Skip-images omits image blocks entirely and bypasses enrichment. Otherwise retain
+package image metadata. An optional callback enriches standalone JPEG bytes and maps
+image descriptions/OCR text back to the package image model. Unsupported encodings
+retain metadata with `ImageEnrichmentUnsupported` warnings when enrichment is requested.
+Full-page OCR is not provided. Encrypted or unsupported PDFs can be rejected.
 
-```text
-PdfPig words + bounding boxes / images + bounding boxes
-    -> normalize coordinates to top-left points
-    -> group words into lines and split large horizontal gaps
-    -> classify heading, list, paragraph and table candidates
-    -> identify page sections and column gutters (LayoutAware default)
-    -> read columns left-to-right, each top-to-bottom (or explicit RowBased)
-    -> merge adjacent aligned paragraph lines
-    -> DocumentElement[]
-```
-
-Normalize word geometry using the axis-aligned envelope of all four corners.
-Group words by vertical alignment with a font-relative tolerance that keeps
-short list glyphs attached. Classify short lines with fonts at least 1.2 times
-the page's dominant body size as headings (level 1 at 1.6 times, otherwise 2).
-Normalize supported bullets and decimal list markers into Markdown `TextElement`
-content; paragraphs also use `TextElement`.
-
-Promote a table candidate only when at least three nearby rows have matching
-cell starts, short cells, and numeric data in at least half the data rows.
-Enforce `MaxTableCells`, escape Markdown cell content, and consume table words
-once. The first row supplies the Markdown header. Ambiguous candidates remain
-text. This deliberately avoids treating every aligned prose column as a table.
-
-`PdfParserOptions.PdfReadingOrder` defaults to `PdfReadingOrder.LayoutAware`.
-Use recursive whitespace partitioning: continuous vertical gutters wider than
-18 points separate columns when each side has at least two elements and their
-vertical ranges overlap. Read each column completely, from left to right.
-When spanning content closes a gutter, split sections at horizontal whitespace,
-prioritizing gaps adjacent to content at least 65% of the region width. Recheck
-columns within each section. Text, images and intact tables participate together.
-Fall back to row ordering for ambiguous/overlapping regions or after 64 splits.
-This is a geometric heuristic; sparse columns and unusual spans may need RowBased
-or further rules. OCR lines use the same selected ordering mode.
-
-Set `PdfReadingOrder.RowBased` for explicit top-to-bottom, then left-to-right
-ordering within each row across columns. In row ordering, group
-top edges within two points of the first top edge in a row; do not chain the
-tolerance across successive items. Text, tables and images follow the same
-rule, regardless of element height. Elements without geometry follow positioned
-content in source order. Merge nearby aligned paragraph lines only when adjacent
-in this reading order, without merging list items or crossing intervening text,
-headings, tables or images. Retain page numbers, geometry, and total page count
-(including empty pages), then assign sequential `Order` across pages.
-
-Extract embedded raster images locally as PNG, enforcing image count/byte limits
-and checking decoded pixel size before conversion. Warn when an image cannot
-be decoded. Preserve page and bounding box; do not rasterize arbitrary pages
-or call Azure to obtain figures. Vector figures are not extracted as images.
-
-Supplying an optional Document Intelligence client enables OCR fallback for
-pages with no non-whitespace native words. Send one `prebuilt-read` request,
-with `Pages` restricted to those page numbers. The request uploads the whole
-PDF but requests analysis only for those pages. Map OCR lines only for requested
-pages, normalize geometry to points, and never duplicate native text. Propagate
-service errors and cancellation. Without a client, retain local output and warn
-that OCR is not configured when pages without native text are encountered.
-Blank pages may also be selected. Mixed text/image pages with any native text
-are not automatically OCRed; extracted-image OCR remains a separate option.
-
-Layout classification is heuristic and targets horizontal left-to-right text.
-Same-size headings, nested list indentation, text-only tables, merged/empty cells,
-rotated text and complex overlapping layouts need additional rules. Font sizes
-are inferred per page, so a title-only page may remain ordinary text. OCR lines
-use normalized geometry and shared reading order, without native font-based
-classification. Do not claim full semantic reconstruction or Azure layout parity.
+Do not dispose the caller's stream. Check cancellation during input copying, before
+and after synchronous package conversion, and between image enrichment calls.
+The playground uses this converter directly; Office parsers keep their existing APIs.
 
 ------------------------------------------------------------------------
 
@@ -633,7 +543,7 @@ Shared internal helpers for escaping, tables and image text are allowed;
 each parser owns format-specific traversal and Markdown output. Conversion
 must not remove or reorder source data, metadata or warnings on the result.
 
-- PDF: render `Elements` in reading order, retaining page attribution.
+- PDF: render the package structured document using its Markdown converter.
 - DOCX: render `BodyElements` in order, preserving inline image placement.
 - PPTX: render slides in presentation order with `<!-- Slide number: 3 -->`
   comments (using each slide's number), including empty slides, and render
@@ -699,13 +609,14 @@ public interface IDocumentFormatResolver
 Supported types:
 
 ``` text
-.pdf  -> IPdfDocumentParser  -> PdfDocumentParser  -> PdfParseResult
+.pdf  -> PdfObjectKitConversion -> PdfObjectKit -> MarkdownConversionResult
 .docx -> IDocxDocumentParser -> DocxDocumentParser -> DocxParseResult
 .pptx -> IPptxDocumentParser -> PptxDocumentParser -> PptxParseResult
 .xlsx -> IXlsxDocumentParser -> XlsxDocumentParser -> XlsxParseResult
 ```
 
-The orchestrator switches on `DocumentFormat`, calls the corresponding
+For PDF, the orchestrator calls `PdfObjectKitConversion.ConvertAsync`.
+For Office formats, it switches on `DocumentFormat`, calls the corresponding
 typed parser's `ParseAsync`, enriches images on that typed result, then
 calls the same parser's `ConvertToMarkdown(result, cancellationToken)`.
 Keep warnings and source metadata available on the original result for
@@ -750,9 +661,8 @@ table, formula has no cached value.
 
 Create unit/integration fixtures for each format.
 
-PDF: - local text and reading order; - multi-page geometry; - embedded images;
-- optional OCR page selection; - no Azure calls for native text; - input/image
-limits; - cancellation; - multi-column layout.
+PDF: package integration tests for native text, diagnostics, JPEG enrichment, image
+skipping, malformed input, and cancellation. Package layout behavior is owned upstream.
 
 DOCX: - headings; - paragraph text; - image between text runs; -
 multiple images; - table; - image in table; - lists; - custom styles.
@@ -787,16 +697,16 @@ model/configuration and description context, and cancellation propagation.
 
 The implementation is complete when:
 
-1.  Each parser implements its own specific interface: `IPdfDocumentParser`,
-    `IDocxDocumentParser`, `IPptxDocumentParser`, or `IXlsxDocumentParser`.
-2.  Parsers return `PdfParseResult`, `DocxParseResult`, `PptxParseResult`,
+1.  Office parsers implement `IDocxDocumentParser`, `IPptxDocumentParser`, or
+    `IXlsxDocumentParser`; PDF uses the package conversion adapter.
+2.  Office parsers return `DocxParseResult`, `PptxParseResult`,
     or `XlsxParseResult`, retaining these types throughout processing.
 3.  Text/table/image order is preserved reasonably for each format.
 4.  Images are extracted with MIME type and useful source metadata.
 5.  Image enrichment is format-independent: `DescribeAsync` uses an LLM,
     and `ExtractTextAsync` performs optional OCR with separate output.
 6.  Each parser implements `ConvertToMarkdown` for its specific result type.
-7.  PDF native text is not duplicated by OCR.
+7.  PDF conversion preserves package diagnostics and supports image skipping.
 8.  DOCX inline images preserve surrounding text order.
 9.  PPTX uses a replaceable position-based reading-order resolver.
 10. XLSX retains spreadsheet semantics and avoids giant unbounded
@@ -809,18 +719,18 @@ The implementation is complete when:
 
 Implement in this order:
 
-1.  Four parser interfaces/result structures and shared element models.
+1.  Three Office parser interfaces/result structures and shared element models.
 2.  Shared Markdown utilities for use by each parser's conversion method.
 3.  Image service (LLM description and OCR) and ImageDescriptionProcessor.
 4.  DOCX parser + Markdown conversion + tests.
 5.  PPTX parser + Markdown conversion + tests.
 6.  XLSX parser + Markdown conversion + tests.
-7.  PDF parser + Markdown conversion + tests.
+7.  PdfObjectKit conversion integration + tests.
 8.  Format resolver and typed parser orchestration.
 9.  Security/limits/warnings.
 10. End-to-end tests.
 
 Before coding a parser, inspect the installed NuGet package version and
 compile against its actual API. In particular, do not invent Azure
-Document Intelligence OCR methods, PdfPig APIs or OpenXML members from memory;
+Document Intelligence OCR methods, PdfObjectKit APIs or OpenXML members from memory;
 adapt to the exact package version and add tests for the selected API.
