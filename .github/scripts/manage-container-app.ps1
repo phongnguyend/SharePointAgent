@@ -40,7 +40,7 @@ $outputName = switch ($Component) {
         'ollayaContainerAppName'
     }
 }
-# Ollaya has its own template and environment (infra/Ollaya); the other apps come from infra/ContainerApps.
+# Ollaya has its own infrastructure deployment.
 $deploymentName = if ($Component -eq 'Ollaya') {
     "ollaya-$EnvironmentName"
 } else {

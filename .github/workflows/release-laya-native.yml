@@ -1,0 +1,68 @@
+name: Release Laya Native
+run-name: Release Laya Native (${{ inputs.environment }})
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options: [dev, test]
+        default: dev
+      rebuild:
+        description: Rebuild remotely even if the same content tag exists
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      orchestrated:
+        description: Caller holds the environment deployment lock
+        type: boolean
+        default: false
+      rebuild:
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: ${{ inputs.orchestrated && format('release-layanative-{0}-{1}', github.run_id, github.run_attempt) || format('deployment-{0}', inputs.environment) }}
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    # Native CUDA compilation and model downloads run in ACR Tasks, not on this runner.
+    timeout-minutes: 300
+    environment: ${{ inputs.environment }}
+    env:
+      DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      LAYA_NATIVE_REBUILD: ${{ inputs.rebuild && 'true' || 'false' }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Test packaging without model downloads
+        run: python -B -m unittest discover -s .github/scripts/tests -p test_laya_native.py
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Build remotely, release, and smoke-test
+        env:
+          LAYA_NATIVE_API_KEY: ${{ secrets.LAYA_NATIVE_API_KEY }}
+        run: ./.github/scripts/release-laya-native.ps1 -EnvironmentName $env:DEPLOY_ENVIRONMENT
+      - name: Remove temporary request file
+        if: always()
+        run: |
+          $path = Join-Path $env:RUNNER_TEMP 'layanative.request.json'
+          if (Test-Path -LiteralPath $path) {
+            Remove-Item -LiteralPath $path -Force
+          }

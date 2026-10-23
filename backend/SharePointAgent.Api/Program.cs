@@ -19,6 +19,8 @@ builder.Services.AddHostedService<AgentSkillDefaultsInitializer>();
 builder.Services.AddDocumentSigningServices(builder.Configuration);
 builder.Services.AddIndexedFileReindexServices(builder.Configuration);
 builder.Services.AddOllayaClient(builder.Configuration);
+builder.Services.AddWinnowNativeClient(builder.Configuration);
+builder.Services.AddLayaNativeClient(builder.Configuration);
 builder.Services.AddJevClient(builder.Configuration);
 builder.Services.AddMicrosoftDecisionClient(builder.Configuration);
 builder.Services.AddWorkspacePlayground();

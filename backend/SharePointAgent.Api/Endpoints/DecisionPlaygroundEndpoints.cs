@@ -24,7 +24,7 @@ public static class DecisionPlaygroundEndpoints
             {
                 return Results.StatusCode(StatusCodes.Status403Forbidden);
             }
-            if (provider is not ("jev" or "microsoft-decision" or "ollaya"))
+            if (provider is not ("jev" or "microsoft-decision" or "ollaya" or "winow-native" or "laya-native"))
             {
                 return Results.NotFound();
             }
@@ -37,7 +37,9 @@ public static class DecisionPlaygroundEndpoints
             object parsedQuestions;
             try
             {
-                parsedQuestions = provider == "ollaya"
+                parsedQuestions = provider is "winow-native" or "laya-native"
+                    ? questions
+                    : provider == "ollaya"
                     ? questions.Deserialize<Dictionary<string, OllayaQuestion>>(Json)!
                     : provider == "jev"
                     ? questions.Deserialize<Dictionary<string, JevQuestion>>(Json)!
@@ -56,7 +58,11 @@ public static class DecisionPlaygroundEndpoints
                 {
                     return Results.BadRequest(new { error = "Ollaya requires a text state and questions with type choice, score, or noul and instructions." });
                 }
-                object result = provider == "ollaya"
+                object result = provider == "winow-native"
+                    ? await context.RequestServices.GetRequiredService<WinnowNativeClient>().EvaluateAsync(input, cancellationToken)
+                    : provider == "laya-native"
+                    ? await context.RequestServices.GetRequiredService<LayaNativeClient>().EvaluateAsync(input, cancellationToken)
+                    : provider == "ollaya"
                     ? await context.RequestServices.GetRequiredService<OllayaClient>().DecideAsync(state.GetString()!,
                         (Dictionary<string, OllayaQuestion>)parsedQuestions, cancellationToken)
                     : provider == "jev"
@@ -102,6 +108,11 @@ public static class DecisionPlaygroundEndpoints
 
     private static IResult ConfigurationError(string provider)
     {
+        if (provider is "winow-native" or "laya-native")
+        {
+            var section = provider == "winow-native" ? "WinowNative" : "LayaNative";
+            return Results.Json(new { error = $"{section} configuration is invalid. Check {section}:Endpoint (server base URL), ApiKey, Model, and TimeoutSeconds (1–3600) in the API host configuration." }, statusCode: 502);
+        }
         if (provider == "ollaya")
         {
             return Results.Json(new { error = "Ollaya configuration is invalid. Check Ollaya:Endpoint (server base URL), ApiKey, Model, DecidePath, and TimeoutSeconds in the API host configuration." }, statusCode: 502);

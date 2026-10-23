@@ -24,6 +24,34 @@ namespace SharePointAgent.Infrastructure;
 
 public static class DependencyInjection
 {
+    public static IServiceCollection AddWinnowNativeClient(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<WinnowNativeOptions>().Bind(configuration.GetSection(WinnowNativeOptions.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(options => string.IsNullOrWhiteSpace(options.Endpoint) ||
+                (Uri.TryCreate(options.Endpoint, UriKind.Absolute, out var uri) &&
+                 uri.Scheme is "http" or "https" && uri.UserInfo.Length == 0 &&
+                 uri.Query.Length == 0 && uri.Fragment.Length == 0),
+                "WinowNative:Endpoint must be an HTTP(S) server base URL without credentials, query or fragment.");
+        services.AddHttpClient<WinnowNativeClient>(client => client.Timeout = Timeout.InfiniteTimeSpan)
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+        return services;
+    }
+
+    public static IServiceCollection AddLayaNativeClient(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<LayaNativeOptions>().Bind(configuration.GetSection(LayaNativeOptions.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(options => string.IsNullOrWhiteSpace(options.Endpoint) ||
+                (Uri.TryCreate(options.Endpoint, UriKind.Absolute, out var uri) &&
+                 uri.Scheme is "http" or "https" && uri.UserInfo.Length == 0 &&
+                 uri.Query.Length == 0 && uri.Fragment.Length == 0),
+                "LayaNative:Endpoint must be an HTTP(S) server base URL without credentials, query or fragment.");
+        services.AddHttpClient<LayaNativeClient>(client => client.Timeout = Timeout.InfiniteTimeSpan)
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+        return services;
+    }
+
     public static IServiceCollection AddMicrosoftDecisionClient(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<MicrosoftDecisionOptions>().Bind(configuration.GetSection(MicrosoftDecisionOptions.SectionName))

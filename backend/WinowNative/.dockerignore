@@ -1,0 +1,4 @@
+*
+!Dockerfile
+!download_model.py
+!entrypoint.py

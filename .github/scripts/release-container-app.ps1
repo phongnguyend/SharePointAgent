@@ -76,6 +76,20 @@ if ($Component -eq 'Api') {
     Speech__UseManagedIdentity = 'true'
   }
   $apiEnvironment = $commonEnvironment + @($apiValues.GetEnumerator() | ForEach-Object { @{ name = $_.Key; value = [string]$_.Value } })
+  $apiEnvironment += @{ name = 'WinowNative__Endpoint'; value = (Get-OptionalDeploymentOutput 'winownative' 'winownativeEndpoint') }
+  if (-not [string]::IsNullOrWhiteSpace($env:WINNOW_NATIVE_API_KEY)) {
+    $apiEnvironment += @{ name = 'WinowNative__ApiKey'; secretRef = 'winownative-api-key' }
+    $secrets += @{ name = 'winownative-api-key'; value = $env:WINNOW_NATIVE_API_KEY }
+  } else {
+    $apiEnvironment += @{ name = 'WinowNative__ApiKey'; value = '' }
+  }
+  $apiEnvironment += @{ name = 'LayaNative__Endpoint'; value = (Get-OptionalDeploymentOutput 'layanative' 'layanativeEndpoint') }
+  if (-not [string]::IsNullOrWhiteSpace($env:LAYA_NATIVE_API_KEY)) {
+    $apiEnvironment += @{ name = 'LayaNative__ApiKey'; secretRef = 'layanative-api-key' }
+    $secrets += @{ name = 'layanative-api-key'; value = $env:LAYA_NATIVE_API_KEY }
+  } else {
+    $apiEnvironment += @{ name = 'LayaNative__ApiKey'; value = '' }
+  }
   # Optional; when unset, the current values are kept.
   $workspaceValues = @{
     AgentWorkspace__DynamicSessions__PoolManagementEndpoint = (Get-DynamicSessionsPoolEndpoint)

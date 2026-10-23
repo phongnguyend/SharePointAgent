@@ -1,0 +1,51 @@
+name: Deploy Winow Native Infrastructure
+run-name: Deploy Winow Native Infrastructure (${{ inputs.environment }})
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options: [dev, test]
+        default: dev
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: deployment-${{ inputs.environment }}
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: ${{ inputs.environment }}
+    env:
+      DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      WINNOW_NATIVE_IMAGE: ${{ vars.WINNOW_NATIVE_IMAGE }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy infrastructure
+        env:
+          WINNOW_NATIVE_API_KEY: ${{ secrets.WINNOW_NATIVE_API_KEY }}
+        run: ./.github/scripts/deploy-winow-native.ps1 -EnvironmentName $env:DEPLOY_ENVIRONMENT
+      - name: Remove temporary files
+        if: always()
+        run: |
+          foreach ($name in @('winownative.parameters.json', 'winownative.json')) {
+            $path = Join-Path $env:RUNNER_TEMP $name
+            if (Test-Path -LiteralPath $path) {
+              Remove-Item -LiteralPath $path -Force
+            }
+          }

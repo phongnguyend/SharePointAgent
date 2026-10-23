@@ -1,6 +1,14 @@
 import { request } from './http'
 
-export type DecisionProvider = 'jev' | 'microsoft-decision' | 'ollaya'
+export type DecisionProvider = 'jev' | 'microsoft-decision' | 'ollaya' | 'winow-native' | 'laya-native'
+
+export const decisionProviderNames: Record<DecisionProvider, string> = {
+  jev: 'Jev',
+  'microsoft-decision': 'Microsoft Decision',
+  ollaya: 'Ollaya',
+  'winow-native': 'Winnow Native',
+  'laya-native': 'Laya Native',
+}
 
 export interface DecisionEvaluation {
   result: {

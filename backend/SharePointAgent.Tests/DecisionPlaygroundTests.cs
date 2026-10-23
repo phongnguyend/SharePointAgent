@@ -63,6 +63,14 @@ public sealed class DecisionPlaygroundTests
     }
 
     [Theory]
+    [InlineData("winow-native", AppRoles.GlobalAdmin, false, false, 200)]
+    [InlineData("laya-native", AppRoles.GlobalAdmin, false, false, 200)]
+    [InlineData("winow-native", AppRoles.User, false, false, 403)]
+    [InlineData("laya-native", AppRoles.User, false, false, 403)]
+    [InlineData("winow-native", AppRoles.GlobalAdmin, true, false, 400)]
+    [InlineData("laya-native", AppRoles.GlobalAdmin, true, false, 400)]
+    [InlineData("winow-native", AppRoles.GlobalAdmin, false, true, 502)]
+    [InlineData("laya-native", AppRoles.GlobalAdmin, false, true, 502)]
     [InlineData("ollaya", AppRoles.GlobalAdmin, false, false, 200)]
     [InlineData("ollaya", AppRoles.User, false, false, 403)]
     [InlineData("ollaya", AppRoles.GlobalAdmin, true, false, 400)]
@@ -90,6 +98,14 @@ public sealed class DecisionPlaygroundTests
         builder.Services.AddSingleton(new OllayaClient(http, Options.Create(new OllayaOptions
         {
             Endpoint = "https://ollaya.example", ApiKey = "secret-key"
+        })));
+        builder.Services.AddSingleton(new WinnowNativeClient(http, Options.Create(new WinnowNativeOptions
+        {
+            Endpoint = "https://winnow.example", ApiKey = "secret-key"
+        })));
+        builder.Services.AddSingleton(new LayaNativeClient(http, Options.Create(new LayaNativeOptions
+        {
+            Endpoint = "https://laya.example", ApiKey = "secret-key"
         })));
         builder.Services.AddSingleton(new JevClient(http, Options.Create(new JevOptions { ApiKey = "secret-key" })));
         builder.Services.AddSingleton(new MicrosoftDecisionClient(http, Options.Create(new MicrosoftDecisionOptions

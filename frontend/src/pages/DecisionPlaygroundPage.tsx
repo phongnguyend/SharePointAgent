@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { FlaskConical, Play, RotateCcw, Square } from 'lucide-react'
 import { PlaygroundRequestTabs, type PlaygroundRequestTab } from '../components/PlaygroundRequestTabs'
-import { evaluateDecision, type DecisionEvaluation, type DecisionProvider } from '../api/decisionClient'
+import { decisionProviderNames, evaluateDecision, type DecisionEvaluation, type DecisionProvider } from '../api/decisionClient'
 import { CopyButton, ErrorBanner } from '../components/ui'
 import { JsonCode, JsonEditor } from '../components/JsonCode'
 
@@ -15,7 +15,7 @@ const sample = JSON.stringify({
 }, null, 2)
 
 export default function DecisionPlaygroundPage({ provider }: { provider: DecisionProvider }) {
-  return <PlaygroundRequestTabs label={provider === 'ollaya' ? 'Ollaya' : provider === 'jev' ? 'Jev' : 'Microsoft Decision'} active>
+  return <PlaygroundRequestTabs label={decisionProviderNames[provider]} active>
     {tab => <DecisionRequest provider={provider} tab={tab} />}
   </PlaygroundRequestTabs>
 }
@@ -32,7 +32,7 @@ function DecisionRequest({ provider, tab }: { provider: DecisionProvider; tab: P
   useEffect(() => {
     onSummary(requestId, '', running)
   }, [requestId, running, onSummary])
-  const name = provider === 'ollaya' ? 'Ollaya' : provider === 'jev' ? 'Jev' : 'Microsoft Decision'
+  const name = decisionProviderNames[provider]
 
   const run = async () => {
     if (controller.current) {
@@ -71,7 +71,9 @@ function DecisionRequest({ provider, tab }: { provider: DecisionProvider; tab: P
       {tab.headerActions}
     </div>
     <div className="card-body stack">
-      <p className="decision-description">Test choice, score, or yes/no (noul) with {name}. {provider === 'ollaya' ? 'Uses the configured Ollaya model. A cold replica may take a minute to load; subsequent requests reuse the model.' : 'Runs may incur charges; usage is recorded under your user in SystemOne Usage.'}</p>
+      <p className="decision-description">Test choice, score, or yes/no (noul) with {name}. {provider === 'jev' || provider === 'microsoft-decision'
+        ? 'Runs may incur charges; usage is recorded under your user in SystemOne Usage.'
+        : 'Uses the configured self-hosted model. A cold replica may take several minutes to start; subsequent requests reuse the loaded model.'}</p>
       <div className="playground-request-boundary">
       {requestTabs}
       <div className="stack playground-request-content" role="tabpanel" id={panelId} aria-labelledby={tabId}>

@@ -8,6 +8,8 @@
 | [DynamicSessions](DynamicSessions/main.bicep) | `dynamic-sessions-<environment>` | The sandbox host session pool, in the Container Apps environment |
 | [Sandboxes](Sandboxes/main.bicep) | `sandboxes-<environment>` | The sandbox group |
 | [Ollaya](Ollaya/main.bicep) | `ollaya-<environment>` | Ollaya's own GPU environment and app |
+| [Winow Native](WinowNative/README.md) | `winownative-<environment>` | Native Winnow E4B server and its T4 environment |
+| [Laya Native](LayaNative/README.md) | `layanative-<environment>` | Native Laya server and its CPU consumption environment |
 
 Use this guide in deployment order, or jump to an operational task:
 
@@ -74,6 +76,8 @@ Configure these settings under **Settings → Environments → dev/test → Envi
 | `DOCUMENTSIGNING__RETURNURL` | Variable | API signing: `https://YOUR_FRONTEND/attachment-files`; required for the DocuSign return redirect. Runtime key: `DocumentSigning__ReturnUrl`. |
 | `FRONTEND_ORIGIN` | Variable | Frontend HTTPS origin for CORS; configure its Entra redirect URI separately |
 | `JEV_API_KEY` | Optional secret | TypeSafe provider API key for Jev. API/Background releases and Container Apps application-image deployments map it to `Jev__ApiKey` through a Container App secret. AgentHost uses a Foundry connection secret reference. Omit to leave Jev unconfigured. |
+| `LAYA_NATIVE_API_KEY` | Secret | Required when deploying or releasing the Laya Native inference image. Single-line bearer token, at least 32 characters. Service container key: `LAYA_API_KEY`; Release API maps the same secret to `LayaNative__ApiKey` for the playground. |
+| `LAYA_NATIVE_IMAGE` | Optional variable | Explicit Laya Native image override for infrastructure deployment or rollback, preferably `YOUR_REGISTRY.azurecr.io/layanative@sha256:DIGEST`. When unset, infrastructure reruns preserve the deployed image; the first deployment uses the bootstrap hello image. Bicep parameter: `layanativeImage`. |
 | `MARKITDOWN_API_KEY` | Secret | Shared MarkItDown authentication key, at least 32 characters |
 | `MARKITDOWN_IMAGE` | Optional variable | Existing MarkItDown image, e.g. `YOUR_REGISTRY.azurecr.io/markitdown:EXISTING_TAG`; set all three image variables together |
 | `OLLAYA_API_KEY` | Secret | Deploy Ollaya infrastructure and Release Ollaya: bearer key the Ollaya server requires, at least 32 characters; Ollaya ingress is external. API, Background, and AgentHost releases pass it as `Ollaya__ApiKey` when set. Container key: `OLLAYA_API_KEY`. |
@@ -94,6 +98,14 @@ Configure these settings under **Settings → Environments → dev/test → Envi
 | `SHAREPOINT_TENANT_ID` | Variable | Required for application deployments: Entra tenant ID for SharePoint Graph access and application sign-in; can differ from `AZURE_TENANT_ID` and has no fallback |
 | `SQL_ENTRA_ADMIN_OBJECT_ID` | Variable | Object ID of the SQL administrator matching the configured principal type, not its application/client ID |
 | `SQL_ENTRA_ADMINISTRATOR_PRINCIPAL_TYPE` | Optional variable | `Application` (default), `Group` or `User`; use `Application` for a managed identity or service principal |
+| `WINNOW_NATIVE_API_KEY` | Secret | Required when deploying or releasing the Winnow Native inference image. Single-line bearer token, at least 32 characters. Service container key: `WINNOW_API_KEY`; Release API maps the same secret to `WinowNative__ApiKey` for the playground. |
+| `WINNOW_NATIVE_IMAGE` | Optional variable | Explicit Winnow Native image override for infrastructure deployment or rollback, preferably `YOUR_REGISTRY.azurecr.io/winownative@sha256:DIGEST`. When unset, infrastructure reruns preserve the deployed image; the first deployment uses the bootstrap hello image. Bicep parameter: `winownativeImage`. |
+
+### Configure Winnow Native and Laya Native
+
+For each service you use, generate a separate random key using the [service-key generation script](#generate-the-markitdown-api-key) and save it in the matching GitHub environment (`dev` / `test`) as `WINNOW_NATIVE_API_KEY` or `LAYA_NATIVE_API_KEY`. Run that service's infrastructure and release workflows, then **Release API** to configure the playground connection. To rotate a key, update the environment secret and rerun the service release followed by **Release API**.
+
+Endpoint URLs do not need GitHub environment variables: Release API reads `winownativeEndpoint` and `layanativeEndpoint` from the respective infrastructure deployments. Image variables are optional overrides, not required after every release; clear an obsolete override before a later infrastructure rerun. `rebuild` is a release workflow input, not a GitHub environment setting. Start/stop workflows use the existing Azure OIDC secrets and do not require service API keys. See the independent [Winnow Native](WinowNative/README.md) and [Laya Native](LayaNative/README.md) deployment guides.
 
 ### Configure the Jev API key
 
@@ -432,6 +444,8 @@ of 240 seconds. Upload and queue time also count toward ingress time; large
 summary jobs can still exceed it. This API remains synchronous.
 
 ### Ollaya decision model
+
+For native runtimes without Ollaya, see [Winow Native](WinowNative/README.md) and [Laya Native](LayaNative/README.md). Each has separate infrastructure, release, and start/stop workflows. Their releases build images and download pinned models remotely in ACR Tasks, without local Docker. These standalone workflows do not change the application's existing Ollaya configuration.
 
 [Ollaya](../backend/Ollaya/README.md) serves the `winnow:e4b` decision model for the application to call, as MarkItDown and PageIndex are. The model needs about 9 GB of GPU memory, more than a Consumption replica's 8 GiB, so it runs on a serverless NVIDIA T4 GPU, in a Container Apps environment of its own.
 
