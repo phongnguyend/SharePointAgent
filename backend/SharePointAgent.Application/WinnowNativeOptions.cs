@@ -4,7 +4,7 @@ namespace SharePointAgent.Application;
 
 public sealed class WinnowNativeOptions
 {
-    public const string SectionName = "WinowNative";
+    public const string SectionName = "WinnowNative";
 
     public string? Endpoint { get; set; }
 

@@ -10,7 +10,7 @@ param(
     [string] $ResourceGroup
 )
 
-$Component = 'WinowNative'
+$Component = 'WinnowNative'
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 

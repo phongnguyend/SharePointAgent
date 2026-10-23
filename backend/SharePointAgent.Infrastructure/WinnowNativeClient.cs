@@ -14,7 +14,7 @@ public sealed class WinnowNativeClient(HttpClient client, IOptions<WinnowNativeO
         var settings = options.Value;
         if (string.IsNullOrWhiteSpace(settings.Endpoint) || string.IsNullOrWhiteSpace(settings.ApiKey))
         {
-            throw new InvalidOperationException($"Configure WinowNative:Endpoint and ApiKey.");
+            throw new InvalidOperationException($"Configure WinnowNative:Endpoint and ApiKey.");
         }
         var state = input.GetProperty("state");
         var questions = input.GetProperty("questions");

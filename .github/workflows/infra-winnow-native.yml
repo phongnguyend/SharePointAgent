@@ -39,7 +39,7 @@ jobs:
       - name: Deploy infrastructure
         env:
           WINNOW_NATIVE_API_KEY: ${{ secrets.WINNOW_NATIVE_API_KEY }}
-        run: ./.github/scripts/deploy-winow-native.ps1 -EnvironmentName $env:DEPLOY_ENVIRONMENT
+        run: ./.github/scripts/deploy-winnow-native.ps1 -EnvironmentName $env:DEPLOY_ENVIRONMENT
       - name: Remove temporary files
         if: always()
         run: |

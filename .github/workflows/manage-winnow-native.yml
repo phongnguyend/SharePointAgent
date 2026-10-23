@@ -12,7 +12,7 @@ run-name: ${{ inputs.action }} - System One - Winnow Native (${{ inputs.environm
           - test
         default: dev
       action:
-        description: WinowNative Container App action
+        description: WinnowNative Container App action
         required: true
         type: choice
         options:
@@ -49,9 +49,9 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       # Stopped, the app runs no replicas and uses no inference compute, and requests cannot wake it.
-      - name: Start or stop WinowNative
+      - name: Start or stop WinnowNative
         run: |
-          & ./.github/scripts/manage-winow-native.ps1 `
+          & ./.github/scripts/manage-winnow-native.ps1 `
             -EnvironmentName $env:DEPLOY_ENVIRONMENT `
             -Action $env:CONTAINER_ACTION `
             -ResourceGroup $env:AZURE_RESOURCE_GROUP

@@ -1,12 +1,12 @@
 import { request } from './http'
 
-export type DecisionProvider = 'jev' | 'microsoft-decision' | 'ollaya' | 'winow-native' | 'laya-native'
+export type DecisionProvider = 'jev' | 'microsoft-decision' | 'ollaya' | 'winnow-native' | 'laya-native'
 
 export const decisionProviderNames: Record<DecisionProvider, string> = {
   jev: 'Jev',
   'microsoft-decision': 'Microsoft Decision',
   ollaya: 'Ollaya',
-  'winow-native': 'Winnow Native',
+  'winnow-native': 'Winnow Native',
   'laya-native': 'Laya Native',
 }
 

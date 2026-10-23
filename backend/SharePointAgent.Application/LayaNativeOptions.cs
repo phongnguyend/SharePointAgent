@@ -11,7 +11,7 @@ public sealed class LayaNativeOptions
     public string? ApiKey { get; set; }
 
     [Required]
-    public string Model { get; set; } = "multilingual";
+    public string Model { get; set; } = "english";
 
     [Range(1, 3600)]
     public int TimeoutSeconds { get; set; } = 300;

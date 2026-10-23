@@ -63,13 +63,13 @@ public sealed class DecisionPlaygroundTests
     }
 
     [Theory]
-    [InlineData("winow-native", AppRoles.GlobalAdmin, false, false, 200)]
+    [InlineData("winnow-native", AppRoles.GlobalAdmin, false, false, 200)]
     [InlineData("laya-native", AppRoles.GlobalAdmin, false, false, 200)]
-    [InlineData("winow-native", AppRoles.User, false, false, 403)]
+    [InlineData("winnow-native", AppRoles.User, false, false, 403)]
     [InlineData("laya-native", AppRoles.User, false, false, 403)]
-    [InlineData("winow-native", AppRoles.GlobalAdmin, true, false, 400)]
+    [InlineData("winnow-native", AppRoles.GlobalAdmin, true, false, 400)]
     [InlineData("laya-native", AppRoles.GlobalAdmin, true, false, 400)]
-    [InlineData("winow-native", AppRoles.GlobalAdmin, false, true, 502)]
+    [InlineData("winnow-native", AppRoles.GlobalAdmin, false, true, 502)]
     [InlineData("laya-native", AppRoles.GlobalAdmin, false, true, 502)]
     [InlineData("ollaya", AppRoles.GlobalAdmin, false, false, 200)]
     [InlineData("ollaya", AppRoles.User, false, false, 403)]

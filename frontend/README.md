@@ -6,7 +6,7 @@ against the search index, side by side.
 
 ## API clients
 
-Decision Making playgrounds include Jev, Microsoft Decision, Ollaya, Winnow Native, and Laya Native, in that order. Each provider has independent request tabs, JSON input, cancellation, response panels and browser-body maximize controls. Native requests use admin-only API routes; endpoint URLs and API keys stay in the API host configuration (`WinowNative` / `LayaNative`). An optional `model` in Request JSON overrides the configured model. Native usage is shown in the evaluation summary, but is not recorded in SystemOne Usage.
+Decision Making playgrounds include Jev, Microsoft Decision, Ollaya, Winnow Native, and Laya Native, in that order. Each provider has independent request tabs, JSON input, cancellation, response panels and browser-body maximize controls. Native requests use admin-only API routes; endpoint URLs and API keys stay in the API host configuration (`WinnowNative` / `LayaNative`). An optional `model` in Request JSON overrides the configured model. Native usage is shown in the evaluation summary, but is not recorded in SystemOne Usage.
 
 API functions live in `src/api/` grouped by feature: `adminClient.ts`, `agentClient.ts`,
 `attachmentClient.ts`, `chatClient.ts`, `searchClient.ts`, `sharePointClient.ts`,

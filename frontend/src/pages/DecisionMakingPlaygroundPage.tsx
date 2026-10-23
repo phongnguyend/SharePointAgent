@@ -7,7 +7,7 @@ const providers = [
   { key: 'jev', label: 'Jev', Icon: BrainCircuit },
   { key: 'microsoft-decision', label: 'Microsoft Decision', Icon: GitBranch },
   { key: 'ollaya', label: 'Ollaya', Icon: Server },
-  { key: 'winow-native', label: 'Winnow Native', Icon: Server },
+  { key: 'winnow-native', label: 'Winnow Native', Icon: Server },
   { key: 'laya-native', label: 'Laya Native', Icon: Server },
 ] as const
 

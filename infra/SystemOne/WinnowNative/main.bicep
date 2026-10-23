@@ -15,7 +15,7 @@ param workloadName string = 'sharepointagent'
 @maxLength(5)
 param environmentName string
 
-@description('Region for the WinowNative environment and app; it must offer serverless T4 GPUs. Changing it deploys a new environment and app with a new endpoint, and leaves the old ones to delete.')
+@description('Region for the WinnowNative environment and app; it must offer serverless T4 GPUs. Changing it deploys a new environment and app with a new endpoint, and leaves the old ones to delete.')
 param winownativeLocation string = resourceGroup().location
 
 param tags object = {}
@@ -26,10 +26,10 @@ param containerRegistryName string
 @description('Name of the existing Log Analytics workspace (infra/main.bicep output logAnalyticsWorkspaceName).')
 param logAnalyticsWorkspaceName string
 
-@description('WinowNative image; defaults to the public hello image until Release - System One - Winnow Native runs.')
+@description('WinnowNative image; defaults to the public hello image until Release - System One - Winnow Native runs.')
 param winownativeImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
 
-@description('Bearer token callers must send. Required for the WinowNative image, because ingress is external.')
+@description('Bearer token callers must send. Required for the WinnowNative image, because ingress is external.')
 @secure()
 param winownativeApiKey string = ''
 
@@ -50,13 +50,13 @@ var resourceTags = union(tags, {
   environment: environmentName
   managedBy: 'Bicep'
 })
-var environmentNameForWinowNative = '${namePrefix}-wn-cae-${regionSuffix}'
+var environmentNameForWinnowNative = '${namePrefix}-wn-cae-${regionSuffix}'
 var winownativeName = '${namePrefix}-wn-${regionSuffix}'
 var gpuProfileName = 'gpu-t4'
 var helloImage = 'mcr.microsoft.com/k8se/quickstart:latest'
-var usesWinowNativeImage = winownativeImage != helloImage
-var healthPath = usesWinowNativeImage ? '/health' : '/'
-var port = usesWinowNativeImage ? 8091 : 80
+var usesWinnowNativeImage = winownativeImage != helloImage
+var healthPath = usesWinnowNativeImage ? '/health' : '/'
+var port = usesWinnowNativeImage ? 8091 : 80
 var acrPullRole = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
 
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
@@ -70,7 +70,7 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09
 // Serverless GPUs need a workload profiles environment; it has no base fee, so this costs nothing
 // while the GPU is scaled to zero.
 resource winownativeEnvironment 'Microsoft.App/managedEnvironments@2025-01-01' = {
-  name: environmentNameForWinowNative
+  name: environmentNameForWinnowNative
   location: winownativeLocation
   tags: resourceTags
   properties: {
@@ -118,13 +118,13 @@ resource winownative 'Microsoft.App/containerApps@2025-01-01' = {
       // Foundry; WINNOW_API_KEY guards it.
       ingress: { external: true, allowInsecure: false, targetPort: port, transport: 'http' }
       registries: [{ server: containerRegistry.properties.loginServer, identity: winownativeIdentity.id }]
-      secrets: usesWinowNativeImage ? [{ name: 'winownative-api-key', value: winownativeApiKey }] : []
+      secrets: usesWinnowNativeImage ? [{ name: 'winownative-api-key', value: winownativeApiKey }] : []
     }
     template: {
       containers: [{
         name: 'winownative'
         image: winownativeImage
-        env: usesWinowNativeImage ? [{ name: 'WINNOW_API_KEY', secretRef: 'winownative-api-key' }] : []
+        env: usesWinnowNativeImage ? [{ name: 'WINNOW_API_KEY', secretRef: 'winownative-api-key' }] : []
         // A T4 replica is a whole NC8as_T4 slice: 8 vCPU, 56 GiB, one 16 GB GPU.
         resources: { cpu: json('8.0'), memory: '56Gi' }
         // Startup budget covers checkpoint loading; health probes do not require authentication.

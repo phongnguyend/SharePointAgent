@@ -16,7 +16,7 @@ public sealed class LayaNativeClientTests
         {
             [$"LayaNative:Endpoint"] = "https://native.example/",
             [$"LayaNative:ApiKey"] = "test-key",
-            [$"WinowNative:Endpoint"] = "not-a-url"
+            [$"WinnowNative:Endpoint"] = "not-a-url"
         }).Build();
         var services = new ServiceCollection();
         services.AddLayaNativeClient(configuration);
@@ -26,7 +26,7 @@ public sealed class LayaNativeClientTests
             Assert.Equal("Bearer", request.Headers.Authorization!.Scheme);
             Assert.Equal("test-key", request.Headers.Authorization.Parameter);
             using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
-            Assert.Equal("multilingual", body.RootElement.GetProperty("model").GetString());
+            Assert.Equal("english", body.RootElement.GetProperty("model").GetString());
             Assert.Equal("en", body.RootElement.GetProperty("lang").GetString());
             Assert.Equal("incident", body.RootElement.GetProperty("state").GetProperty("kind").GetString());
             return new HttpResponseMessage(HttpStatusCode.OK)

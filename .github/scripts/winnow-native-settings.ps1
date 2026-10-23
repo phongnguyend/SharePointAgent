@@ -5,7 +5,8 @@ function Get-WinnowNativeSettings {
         [string] $EnvironmentName
     )
 
-    $Component = 'WinowNative'
+    $Component = 'WinnowNative'
+    # Preserve the deployed Azure, container, image repository and output identifiers.
     $id = 'winownative'
     $parametersFile = "infra/SystemOne/$Component/parameters.$EnvironmentName.json"
     $parameters = (Get-Content -LiteralPath $parametersFile -Raw | ConvertFrom-Json).parameters

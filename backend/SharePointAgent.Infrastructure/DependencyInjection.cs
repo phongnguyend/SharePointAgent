@@ -32,7 +32,7 @@ public static class DependencyInjection
                 (Uri.TryCreate(options.Endpoint, UriKind.Absolute, out var uri) &&
                  uri.Scheme is "http" or "https" && uri.UserInfo.Length == 0 &&
                  uri.Query.Length == 0 && uri.Fragment.Length == 0),
-                "WinowNative:Endpoint must be an HTTP(S) server base URL without credentials, query or fragment.");
+                "WinnowNative:Endpoint must be an HTTP(S) server base URL without credentials, query or fragment.");
         services.AddHttpClient<WinnowNativeClient>(client => client.Timeout = Timeout.InfiniteTimeSpan)
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
         return services;

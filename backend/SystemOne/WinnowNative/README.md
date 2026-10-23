@@ -1,8 +1,8 @@
 # Winnow native
 
-Serves `Winnow-E4B` Q8 directly with the upstream native Winnow/llama.cpp runtime, without Ollaya. The folder and workflow name use `WinowNative` as requested; the upstream model is spelled **Winnow**.
+Serves `Winnow-E4B` Q8 directly with the upstream native Winnow/llama.cpp runtime, without Ollaya.
 
-The [Dockerfile](Dockerfile) targets a T4 GPU with CUDA 12.8, text-only decisions, 8K context and one inference branch. It disables MTP and vision. [Infrastructure and workflow setup](../../../infra/SystemOne/WinowNative/README.md).
+The [Dockerfile](Dockerfile) targets a T4 GPU with CUDA 12.8, text-only decisions, 8K context and one inference branch. It disables MTP and vision. [Infrastructure and workflow setup](../../../infra/SystemOne/WinnowNative/README.md).
 
 ## Build and release
 

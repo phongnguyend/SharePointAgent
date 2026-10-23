@@ -21,7 +21,7 @@ def load_module(service, filename):
 
 class AuthenticationTests(unittest.TestCase):
     def test_missing_short_and_multiline_keys_never_start_server(self):
-        for service, variable in (("WinowNative", "WINNOW_API_KEY"),):
+        for service, variable in (("WinnowNative", "WINNOW_API_KEY"),):
             module = load_module(service, "entrypoint.py")
             for key in ("", "short", " " * 40, "a" * 32 + "\nextra", "a" * 32 + "\rextra"):
                 with self.subTest(service=service, key_length=len(key)):
@@ -32,7 +32,7 @@ class AuthenticationTests(unittest.TestCase):
                         execvp.assert_not_called()
 
     def test_winnow_passes_private_key_file_not_secret_in_arguments(self):
-        module = load_module("WinowNative", "entrypoint.py")
+        module = load_module("WinnowNative", "entrypoint.py")
         key = "test-token-" * 4
         with patch.dict(os.environ, {"WINNOW_API_KEY": key}, clear=True), patch.object(module.os, "execv") as execute:
             module.main()
@@ -52,7 +52,7 @@ class AuthenticationTests(unittest.TestCase):
 
 class ArtifactTests(unittest.TestCase):
     def check_download(self, expected_size, expected_digest, succeeds):
-        module = load_module("WinowNative", "download_model.py")
+        module = load_module("WinnowNative", "download_model.py")
         payload = b"small fake GGUF fixture, not model weights"
         with tempfile.TemporaryDirectory() as directory:
             destination = Path(directory) / "fixture.gguf"

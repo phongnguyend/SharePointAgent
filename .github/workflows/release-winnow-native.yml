@@ -58,7 +58,7 @@ jobs:
       - name: Build remotely, release, and smoke-test
         env:
           WINNOW_NATIVE_API_KEY: ${{ secrets.WINNOW_NATIVE_API_KEY }}
-        run: ./.github/scripts/release-winow-native.ps1 -EnvironmentName $env:DEPLOY_ENVIRONMENT
+        run: ./.github/scripts/release-winnow-native.ps1 -EnvironmentName $env:DEPLOY_ENVIRONMENT
       - name: Remove temporary request file
         if: always()
         run: |

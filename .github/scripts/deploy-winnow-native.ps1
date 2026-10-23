@@ -4,10 +4,10 @@ param(
     [string] $EnvironmentName
 )
 
-$Component = 'WinowNative'
+$Component = 'WinnowNative'
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
-. "$PSScriptRoot/winow-native-settings.ps1"
+. "$PSScriptRoot/winnow-native-settings.ps1"
 $settings = Get-WinnowNativeSettings $EnvironmentName
 $id = $settings.Id
 $group = $settings.ResourceGroup

@@ -14,8 +14,8 @@ public sealed class WinnowNativeClientTests
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            [$"WinowNative:Endpoint"] = "https://native.example/",
-            [$"WinowNative:ApiKey"] = "test-key",
+            [$"WinnowNative:Endpoint"] = "https://native.example/",
+            [$"WinnowNative:ApiKey"] = "test-key",
             [$"LayaNative:Endpoint"] = "not-a-url"
         }).Build();
         var services = new ServiceCollection();
