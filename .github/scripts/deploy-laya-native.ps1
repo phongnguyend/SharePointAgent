@@ -43,7 +43,7 @@ try {
     New-Item -ItemType File -Path $parameterPath -Force | Out-Null
     chmod 600 $parameterPath
     @{ parameters = $parameters } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $parameterPath
-    az bicep build --file "infra/$Component/main.bicep" --outfile $templatePath
+    az bicep build --file "infra/SystemOne/$Component/main.bicep" --outfile $templatePath
     az deployment group validate --resource-group $group --template-file $templatePath --parameters $settings.ParametersFile $parameterPath --output none
     $outputs = az deployment group create --resource-group $group --name $settings.Deployment --mode Incremental `
         --template-file $templatePath --parameters $settings.ParametersFile $parameterPath --query properties.outputs -o json | ConvertFrom-Json

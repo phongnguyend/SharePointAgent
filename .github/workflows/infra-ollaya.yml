@@ -44,13 +44,13 @@ jobs:
             throw 'Select dev or test as the target environment.'
           }
           $settings = (Get-Content "infra/parameters.$env:DEPLOY_ENVIRONMENT.json" -Raw | ConvertFrom-Json).parameters
-          $parametersFile = "infra/Ollaya/parameters.$env:DEPLOY_ENVIRONMENT.json"
+          $parametersFile = "infra/SystemOne/Ollaya/parameters.$env:DEPLOY_ENVIRONMENT.json"
           $ollayaSettings = (Get-Content $parametersFile -Raw | ConvertFrom-Json).parameters
           if ($settings.environmentName.value -ne $env:DEPLOY_ENVIRONMENT -or $ollayaSettings.environmentName.value -ne $env:DEPLOY_ENVIRONMENT) {
             throw 'Parameter environment does not match the selected environment.'
           }
           if ($ollayaSettings.workloadName.value -ne $settings.workloadName.value) {
-            throw 'workloadName in infra/Ollaya/parameters must match infra/parameters, so resource names line up.'
+            throw 'workloadName in infra/SystemOne/Ollaya/parameters must match infra/parameters, so resource names line up.'
           }
           if (-not [string]::IsNullOrWhiteSpace($env:OLLAYA_IMAGE) -and $env:OLLAYA_API_KEY.Length -lt 32) {
             throw 'OLLAYA_IMAGE is set, so OLLAYA_API_KEY must be set to 32+ characters: the Ollaya ingress is external.'
@@ -87,7 +87,7 @@ jobs:
             }
             $workspace = $workspaces[0]
           }
-          # Region, replicas, and names come from infra/Ollaya/parameters.<environment>.json.
+          # Region, replicas, and names come from infra/SystemOne/Ollaya/parameters.<environment>.json.
           $parameters = @{
             containerRegistryName = @{ value = $outputs.containerRegistryName.value }
             logAnalyticsWorkspaceName = @{ value = $workspace }
@@ -105,7 +105,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
-          az bicep build --file infra/Ollaya/main.bicep --outfile "$env:RUNNER_TEMP/ollaya.json"
+          az bicep build --file infra/SystemOne/Ollaya/main.bicep --outfile "$env:RUNNER_TEMP/ollaya.json"
           az deployment group validate --resource-group $env:RESOURCE_GROUP `
             --template-file "$env:RUNNER_TEMP/ollaya.json" --parameters $env:PARAMETERS_FILE "$env:RUNNER_TEMP/ollaya.parameters.json" --output none
           $outputs = az deployment group create --resource-group $env:RESOURCE_GROUP --name "ollaya-$env:DEPLOY_ENVIRONMENT" `

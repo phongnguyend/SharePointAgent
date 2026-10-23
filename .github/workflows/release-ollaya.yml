@@ -48,7 +48,7 @@ jobs:
       DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
       AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
       OLLAYA_MODEL: ${{ vars.OLLAYA_MODEL || 'winnow:e4b' }}
-      # The image tag comes from the content of backend/Ollaya, so an unchanged image is reused.
+      # The image tag comes from the content of backend/SystemOne/Ollaya, so an unchanged image is reused.
       OLLAYA_REBUILD: ${{ inputs.rebuild && 'true' || 'false' }}
     defaults:
       run:

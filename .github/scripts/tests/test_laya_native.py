@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[3]
 
 
 def load_entrypoint():
-    spec = importlib.util.spec_from_file_location("laya_entrypoint", ROOT / "backend/LayaNative/entrypoint.py")
+    spec = importlib.util.spec_from_file_location("laya_entrypoint", ROOT / "backend/SystemOne/LayaNative/entrypoint.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

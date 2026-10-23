@@ -576,7 +576,7 @@ output containerAppsEnvironmentName string = containerAppsEnvironment.name
 output staticWebAppName string = staticWebApp.name
 output staticWebAppUrl string = 'https://${staticWebApp.properties.defaultHostname}'
 output containerRegistryLoginServer string = containerRegistry.properties.loginServer
-// Ollaya's own environment (infra/Ollaya) sends its logs to the same workspace.
+// Ollaya's own environment (infra/SystemOne/Ollaya) sends its logs to the same workspace.
 output logAnalyticsWorkspaceName string = logAnalyticsWorkspace.name
 output applicationInsightsName string = applicationInsights.name
 output applicationInsightsConnectionString string = applicationInsights.properties.ConnectionString

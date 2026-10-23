@@ -4,13 +4,13 @@ on:
   push:
     branches: ['**']
     paths:
-      - 'backend/Ollaya/**'
-      - 'infra/Ollaya/**'
+      - 'backend/SystemOne/Ollaya/**'
+      - 'infra/SystemOne/Ollaya/**'
       - '.github/workflows/ollaya-ci.yml'
   pull_request:
     paths:
-      - 'backend/Ollaya/**'
-      - 'infra/Ollaya/**'
+      - 'backend/SystemOne/Ollaya/**'
+      - 'infra/SystemOne/Ollaya/**'
       - '.github/workflows/ollaya-ci.yml'
   workflow_dispatch:
 
@@ -30,8 +30,8 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
-      - name: Compile infra/Ollaya/main.bicep
-        run: az bicep build --file infra/Ollaya/main.bicep --stdout > /dev/null
+      - name: Compile infra/SystemOne/Ollaya/main.bicep
+        run: az bicep build --file infra/SystemOne/Ollaya/main.bicep --stdout > /dev/null
 
   # The release image (CUDA base plus the 8 GB winnow:e4b model) would not fit a hosted runner's
   # disk, and there is no GPU here. The same Dockerfile built on Ollaya's CPU base with its small
@@ -54,7 +54,7 @@ jobs:
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
           docker build --build-arg OLLAYA_IMAGE=ghcr.io/ollaya-dev/ollaya:0.12.0 --build-arg OLLAYA_MODEL=laya `
-            --tag ollaya:ci backend/Ollaya
+            --tag ollaya:ci backend/SystemOne/Ollaya
       - name: Smoke-test
         run: |
           $ErrorActionPreference = 'Stop'

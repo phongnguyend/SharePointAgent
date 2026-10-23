@@ -7,14 +7,14 @@
 `winnow:e4b` needs about 9 GB of GPU memory and takes seconds per request on a CPU. Build on a machine with an NVIDIA GPU:
 
 ```powershell
-docker build -t ollaya backend/Ollaya
+docker build -t ollaya backend/SystemOne/Ollaya
 docker run --rm --gpus=all -p 11435:11435 -e OLLAYA_API_KEY=<random-key> ollaya
 ```
 
 To try the image logic without a GPU, build the CPU variant with Ollaya's small model:
 
 ```powershell
-docker build --build-arg OLLAYA_IMAGE=ghcr.io/ollaya-dev/ollaya:0.12.0 --build-arg OLLAYA_MODEL=laya -t ollaya-cpu backend/Ollaya
+docker build --build-arg OLLAYA_IMAGE=ghcr.io/ollaya-dev/ollaya:0.12.0 --build-arg OLLAYA_MODEL=laya -t ollaya-cpu backend/SystemOne/Ollaya
 ```
 
 ## API
@@ -122,7 +122,7 @@ Observed on 2026-10-22, a two-question request took **57.998 s total**, includin
 
 ### 3. Investigate lifecycle and mitigate cold requests
 
-The deployment defaults to `minReplicas: 0` and `maxReplicas: 1` in [the infrastructure template](../../infra/Ollaya/main.bicep). The image bakes model files onto disk and sets `OLLAYA_KEEP_ALIVE=-1`, but does not preload the model at runtime. Both readiness and liveness currently probe `/`, so readiness does not establish model readiness.
+The deployment defaults to `minReplicas: 0` and `maxReplicas: 1` in [the infrastructure template](../../../infra/SystemOne/Ollaya/main.bicep). The image bakes model files onto disk and sets `OLLAYA_KEEP_ALIVE=-1`, but does not preload the model at runtime. Both readiness and liveness currently probe `/`, so readiness does not establish model readiness.
 
 When loading repeats, check Container Apps console and system logs around the request timestamps for replica creation, revision changes, restarts, out-of-memory events, and model-loading messages. Record the image/version, replica identity, request timings, input size, and question count. A fast health check does not exclude any of these model-related delays.
 
@@ -153,4 +153,4 @@ The `cuda12` base runs on both the 570 driver that Container Apps serverless GPU
 
 ## Deployment
 
-See [Ollaya decision model](../../infra/README.md#ollaya-decision-model): **Deploy Ollaya infrastructure** creates a Container Apps environment of its own, in a region of your choice, with the app on a serverless T4 GPU, and **Release Ollaya** builds this image and rolls it out. The apps reach it over HTTPS from any environment or region.
+See [Ollaya decision model](../../../infra/README.md#ollaya-decision-model): **Deploy Ollaya infrastructure** creates a Container Apps environment of its own, in a region of your choice, with the app on a serverless T4 GPU, and **Release Ollaya** builds this image and rolls it out. The apps reach it over HTTPS from any environment or region.

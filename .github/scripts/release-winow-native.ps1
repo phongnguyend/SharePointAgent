@@ -26,7 +26,7 @@ if ($app.properties.runningStatus -ne 'Running') {
 }
 
 # Hash all build inputs, including source/model pins. Unchanged images can be reused.
-$context = (Resolve-Path -LiteralPath "backend/$Component").Path
+$context = (Resolve-Path -LiteralPath "backend/SystemOne/$Component").Path
 $hash = [Security.Cryptography.IncrementalHash]::CreateHash([Security.Cryptography.HashAlgorithmName]::SHA256)
 try {
     $files = Get-ChildItem -LiteralPath $context -File -Recurse | Where-Object { $_.Extension -ne '.md' -and $_.FullName -notmatch '[/\\]__pycache__[/\\]' } | Sort-Object FullName

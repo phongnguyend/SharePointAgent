@@ -1,6 +1,6 @@
 # Laya native
 
-Serves Laya's native Python System One API without Ollaya. The [Dockerfile](Dockerfile) uses **CPU-only PyTorch**, four threads and preloads the English and multilingual checkpoints. [Infrastructure and workflow setup](../../infra/LayaNative/README.md).
+Serves Laya's native Python System One API without Ollaya. The [Dockerfile](Dockerfile) uses **CPU-only PyTorch**, four threads and preloads the English and multilingual checkpoints. [Infrastructure and workflow setup](../../../infra/SystemOne/LayaNative/README.md).
 
 ## Build and release
 

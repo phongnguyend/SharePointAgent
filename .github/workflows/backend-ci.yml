@@ -8,7 +8,7 @@ on:
       # These have their own workflows: markitdown-ci.yml, pageindex-ci.yml, ollaya-ci.yml.
       - '!backend/MarkItDown/**'
       - '!backend/PageIndex/**'
-      - '!backend/Ollaya/**'
+      - '!backend/SystemOne/Ollaya/**'
       - 'global.json'
       - 'NuGet.Config'
       - 'nuget.config'
@@ -21,7 +21,7 @@ on:
       # These have their own workflows: markitdown-ci.yml, pageindex-ci.yml, ollaya-ci.yml.
       - '!backend/MarkItDown/**'
       - '!backend/PageIndex/**'
-      - '!backend/Ollaya/**'
+      - '!backend/SystemOne/Ollaya/**'
       - 'global.json'
       - 'NuGet.Config'
       - 'nuget.config'

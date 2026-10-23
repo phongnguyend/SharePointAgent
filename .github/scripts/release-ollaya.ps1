@@ -16,7 +16,7 @@ $endpoint = $ollayaOutputs.ollayaEndpoint.value.TrimEnd('/')
 # ACR Tasks keeps no layer cache between runs, so an unchanged image would otherwise be rebuilt from
 # scratch on every release: an 8 GB model download and a 10 GB push, about eight minutes.
 $hash = [Security.Cryptography.IncrementalHash]::CreateHash([Security.Cryptography.HashAlgorithmName]::SHA256)
-$context = (Resolve-Path -LiteralPath backend/Ollaya).Path
+$context = (Resolve-Path -LiteralPath backend/SystemOne/Ollaya).Path
 $files = Get-ChildItem -LiteralPath $context -File -Recurse | Where-Object { $_.Extension -ne '.md' } | Sort-Object FullName
 foreach ($file in $files) {
   $hash.AppendData([Text.Encoding]::UTF8.GetBytes([IO.Path]::GetRelativePath($context, $file.FullName).Replace('\', '/') + "`n"))
@@ -38,7 +38,7 @@ if ($found -and $env:OLLAYA_REBUILD -ne 'true') {
   $built = 'reused'
 } else {
   # The model is baked into the image, so this pulls about 8 GB inside ACR Tasks rather than on the runner.
-  Push-Location backend/Ollaya
+  Push-Location backend/SystemOne/Ollaya
   try {
     az acr build --registry $shared.containerRegistryName.value --platform linux/amd64 --no-logs --timeout 7200 `
       --image "ollaya:$tag" --build-arg "OLLAYA_MODEL=$env:OLLAYA_MODEL" --file Dockerfile .

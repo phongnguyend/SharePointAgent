@@ -1,6 +1,6 @@
 # Laya Native infrastructure
 
-Deploys native Laya in its own Azure Container Apps **CPU consumption** environment with 4 vCPU and 8 GiB RAM. It shares the existing registry and Log Analytics workspace, but does not require GPU quota. See the [runtime/API documentation](../../backend/LayaNative/README.md).
+Deploys native Laya in its own Azure Container Apps **CPU consumption** environment with 4 vCPU and 8 GiB RAM. It shares the existing registry and Log Analytics workspace, but does not require GPU quota. See the [runtime/API documentation](../../../backend/SystemOne/LayaNative/README.md).
 
 ## Setup
 
@@ -15,7 +15,7 @@ The deployment identity needs resource deployment, managed identity/role assignm
 
 ## Reruns and lifecycle
 
-Laya owns its [settings](../../.github/scripts/laya-native-settings.ps1), [deploy](../../.github/scripts/deploy-laya-native.ps1), [release](../../.github/scripts/release-laya-native.ps1), and [start/stop](../../.github/scripts/manage-laya-native.ps1) scripts. Its API integration uses `LayaNativeClient` and `LayaNativeOptions`, configured through the `LayaNative` section.
+Laya owns its [settings](../../../.github/scripts/laya-native-settings.ps1), [deploy](../../../.github/scripts/deploy-laya-native.ps1), [release](../../../.github/scripts/release-laya-native.ps1), and [start/stop](../../../.github/scripts/manage-laya-native.ps1) scripts. Its API integration uses `LayaNativeClient` and `LayaNativeOptions`, configured through the `LayaNative` section.
 
 Infrastructure reruns retain the deployed image. **`LAYA_NATIVE_IMAGE`** is an optional explicit override for rollback; use a recorded image digest and clear obsolete overrides before future releases. Release skips unchanged builds unless `rebuild` is selected. Source/model pins live in the backend build context.
 
@@ -28,6 +28,6 @@ Deployment name: `layanative-dev` / `layanative-test`. Outputs: `layanativeConta
 Static validation (no deployment, models or Docker):
 
 ```powershell
-az bicep build --file infra/LayaNative/main.bicep --outfile "$env:TEMP/layanative.json"
+az bicep build --file infra/SystemOne/LayaNative/main.bicep --outfile "$env:TEMP/layanative.json"
 python -B -m unittest discover -s .github/scripts/tests -p test_laya_native.py
 ```

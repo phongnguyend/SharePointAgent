@@ -1,6 +1,6 @@
 # Winow Native infrastructure
 
-Deploys native Winnow in its own Azure Container Apps environment using a serverless **T4** profile (8 vCPU, 56 GiB RAM, 16 GB GPU). It reuses the registry and Log Analytics workspace from the shared `infra-<environment>` deployment. See the [runtime/API documentation](../../backend/WinowNative/README.md).
+Deploys native Winnow in its own Azure Container Apps environment using a serverless **T4** profile (8 vCPU, 56 GiB RAM, 16 GB GPU). It reuses the registry and Log Analytics workspace from the shared `infra-<environment>` deployment. See the [runtime/API documentation](../../../backend/SystemOne/WinowNative/README.md).
 
 ## Setup
 
@@ -15,7 +15,7 @@ The deployment identity needs the same permissions as the Ollaya workflows: reso
 
 ## Reruns, releases and lifecycle
 
-Winnow owns its [settings](../../.github/scripts/winow-native-settings.ps1), [deploy](../../.github/scripts/deploy-winow-native.ps1), [release](../../.github/scripts/release-winow-native.ps1), and [start/stop](../../.github/scripts/manage-winow-native.ps1) scripts. Its API integration uses `WinnowNativeClient` and `WinnowNativeOptions`; the configuration section remains `WinowNative` to match the existing deployment folder.
+Winnow owns its [settings](../../../.github/scripts/winow-native-settings.ps1), [deploy](../../../.github/scripts/deploy-winow-native.ps1), [release](../../../.github/scripts/release-winow-native.ps1), and [start/stop](../../../.github/scripts/manage-winow-native.ps1) scripts. Its API integration uses `WinnowNativeClient` and `WinnowNativeOptions`; the configuration section remains `WinowNative` to match the existing deployment folder.
 
 - Infrastructure reruns preserve the current container image. Optional **`WINNOW_NATIVE_IMAGE`** overrides it, useful for rollback to a recorded digest. Clear an obsolete override before future infrastructure reruns.
 - `rebuild` on the release workflow forces a remote rebuild; otherwise unchanged content tags are reused. The deployed image is pinned by digest.
@@ -28,6 +28,6 @@ Deployment name: `winownative-dev` / `winownative-test`. Output names: `winownat
 Static validation (no deployment, models or Docker):
 
 ```powershell
-az bicep build --file infra/WinowNative/main.bicep --outfile "$env:TEMP/winownative.json"
+az bicep build --file infra/SystemOne/WinowNative/main.bicep --outfile "$env:TEMP/winownative.json"
 python -B -m unittest discover -s .github/scripts/tests -p test_winnow_native.py
 ```

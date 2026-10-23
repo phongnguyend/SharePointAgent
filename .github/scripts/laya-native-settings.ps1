@@ -7,14 +7,14 @@ function Get-LayaNativeSettings {
 
     $Component = 'LayaNative'
     $id = 'layanative'
-    $parametersFile = "infra/$Component/parameters.$EnvironmentName.json"
+    $parametersFile = "infra/SystemOne/$Component/parameters.$EnvironmentName.json"
     $parameters = (Get-Content -LiteralPath $parametersFile -Raw | ConvertFrom-Json).parameters
     $shared = (Get-Content "infra/parameters.$EnvironmentName.json" -Raw | ConvertFrom-Json).parameters
     if ($parameters.environmentName.value -ne $EnvironmentName -or $shared.environmentName.value -ne $EnvironmentName) {
         throw 'Parameter environment does not match the selected environment.'
     }
     if ($parameters.workloadName.value -ne $shared.workloadName.value) {
-        throw "workloadName in infra/$Component must match infra/parameters."
+        throw "workloadName in infra/SystemOne/$Component must match infra/parameters."
     }
     $resourceGroup = $env:AZURE_RESOURCE_GROUP
     if ([string]::IsNullOrWhiteSpace($resourceGroup)) {
