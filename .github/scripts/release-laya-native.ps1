@@ -45,7 +45,7 @@ $found = $LASTEXITCODE -eq 0 -and $existing -eq $tag
 $PSNativeCommandUseErrorActionPreference = $true
 if (-not $found -or $env:LAYA_NATIVE_REBUILD -eq 'true') {
     # All compiler work and model downloads happen on ACR, never local Docker or the runner.
-    az acr build --registry $shared.containerRegistryName.value --platform linux/amd64 --cpu 4 --no-logs --timeout 10800 `
+    az acr build --registry $shared.containerRegistryName.value --platform linux/amd64 --no-logs --timeout 10800 `
         --image "${id}:$tag" --file Dockerfile $context
 } else {
     Write-Host "Reusing $image."
